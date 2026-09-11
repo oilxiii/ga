@@ -94,6 +94,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .timeline-slot.current { background: linear-gradient(180deg,#fff7d6 0 31%,#dcecff 31% 100%); box-shadow: inset 0 0 0 2px #f1b92e; }
 .slot-number { height: 24px; display: grid; place-items: center; color: #536779; font-size: .72rem; font-weight: 950; }
 .timeline-stack { min-height: 50px; display: flex; align-items: center; justify-content: center; flex-wrap: nowrap; padding: 2px; }
+.timeline-team-row { display: contents; }
 .timeline-icon { position: relative; flex: 0 0 auto; width: 35px; height: 35px; overflow: hidden; border-radius: 50%; background: #f5f7fa; border: 2px solid var(--team); box-shadow: 0 2px 7px rgba(0,0,0,.48); }
 .timeline-icon img, .active-hud-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .timeline-icon + .timeline-icon { margin-left: -11px; }
@@ -104,13 +105,8 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .game-grid { display: block; margin-top: 8px; }
 .battlefield-panel, .command-panel, .tactics-panel { border: 1px solid var(--line); background: var(--panel); box-shadow: 0 16px 46px rgba(0,0,0,.34); }
 .battlefield-panel { min-width: 0; width: 100%; }
-.battlefield-head { height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 14px; background: linear-gradient(90deg, rgba(18,61,89,.68), transparent); border-bottom: 1px solid var(--line); }
+.battlefield-head { min-height: 0; display: block; padding: 0; background: linear-gradient(90deg, rgba(18,61,89,.68), rgba(5,19,31,.94)); border-bottom: 1px solid var(--line); }
 .battlefield-head strong, .tactics-title strong { font-size: .9rem; letter-spacing: .06em; }
-.legend { display: flex; gap: 10px; color: var(--muted); font-size: .68rem; }
-.legend span { display: inline-flex; gap: 5px; align-items: center; }
-.legend i { width: 11px; height: 11px; border: 1px solid rgba(255,255,255,.35); transform: rotate(30deg); }
-.legend .e0 { background: #49382e; }.legend .e1 { background: #7c4d2c; }.legend .e2 { background: #281f27; }
-.board-tools { display: flex; align-items: center; gap: 12px; }
 
 .board-wrap {
   position: relative;
@@ -180,21 +176,21 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 @keyframes char-kick-victim-flash { from { filter: brightness(.92) saturate(1.1) drop-shadow(0 2px 2px rgba(0,0,0,.7)); } to { filter: brightness(1.35) saturate(1.55) drop-shadow(0 0 9px #ff203d); } }
 @keyframes char-kick-menu-pulse { from { filter: brightness(.96); } to { filter: brightness(1.08); } }
 
+.unit-data-head { overflow: visible; }
 .hud-stack {
-  position: absolute;
-  top: 12px;
-  left: 12px;
+  position: static;
   z-index: 6;
-  width: min(280px, calc(100% - 24px));
-  pointer-events: none;
+  width: 100%;
+  pointer-events: auto;
 }
 .active-hud {
   position: static;
-  min-width: 220px;
-  max-width: 280px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   pointer-events: none;
 }
-.active-hud-inner { display: grid; grid-template-columns: 52px 1fr; gap: 9px; align-items: center; padding: 8px 10px; border: 1px solid color-mix(in srgb,var(--team),white 20%); border-left: 4px solid var(--team); background: rgba(3,12,21,.92); box-shadow: 0 8px 25px rgba(0,0,0,.5); }
+.active-hud-inner { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 9px; align-items: center; padding: 8px 12px; border: 0; border-left: 4px solid var(--team); background: rgba(3,12,21,.82); box-shadow: none; }
 .log-toggle {
   display: flex;
   align-items: center;
@@ -391,20 +387,54 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   .game-shell { padding: 6px; }
   .topbar { grid-template-columns: 1fr auto; }
   .match-state { grid-column: 1 / -1; grid-row: 2; width: 100%; grid-template-columns: 1fr 1.15fr 1fr; }
-  .timeline-panel { grid-template-columns: 58px minmax(0,1fr); overflow: hidden; }
-  .timeline { min-width: 0; }
-  .timeline-icon { width: 22px; height: 22px; background-size: 115px auto; }
-  .timeline-stack { gap: 0; }
-  .slot-number { font-size: .62rem; }
+  .timeline-panel { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto; overflow: hidden; }
+  .timeline-title {
+    min-height: 22px;
+    border-right: 0;
+    border-bottom: 1px solid #5a7990;
+    background: linear-gradient(90deg,#153b57,#071726);
+  }
+  .timeline-title span { font-size: .58rem; letter-spacing: .12em; }
+  .timeline { grid-template-columns: repeat(10, minmax(0,1fr)); min-width: 0; width: 100%; }
+  .timeline-slot { min-width: 0; min-height: 58px; }
+  .timeline-icon { width: 20px; height: 20px; background-size: 105px auto; border-width: 1px; }
+  .timeline-icon + .timeline-icon { margin-left: 0; }
+  .timeline-stack {
+    min-width: 0;
+    min-height: 44px;
+    display: grid;
+    grid-template-rows: repeat(2, 22px);
+    gap: 0;
+    padding: 0;
+    overflow: visible;
+  }
+  .timeline-team-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+  }
+  .timeline-team-row.fed { border-bottom: 1px solid rgba(42,70,92,.14); }
+  .timeline-team-row .timeline-icon + .timeline-icon { margin-left: -8px; }
+  .slot-number { height: 19px; font-size: .58rem; }
   .board-wrap { overflow-x: auto; min-height: 560px; }
   #board { height: 560px; }
-  .battlefield-head { align-items: flex-start; height: auto; }
-  .legend { flex-direction: column; gap: 3px; }
+  .battlefield-head { height: auto; }
   .tactics-panel { grid-template-columns: 1fr; }
   .tactic-card { flex-basis: 104px; }
   .tactic-confirm-layout { grid-template-columns: 1fr; }
   .tactic-confirm-layout .modal-card-image { width: min(260px, 72vw); margin: 0 auto; }
   .brand h1 { font-size: 1rem; }
-  .hud-stack { transform: scale(.9); transform-origin: top left; }
-  .board-feed { width: 100%; }
+  .hud-stack { transform: none; }
+  .active-hud-inner { grid-template-columns: 44px minmax(0, 1fr); gap: 7px; padding: 6px 8px; }
+  .active-hud-portrait { width: 44px; height: 44px; }
+  .active-hud h2 { font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .active-hud p { margin: 1px 0 3px; font-size: .58rem; }
+  .active-hud .hp-line { font-size: .58rem; }
+  .active-hud-stats { gap: 3px; }
+  .active-hud-stats .chip { padding: 3px 5px; font-size: .56rem; }
+  .active-hud-stats .token-chip img { width: 15px; height: 15px; }
+  .log-toggle { margin-top: 0; border-right: 0; border-left-width: 4px; border-bottom: 0; }
+  .board-feed { width: 100%; max-height: 150px; }
 }

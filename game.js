@@ -144,10 +144,13 @@
   }
 
   function renderTimeline() {
+    const timelineIcon = unit => `<i class="timeline-icon ${unit.id===state.activeUnitId?"active":""} ${state.resolvedThisTick.has(unit.id)?"acted":""} ${unit.zone==="reserve"?"reserve":""}" style="--team:${D.teams[unit.team].color}" title="${unit.name}${unit.weaponBadge?` ${unit.weaponBadge}`:""}" aria-label="${unit.name}${unit.weaponBadge?` ${unit.weaponBadge}`:""}"><img src="${unit.icon}" alt=""></i>`;
     $("#timeline").innerHTML = Array.from({length:10},(_,index)=>{
       const slot=index+1;
       const units=state.units.filter(unit=>E.timelineSlot(unit.nextAt)===slot);
-      return `<div class="timeline-slot ${slot===state.round?"current":""}"><div class="slot-number">${slot}</div><div class="timeline-stack">${units.map(unit=>`<i class="timeline-icon ${unit.id===state.activeUnitId?"active":""} ${state.resolvedThisTick.has(unit.id)?"acted":""} ${unit.zone==="reserve"?"reserve":""}" style="--team:${D.teams[unit.team].color}" title="${unit.name}${unit.weaponBadge?` ${unit.weaponBadge}`:""}" aria-label="${unit.name}${unit.weaponBadge?` ${unit.weaponBadge}`:""}"><img src="${unit.icon}" alt=""></i>`).join("")}</div></div>`;
+      const fedUnits=units.filter(unit=>unit.team==="fed");
+      const zeonUnits=units.filter(unit=>unit.team==="zeon");
+      return `<div class="timeline-slot ${slot===state.round?"current":""}"><div class="slot-number">${slot}</div><div class="timeline-stack"><div class="timeline-team-row fed">${fedUnits.map(timelineIcon).join("")}</div><div class="timeline-team-row zeon">${zeonUnits.map(timelineIcon).join("")}</div></div></div>`;
     }).join("");
   }
 
@@ -261,7 +264,7 @@
     const chips=[];
     for (const [type,count] of Object.entries(unit.upgrades)) if (count) chips.push(`<span class="chip good token-chip"><img src="${assetPath(`assets/tokens/${type}.png`)}" alt="">${type.toUpperCase()} ×${count}</span>`);
     for (const [type,on] of Object.entries(unit.statuses)) if (on) chips.push(`<span class="chip bad token-chip"><img src="${assetPath(`assets/tokens/${type}.png`)}" alt="">${type.toUpperCase()}</span>`);
-    $("#active-hud").innerHTML=`<div class="active-hud-inner" style="--team:${team.color}"><div class="active-hud-portrait"><img src="${unit.icon}" alt=""></div><div><span class="eyebrow">${unit.model}</span><h2>${unit.name}${unit.weaponBadge?` · ${unit.weaponBadge}`:""}</h2><p>${unit.zone==="reserve"?"RESERVE":unit.role}</p><div class="hp-line"><span>HP</span><div class="bar"><i style="width:${unit.hp/unit.maxHp*100}%"></i></div><b>${unit.hp}/${unit.maxHp}</b></div></div><div class="active-hud-stats"><span class="chip">⚡ ${unit.energy}</span>${chips.join("")}</div></div>`;
+    $("#active-hud").innerHTML=`<div class="active-hud-inner" style="--team:${team.color}"><div class="active-hud-portrait"><img src="${unit.icon}" alt=""></div><div><span class="eyebrow">${unit.model}</span><h2>${unit.name}</h2><p>${unit.zone==="reserve"?"RESERVE":unit.role}</p><div class="hp-line"><span>HP</span><div class="bar"><i style="width:${unit.hp/unit.maxHp*100}%"></i></div><b>${unit.hp}/${unit.maxHp}</b></div></div><div class="active-hud-stats"><span class="chip">⚡ ${unit.energy}</span>${chips.join("")}</div></div>`;
   }
 
   function hasOwnGarrisonInRange(unit, range=1) { return state.garrisons.some(g=>g.team===unit.team && E.distance(unit,g)<=range); }
@@ -879,7 +882,7 @@
   }
 
   $("#restart-btn").addEventListener("click",()=>{if(confirm("เริ่มเกมใหม่และล้างสถานะปัจจุบัน?"))resetGame();});
-  $("#rules-btn").addEventListener("click",showRules);
+  $("#rules-btn")?.addEventListener("click",showRules);
   $("#log-toggle").addEventListener("click",()=>{
     const feed=$("#combat-feed");
     const button=$("#log-toggle");
