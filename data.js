@@ -53,7 +53,7 @@
       icon: "assets/icons/zaku-bazooka.png",
       weapons: [
         { id: "cracker-grenade", name: "Cracker Grenade", timeline: 2, range: 3, strength: 2, effect: "splash", critical: "splashDamage1" },
-        { id: "bazooka", name: "Bazooka", timeline: 3, range: 3, strength: 4, critical: "damage1" }
+        { id: "bazooka", name: "Bazooka", timeline: 3, range: 3, strength: 4, critical: "rescuedGarrisonDamage" }
       ],
       command: { id: "zeon-zealotry", name: "Zeon Zealotry", energy: 1, text: "เคลื่อนที่สูงสุด 5 ช่องเข้าหา Unit ศัตรูที่มี Damage โดยไม่สนใจผลของภูมิประเทศ" },
       response: { name: "Rescue the Mechanics", text: "หลัง Zaku II ช่วยเหลือ Garrison สำเร็จ อาจซ่อมแซม Damage 2 ให้ Unit ฝ่ายเรา 1 ตัว" }
@@ -103,16 +103,19 @@
     upgrades: [[1,2],[11,2],[4,4],[7,6],[0,7],[14,6],[10,9],[3,10],[13,10]]
   };
 
-  // Registered against the uploaded Sleeping Leviathan setup image. The dark central crown is level 2;
-  // the surrounding ochre ring and outlying mesas are level 1.
+  // Registered against the unobstructed Sleeping Leviathan terrain reference.
+  // The terrain is rotationally symmetric around the center hex (7,6): dark crown = level 2, light mesas/ring = level 1.
   const elevation2 = [[7,5],[6,6],[7,6],[8,6],[6,7],[7,7],[8,7]];
   const elevation1 = [
-    [1,3],[2,3],[4,3],[10,3],[12,4],
-    [5,5],[6,5],[8,5],[9,5],
-    [4,6],[5,6],[9,6],[10,6],
+    [1,2],[11,2],
+    [1,3],[3,3],[4,3],[6,3],[10,3],
+    [7,4],[12,4],
+    [5,5],[6,5],[8,5],[9,5],[12,5],
+    [3,6],[4,6],[5,6],[9,6],[10,6],[11,6],
     [4,7],[5,7],[9,7],[10,7],
-    [5,8],[6,8],[7,8],[8,8],[9,8],
-    [4,9],[10,9],[12,9],[3,10],[13,10]
+    [2,8],[6,8],[7,8],[8,8],
+    [2,9],[11,9],[13,9],
+    [3,10],[4,10],[8,10],[10,10],[13,10]
   ];
 
   const data = {
@@ -121,9 +124,10 @@
       zeon: { name: "Principality of Zeon", short: "ZEON", color: "#ff405a" }
     },
     rules: {
-      advance: { distance: 3, timeline: 1 },
+      advance: { distance: 3, timeline: 0 },
       dash: { distance: 2, timeline: 2 },
-      rescue: { timeline: 2, vp: 2 }
+      rescue: { timeline: 2, vp: 2 },
+      movement: { garrisonsBlock: true }
     },
     units,
     tactics,

@@ -64,45 +64,105 @@
     return state.units.find(unit => unit.zone === "board" && unit.q === q && unit.r === r) || null;
   }
 
+  function garrisonAt(state, q, r) {
+    return state.garrisons?.find(garrison => garrison.q === q && garrison.r === r) || null;
+  }
+
   function hasLineOfSight(state, attacker, target) {
     const path = line(attacker, target);
     const aElev = elevationAt(state, attacker.q, attacker.r);
     const tElev = elevationAt(state, target.q, target.r);
     const ceiling = Math.max(aElev, tElev);
+    const sameElevation = aElev === tElev;
     for (const hex of path.slice(1, -1)) {
-      if (elevationAt(state, hex.q, hex.r) > ceiling) return false;
-      const blocker = unitAt(state, hex.q, hex.r);
-      if (blocker && elevationAt(state, hex.q, hex.r) >= Math.min(aElev, tElev)) return false;
+      const hexElevation = elevationAt(state, hex.q, hex.r);
+      // Rule (p.20): terrain strictly higher than both units always blocks LOS.
+      if (hexElevation > ceiling) return false;
+      if (hexElevation !== ceiling) continue;
+      if (!sameElevation) {
+        // Rule (p.20): when attacker and target differ in elevation, plain terrain level
+        // with the higher-ground unit blocks LOS on its own — no unit needs to occupy it.
+        return false;
+      }
+      // Same elevation: only an enemy unit or enemy Garrison at that shared elevation blocks LOS.
+      // Allied units/Garrisons never block LOS (p.21-22: "Gundam can shoot through an allied Base").
+      const blockingUnit = unitAt(state, hex.q, hex.r);
+      const blockingGarrison = garrisonAt(state, hex.q, hex.r);
+      const hasEnemyBlocker =
+        (blockingUnit && blockingUnit.team !== attacker.team) ||
+        (blockingGarrison && blockingGarrison.team !== attacker.team);
+      if (hasEnemyBlocker) return false;
     }
     return true;
   }
 
+  function engagedEnemies(state, unit) {
+    if (!unit || unit.zone !== "board") return [];
+    const elevation = elevationAt(state, unit.q, unit.r);
+    return livingEnemies(state, unit).filter(enemy =>
+      distance(unit, enemy) === 1 && elevationAt(state, enemy.q, enemy.r) === elevation
+    );
+  }
+
+  function engagedGarrisons(state, unit) {
+    if (!unit || unit.zone !== "board") return [];
+    const elevation = elevationAt(state, unit.q, unit.r);
+    return (state.garrisons || []).filter(garrison =>
+      garrison.team !== unit.team &&
+      distance(unit, garrison) === 1 &&
+      elevationAt(state, garrison.q, garrison.r) === elevation
+    );
+  }
+
+  function engagedTargets(state, unit) {
+    return [...engagedEnemies(state, unit), ...engagedGarrisons(state, unit)];
+  }
+
   function reachable(state, unit, allowance, options = {}) {
+    const engagementPenalty = !options.ignoreEngagement && engagedTargets(state, unit).length ? 1 : 0;
+    const effectiveAllowance = Math.max(0, allowance - engagementPenalty);
     const start = key(unit.q, unit.r);
     const startElevation = elevationAt(state, unit.q, unit.r);
     const jumping = !options.ignoreElevation && startElevation > 0;
     const queue = [[unit.q, unit.r, 0]];
-    const costs = new Map([[start, 0]]);
+    const visited = new Map([[start, 0]]);
+    const costs = new Map();
     while (queue.length) {
       const [q, r, cost] = queue.shift();
-      if (cost >= allowance) continue;
+      if (cost >= effectiveAllowance) continue;
       for (const [nq, nr] of neighbors(q, r)) {
         const nk = key(nq, nr);
         if (options.forbidden?.has(nk)) continue;
-        const occupied = unitAt(state, nq, nr);
-        if (occupied && occupied.id !== unit.id) continue;
-        const currentElevation = elevationAt(state, q, r);
+
+        const occupant = unitAt(state, nq, nr);
+        const isEnemyUnit = !!occupant && occupant.team !== unit.team;
+        const garrison = garrisonAt(state, nq, nr);
+        const isEnemyGarrison = !!garrison && garrison.team !== unit.team;
+
         const nextElevation = elevationAt(state, nq, nr);
+        // Rule (p.17, Jumping): a unit jumping from elevated terrain may bypass enemy units
+        // or enemy Garrisons at a lower elevation than its own starting elevation.
+        const jumpsOverEnemy = jumping && nextElevation < startElevation;
+        // Enemy units and enemy Garrisons are otherwise fully impassable (p.14).
+        if ((isEnemyUnit || isEnemyGarrison) && !jumpsOverEnemy) continue;
+
+        const currentElevation = elevationAt(state, q, r);
         const elevationBaseline = jumping ? Math.max(startElevation, currentElevation) : currentElevation;
         const climbCost = options.ignoreElevation ? 0 : Math.max(0, nextElevation - elevationBaseline);
         const next = cost + 1 + climbCost;
-        if (next <= allowance && (!costs.has(nk) || next < costs.get(nk))) {
-          costs.set(nk, next);
-          queue.push([nq, nr, next]);
-        }
+        if (next > effectiveAllowance) continue;
+        if (visited.has(nk) && visited.get(nk) <= next) continue;
+        visited.set(nk, next);
+        queue.push([nq, nr, next]);
+
+        // Rule (p.14): a unit may move THROUGH allied units/Garrisons, but may never END
+        // its movement on a hex occupied by any unit (ally or enemy) or containing any
+        // Garrison (ally or enemy).
+        const blocksEnding = !!occupant || !!garrison;
+        if (blocksEnding) costs.delete(nk);
+        else costs.set(nk, next);
       }
     }
-    costs.delete(start);
     return costs;
   }
 
@@ -137,6 +197,7 @@
       r: null,
       energy: 0,
       upgrades: { shield: 0, speed: 0, strength: 0 },
+      inactiveShields: 0,
       statuses: { slow: false, fracture: false, disarm: false },
       nextAt: unit.tl,
       tempStrength: 0,
@@ -155,7 +216,7 @@
     const objectives = DATA.map.featureCoordinates.objectives.map(([q,r], index) => ({ id: `obj-${index+1}`, q, r, owner: null }));
     const state = {
       phase: 1, round: 1, status: "playing", board: boardData(), units, garrisons, upgrades, energy, objectives,
-      vp: { fed: 0, zeon: 0 }, usedTactics: new Set(), hands: { fed: [], zeon: [] }, tacticDecks: { fed: [], zeon: [] }, retiredTactics: { fed: [], zeon: [] }, tacticCycles: { fed: 1, zeon: 1 },
+      vp: { fed: 0, zeon: 0 }, rescuedGarrisons: { fed: 0, zeon: 0 }, usedTactics: new Set(), hands: { fed: [], zeon: [] }, tacticDecks: { fed: [], zeon: [] }, retiredTactics: { fed: [], zeon: [] }, tacticCycles: { fed: 1, zeon: 1 },
       currentTick: 1, resolvedThisTick: new Set(), log: [], activeUnitId: null,
       activation: { advanced: false, actionUsed: false, commandUsed: false, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 }, winner: null
     };
@@ -172,11 +233,20 @@
     if (!state.tacticDecks[team].length && !state.hands[team].length && !state.retiredTactics[team].length) {
       state.tacticDecks[team] = shuffle(DATA.tactics.filter(card => card.team === team).map(card => card.id), rng);
     }
-    state.retiredTactics[team].push(...state.hands[team]);
-    state.hands[team] = state.tacticDecks[team].splice(0, 3);
+    const drawn = state.tacticDecks[team].splice(0, 3);
+    state.hands[team].push(...drawn);
     const teamCards=new Set(DATA.tactics.filter(card=>card.team===team).map(card=>card.id));
     state.usedTactics=new Set([...state.usedTactics].filter(id=>!teamCards.has(id)));
     return state.hands[team];
+  }
+
+  function retireTacticCard(state, team, id) {
+    const index=state.hands[team].indexOf(id);
+    if(index<0) return false;
+    state.hands[team].splice(index,1);
+    if(!state.retiredTactics[team].includes(id)) state.retiredTactics[team].push(id);
+    state.usedTactics.add(id);
+    return true;
   }
 
   function teamPassedTimeline(state, team, limit = 10) {
@@ -195,7 +265,11 @@
   }
 
   function legalWeaponTargets(state, unit, weapon) {
-    return livingEnemies(state, unit).filter(target => {
+    const enemies = livingEnemies(state, unit);
+    const engaged = engagedTargets(state, unit);
+    const engagedUnits = engagedEnemies(state, unit);
+    const targetPool = engaged.length ? engagedUnits : enemies;
+    return targetPool.filter(target => {
       if (distance(unit, target) > weapon.range) return false;
       return weapon.ignoreLos || hasLineOfSight(state, unit, target);
     });
@@ -208,12 +282,16 @@
     return modified >= 4 ? "hit" : "miss";
   }
 
-  function summarizeAttackResult(state, defender, weapon, result) {
+  function summarizeAttackResult(state, attacker, defender, weapon, result) {
     result.hits = result.results.filter(value => value === "hit").length;
     result.criticals = result.results.filter(value => value === "critical").length;
     result.damage = result.hits + result.criticals;
     if (weapon.critical === "damage2" && result.criticals) result.damage += 2;
-    if (weapon.critical === "damage1" && result.criticals) result.damage += 1;
+    result.criticalBonusDamage = 0;
+    if (weapon.critical === "rescuedGarrisonDamage" && result.criticals) {
+      result.criticalBonusDamage = Math.max(0, Number(state?.rescuedGarrisons?.[attacker?.team]) || 0);
+      result.damage += result.criticalBonusDamage;
+    }
     if (weapon.effect === "objectiveBonus" && state.objectives.some(o => distance(defender, o) <= 1)) result.damage += 1;
     return result;
   }
@@ -233,7 +311,7 @@
       results = results.map(() => "miss");
       attacker.statuses.disarm = false;
     }
-    return summarizeAttackResult(state,defender,weapon,{ dice, results, accuracy, critFloor, rerollEligible:attacker.id==="gundam"&&!wasDisarmed });
+    return summarizeAttackResult(state,attacker,defender,weapon,{ dice, results, accuracy, critFloor, rerollEligible:attacker.id==="gundam"&&!wasDisarmed });
   }
 
   function rerollAttackDie(state, attacker, defender, weapon, result, index, rng = Math.random) {
@@ -243,14 +321,25 @@
     result.rerollFrom=result.dice[index];
     result.dice[index]=Math.floor(rng()*10)+1;
     result.results[index]=classifyAttackDie(result.dice[index],result.accuracy,result.critFloor);
-    summarizeAttackResult(state,defender,weapon,result);
+    summarizeAttackResult(state,attacker,defender,weapon,result);
     return true;
+  }
+
+  function reactivateShields(unit) {
+    if (!unit) return 0;
+    const totalShields = Math.max(0, unit.upgrades?.shield || 0);
+    const reactivated = Math.min(totalShields, Math.max(0, unit.inactiveShields || 0));
+    unit.inactiveShields = 0;
+    return reactivated;
   }
 
   function applyDamage(target, amount) {
     const incoming = Math.max(0, amount);
-    const blocked = Math.min(target.upgrades?.shield || 0, incoming);
-    if (target.upgrades) target.upgrades.shield -= blocked;
+    const totalShields = Math.max(0, target.upgrades?.shield || 0);
+    const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
+    const activeShields = Math.max(0, totalShields - inactiveShields);
+    const blocked = Math.min(activeShields, incoming);
+    if (blocked) target.inactiveShields = inactiveShields + blocked;
     const taken = incoming - blocked;
     target.hp = Math.max(0, target.hp - taken);
     if (target.statuses?.fracture && taken >= 3) {
@@ -262,18 +351,31 @@
   }
 
   function pickupAt(state, unit) {
+    const events = [];
     const energyIndex = state.energy.findIndex(item => item.q === unit.q && item.r === unit.r);
     if (energyIndex >= 0) {
       state.energy.splice(energyIndex, 1);
       unit.energy += 1;
+      events.push({ type: "energy", amount: 1 });
       state.log.unshift(`${unit.name} เก็บ Energy +1`);
     }
     const upgradeIndex = state.upgrades.findIndex(item => item.q === unit.q && item.r === unit.r);
     if (upgradeIndex >= 0) {
       const item = state.upgrades.splice(upgradeIndex, 1)[0];
       unit.upgrades[item.type] += 1;
+      events.push({ type: "upgrade", upgrade: item.type, amount: 1 });
       state.log.unshift(`${unit.name} เปิด Mystery Upgrade: ${item.type.toUpperCase()}`);
     }
+    return events;
+  }
+
+
+  function recordGarrisonRescue(state, unit) {
+    if (!state || !unit?.team) return 0;
+    if (!state.rescuedGarrisons) state.rescuedGarrisons = { fed: 0, zeon: 0 };
+    state.rescuedGarrisons[unit.team] = (state.rescuedGarrisons[unit.team] || 0) + 1;
+    unit.rescuedGarrisons = (unit.rescuedGarrisons || 0) + 1;
+    return state.rescuedGarrisons[unit.team];
   }
 
   function contestObjectives(state, unit) {
@@ -320,7 +422,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += 1;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, elevationAt, unitAt, hasLineOfSight, reachable, shuffle, setupGame, dealTacticHand, dealTacticHands, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, applyDamage, pickupAt, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, elevationAt, unitAt, garrisonAt, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

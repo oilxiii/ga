@@ -5,9 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=21">
 </head>
-<body>
+<body class="title-active">
+  <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
+    <div class="title-stage">
+      <img class="title-art" src="assets/title/title-screen.png" alt="Gundam Assemble Online">
+      <div id="title-stars" class="title-stars" aria-hidden="true"></div>
+      <i class="title-glint glint-logo" aria-hidden="true"></i>
+      <i class="title-glint glint-gundam" aria-hidden="true"></i>
+      <i class="title-glint glint-zeon" aria-hidden="true"></i>
+      <button id="title-one-player" class="title-hotspot title-one-player" type="button" aria-label="1 Player — AI mode coming soon"><span class="visually-hidden">1 PLAYER</span></button>
+      <button id="title-two-player" class="title-hotspot title-two-player" type="button" aria-label="2 Player — start hot-seat game"><span class="visually-hidden">2 PLAYER</span></button>
+      <div id="title-notice" class="title-notice" aria-live="polite"></div>
+    </div>
+  </section>
+
   <main class="game-shell">
     <header class="topbar">
       <div class="brand">
@@ -54,7 +67,7 @@
     </section>
   </main>
 
-  <div id="pass-overlay" class="overlay show" role="dialog" aria-modal="true">
+  <div id="pass-overlay" class="overlay" role="dialog" aria-modal="true">
     <div class="pass-card">
       <span class="eyebrow">HOT-SEAT HANDOFF</span>
       <h2 id="pass-title">เตรียมเริ่มการรบ</h2>
@@ -72,6 +85,6 @@
 
   <script src="data.js?v=17"></script>
   <script src="engine.js?v=17"></script>
-  <script src="game.js?v=19"></script>
+  <script src="game.js?v=22"></script>
 </body>
 </html>
