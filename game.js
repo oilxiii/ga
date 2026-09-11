@@ -441,11 +441,19 @@
     if (!mode) {
       const clicked=state.units.find(x=>x.zone!=="reserve"&&x.q===q&&x.r===r);
       if(clicked?.id===state.activeUnitId){
-        const bounds=event?.currentTarget?.getBoundingClientRect?.();
-        if(bounds?.width)menuPlacement=event.clientX<bounds.left+bounds.width/2?"right":"left";
-        menuOpen=!menuOpen;menuView="main";renderActions();
+        if(menuOpen){
+          menuPlacement=menuPlacement==="right"?"left":"right";
+        }else{
+          const boardBounds=$("#board")?.getBoundingClientRect?.();
+          const unitBounds=event?.currentTarget?.getBoundingClientRect?.();
+          const unitCenter=unitBounds?.width?unitBounds.left+unitBounds.width/2:event?.clientX;
+          if(boardBounds?.width&&Number.isFinite(unitCenter))menuPlacement=unitCenter<boardBounds.left+boardBounds.width/2?"right":"left";
+          menuOpen=true;
+          menuView="main";
+        }
+        renderActions();
       }
-      else if(menuOpen){menuOpen=false;renderActions();}
+      else if(menuOpen){menuOpen=false;menuView="main";renderActions();}
       return;
     }
     const k=E.key(q,r); if (!mode.targets?.has(k)) return;
@@ -872,6 +880,21 @@
 
   $("#restart-btn").addEventListener("click",()=>{if(confirm("เริ่มเกมใหม่และล้างสถานะปัจจุบัน?"))resetGame();});
   $("#rules-btn").addEventListener("click",showRules);
+  $("#log-toggle").addEventListener("click",()=>{
+    const feed=$("#combat-feed");
+    const button=$("#log-toggle");
+    const open=!feed.classList.contains("open");
+    feed.classList.toggle("open",open);
+    button.setAttribute("aria-expanded",String(open));
+  });
+  document.addEventListener("pointerdown",event=>{
+    if(!menuOpen||mode)return;
+    const menu=$("#command-menu");
+    if(menu?.contains(event.target)||event.target.closest?.(".unit-node.active"))return;
+    menuOpen=false;
+    menuView="main";
+    renderActions();
+  });
   document.addEventListener("keydown",event=>{
     if(event.key!=="Escape")return;
     closeModal();mode=null;menuOpen=false;menuView="main";renderAll();

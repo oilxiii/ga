@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
   <main class="game-shell">
@@ -39,12 +39,15 @@
         </div>
         <div id="board-wrap" class="board-wrap">
           <svg id="board" viewBox="0 0 780 650" role="application" aria-label="กระดาน Hex Sleeping Leviathan"></svg>
-          <section id="active-hud" class="active-hud" aria-live="polite"></section>
+          <div class="hud-stack">
+            <section id="active-hud" class="active-hud" aria-live="polite"></section>
+            <button id="log-toggle" class="log-toggle" type="button" aria-expanded="false" aria-controls="combat-feed">BATTLE LOG <span aria-hidden="true">▾</span></button>
+            <section id="combat-feed" class="combat-feed board-feed" aria-label="Battle log">
+              <div id="dice-tray" class="dice-tray" aria-live="polite"></div>
+              <ol id="battle-log"></ol>
+            </section>
+          </div>
           <nav id="command-menu" class="unit-command-menu" aria-label="คำสั่งยูนิต"></nav>
-          <section class="combat-feed board-feed">
-            <div id="dice-tray" class="dice-tray" aria-live="polite"></div>
-            <ol id="battle-log"></ol>
-          </section>
         </div>
       </div>
     </section>
@@ -76,6 +79,6 @@
 
   <script src="data.js?v=17"></script>
   <script src="engine.js?v=17"></script>
-  <script src="game.js?v=17"></script>
+  <script src="game.js?v=18"></script>
 </body>
 </html>
