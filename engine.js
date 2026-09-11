@@ -39,9 +39,14 @@
     return { x: rx, y: ry, z: rz };
   }
 
-  function line(a, b) {
+  function lineNudged(a, b, sign = 1) {
     const n = distance(a, b);
-    const ac = oddqToCube(a.q, a.r), bc = oddqToCube(b.q, b.r);
+    const a0 = oddqToCube(a.q, a.r), b0 = oddqToCube(b.q, b.r);
+    // A microscopic cube-coordinate nudge resolves the exact "between two hexes" case.
+    // Trying both signs gives the two legal sight-lines; the attacker may use either clear one.
+    const eps = 1e-6 * sign;
+    const ac = { x:a0.x+eps, y:a0.y+eps, z:a0.z-2*eps };
+    const bc = { x:b0.x+eps, y:b0.y+eps, z:b0.z-2*eps };
     const result = [];
     for (let i = 0; i <= n; i++) {
       const t = n === 0 ? 0 : i / n;
@@ -54,6 +59,14 @@
       result.push({ q, r });
     }
     return result;
+  }
+
+  function line(a, b) { return lineNudged(a,b,1); }
+
+  function lineVariants(a,b) {
+    const first=lineNudged(a,b,1), second=lineNudged(a,b,-1);
+    const signature=path=>path.map(hex=>key(hex.q,hex.r)).join("|");
+    return signature(first)===signature(second)?[first]:[first,second];
   }
 
   function elevationAt(state, q, r) {
@@ -69,31 +82,35 @@
   }
 
   function hasLineOfSight(state, attacker, target) {
-    const path = line(attacker, target);
+    // Adjacent targets never have an intervening hex, so LOS is automatically clear.
+    if (distance(attacker,target) <= 1) return true;
     const aElev = elevationAt(state, attacker.q, attacker.r);
     const tElev = elevationAt(state, target.q, target.r);
-    const ceiling = Math.max(aElev, tElev);
-    const sameElevation = aElev === tElev;
-    for (const hex of path.slice(1, -1)) {
-      const hexElevation = elevationAt(state, hex.q, hex.r);
-      // Rule (p.20): terrain strictly higher than both units always blocks LOS.
-      if (hexElevation > ceiling) return false;
-      if (hexElevation !== ceiling) continue;
-      if (!sameElevation) {
-        // Rule (p.20): when attacker and target differ in elevation, plain terrain level
-        // with the higher-ground unit blocks LOS on its own — no unit needs to occupy it.
-        return false;
+    const pathIsClear = path => {
+      for (const hex of path.slice(1,-1)) {
+        const hexElevation=elevationAt(state,hex.q,hex.r);
+        // Core LOS: any intervening terrain higher than the ATTACKER blocks sight.
+        if (hexElevation > aElev) return false;
+        // If firing downhill, terrain level with the attacker also blocks sight.
+        if (aElev > tElev && hexElevation === aElev) return false;
+
+        // Enemy pieces block regardless of their elevation; allied pieces do not.
+        const blockingUnit=unitAt(state,hex.q,hex.r);
+        if (blockingUnit && blockingUnit.team !== attacker.team) return false;
+        const blockingGarrison=garrisonAt(state,hex.q,hex.r);
+        if (blockingGarrison && blockingGarrison.team !== attacker.team) return false;
+
+        // Enemy Bases and enemy-controlled Objectives are also enemy-side tokens.
+        const blockingBase=DATA.map.featureCoordinates.bases.find(base=>base.q===hex.q&&base.r===hex.r);
+        if (blockingBase && blockingBase.team !== attacker.team) return false;
+        const blockingObjective=state.objectives?.find(objective=>objective.q===hex.q&&objective.r===hex.r);
+        if (blockingObjective?.owner && blockingObjective.owner !== attacker.team) return false;
       }
-      // Same elevation: only an enemy unit or enemy Garrison at that shared elevation blocks LOS.
-      // Allied units/Garrisons never block LOS (p.21-22: "Gundam can shoot through an allied Base").
-      const blockingUnit = unitAt(state, hex.q, hex.r);
-      const blockingGarrison = garrisonAt(state, hex.q, hex.r);
-      const hasEnemyBlocker =
-        (blockingUnit && blockingUnit.team !== attacker.team) ||
-        (blockingGarrison && blockingGarrison.team !== attacker.team);
-      if (hasEnemyBlocker) return false;
-    }
-    return true;
+      return true;
+    };
+    // When the center-to-center line lies exactly between two hexes, the attacker chooses
+    // which of the two hex paths to use. LOS therefore succeeds if either path is clear.
+    return lineVariants(attacker,target).some(pathIsClear);
   }
 
   function engagedEnemies(state, unit) {
@@ -164,6 +181,27 @@
       }
     }
     return costs;
+  }
+
+
+  function forcedPushStep(state, source, target) {
+    if (!state || !source || !target || target.zone !== "board") return { type:"blocked", reason:"invalid" };
+    const candidates=neighbors(target.q,target.r).map(([q,r])=>({q,r,d:distance(source,{q,r})}));
+    if(!candidates.length) return { type:"collision", reason:"edge", q:target.q, r:target.r };
+    const farthest=Math.max(...candidates.map(candidate=>candidate.d));
+    const direct=candidates.filter(candidate=>candidate.d===farthest);
+    const currentElevation=elevationAt(state,target.q,target.r);
+    const terrainLegal=direct.filter(candidate=>elevationAt(state,candidate.q,candidate.r)<=currentElevation);
+    const open=terrainLegal.find(candidate=>!unitAt(state,candidate.q,candidate.r)&&!garrisonAt(state,candidate.q,candidate.r));
+    if(open) return { type:"move", q:open.q, r:open.r };
+    const occupied=terrainLegal.find(candidate=>unitAt(state,candidate.q,candidate.r)||garrisonAt(state,candidate.q,candidate.r));
+    if(occupied){
+      return {
+        type:"collision",reason:"occupied",q:occupied.q,r:occupied.r,
+        unit:unitAt(state,occupied.q,occupied.r),garrison:garrisonAt(state,occupied.q,occupied.r)
+      };
+    }
+    return { type:"collision", reason:"terrain", q:target.q, r:target.r };
   }
 
   function shuffle(values, rng = Math.random) {
@@ -315,7 +353,7 @@
   }
 
   function rerollAttackDie(state, attacker, defender, weapon, result, index, rng = Math.random) {
-    if (!result.rerollEligible || !Number.isInteger(index) || index<0 || index>=result.dice.length) return false;
+    if (!result.rerollEligible || !Number.isInteger(index) || index<0 || index>=result.dice.length || result.results[index]!=="miss") return false;
     result.rerollEligible=false;
     result.rerolledIndex=index;
     result.rerollFrom=result.dice[index];
@@ -422,7 +460,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += 1;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, elevationAt, unitAt, garrisonAt, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

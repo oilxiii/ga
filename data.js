@@ -11,7 +11,7 @@
         { id: "beam-rifle", name: "Beam Rifle", timeline: 4, range: 4, strength: 5, critical: "damage2" }
       ],
       command: { id: "white-base-unity", name: "White Base Unity", energy: 1, text: "เลือก Unit ฝ่ายเดียวกันใน Range 3 ที่มี Upgrade ไม่เกิน 1 ชิ้น แล้วเลือกมอบ Upgrade 1 ชิ้น" },
-      ongoing: { name: "Newtype Instincts", text: "หลัง Attack Roll เมื่อ Gundam เป็นฝ่ายโจมตี อาจเลือกทอยลูกเต๋าโจมตีใหม่ได้ 1 ลูก" }
+      ongoing: { name: "Newtype Instincts", text: "หลัง Attack Roll เมื่อ Gundam เป็นฝ่ายโจมตี อาจเลือกทอยลูกเต๋าที่พลาดใหม่ได้ 1 ลูก" }
     },
     {
       id: "guncannon", team: "fed", name: "Guncannon", model: "RX-77-2", role: "Rookie Artillery",
@@ -64,7 +64,7 @@
       icon: "assets/icons/zaku-heat-hawk.png",
       weapons: [
         { id: "shoulder-bash", name: "Shoulder Bash", timeline: 2, range: 1, strength: 3, critical: "push2" },
-        { id: "enforcer-heat-hawk", name: "Heat Hawk", timeline: 4, range: 1, strength: 5, effect: "shieldBreak", critical: "slow" }
+        { id: "enforcer-heat-hawk", name: "Heat Hawk", timeline: 4, range: 1, strength: 5, effect: "destroyUpgrade", critical: "slow" }
       ],
       command: { id: "domination", name: "Domination", energy: 1, text: "ยึด Objective ที่อยู่บนช่องเดียวกันหรือช่องติดกัน" },
       ongoing: { name: "Suppressing Presence", text: "ได้ Strength +1 เมื่อโจมตีศัตรูที่มี Status" }
@@ -127,7 +127,8 @@
       advance: { distance: 3, timeline: 0 },
       dash: { distance: 2, timeline: 2 },
       rescue: { timeline: 2, vp: 2 },
-      movement: { garrisonsBlock: true }
+      movement: { garrisonsBlock: true },
+      garrison: { defeatVp: 2 }
     },
     units,
     tactics,

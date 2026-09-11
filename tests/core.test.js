@@ -153,7 +153,7 @@ test("Phase 2 draws three Tactics for both factions together only after Phase 1 
   assert.match(source,/for\(const team of teams\)\{[\s\S]{0,180}E\.dealTacticHand\(state,team\)/);
   assert.doesNotMatch(source,/refreshPassedTeamTactics\(\)/);
   const transition=source.match(/async function runPhaseTransition\(finalPhase=false\) \{[\s\S]*?\n  \}/)?.[0]||"";
-  const scorePos=transition.indexOf("await scoreClaimedObjectives(claimed)");
+  const scorePos=transition.indexOf("await scoreClaimedObjectives(claimed,epoch)");
   const drawPos=transition.indexOf("dealPhaseTwoTacticsTogether()");
   const phasePos=transition.indexOf("state.phase=2");
   assert.ok(scorePos>=0 && phasePos>scorePos && drawPos>phasePos,"Phase 1 scores first, then Phase 2 starts and both hands draw together");
@@ -552,7 +552,7 @@ test("Guntank objective bonus adds one damage around an Objective", () => {
   assert.equal(result.hits,1);assert.equal(result.damage,2);
 });
 
-test("Newtype Instincts optionally rerolls exactly one Gundam die, including a hit", () => {
+test("Newtype Instincts rerolls exactly one missed Gundam die and never a Hit/Critical", () => {
   const s=E.setupGame(()=>0.5);
   const gundam=s.units.find(unit=>unit.id==="gundam");
   const char=s.units.find(unit=>unit.id==="chars-zaku");
@@ -562,18 +562,20 @@ test("Newtype Instincts optionally rerolls exactly one Gundam die, including a h
   const result=E.rollAttack(s,gundam,char,gundam.weapons[0],()=>values[i++]);
   assert.deepEqual(result.results,["miss","hit"]);
   assert.equal(result.rerollEligible,true);
-  assert.equal(E.rerollAttackDie(s,gundam,char,gundam.weapons[0],result,1,()=>0.89),true);
-  assert.deepEqual(result.dice,[1,9]);
-  assert.deepEqual(result.results,["miss","critical"]);
+  assert.equal(E.rerollAttackDie(s,gundam,char,gundam.weapons[0],result,1,()=>0.89),false,"a Hit cannot be rerolled");
+  assert.equal(result.rerollEligible,true,"an illegal choice must not consume Newtype Instincts");
+  assert.equal(E.rerollAttackDie(s,gundam,char,gundam.weapons[0],result,0,()=>0.89),true);
+  assert.deepEqual(result.dice,[9,4]);
+  assert.deepEqual(result.results,["critical","hit"]);
   assert.equal(result.rerollEligible,false);
-  assert.equal(E.rerollAttackDie(s,gundam,char,gundam.weapons[0],result,0,()=>0.1),false);
 });
 
-test("Newtype Instincts presents every die as a choice and uses a separate reroll animation", () => {
+test("Newtype Instincts UI offers only missed dice and uses a separate reroll animation", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function offerNewtypeReroll/);
-  assert.match(source,/data-reroll-index/);
-  assert.match(source,/id="skip-newtype"/);
+  const body=source.match(/function offerNewtypeReroll[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(body,/result\.results\.map\(\(outcome,index\)=>outcome==="miss"\?index:-1\)\.filter\(index=>index>=0\)/);
+  assert.match(body,/data-reroll-index/);
+  assert.match(body,/id="skip-newtype"/);
   assert.match(source,/showDiceRoll\(rerollView,"NEWTYPE INSTINCTS"/);
 });
 
@@ -608,15 +610,14 @@ test("Guncannon Cannon Critical performs a Timeline 0 Dash then optional Rescue"
   assert.match(source,/id="confirm-critical-rescue"/);
 });
 
-test("Cracker Grenade uses one center target then automatically damages every adjacent enemy", () => {
+test("Cracker Grenade uses one center target and splash is 0 normally / 1 on Critical", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/function resolveSplashDamage/);
-  assert.match(source,/const amount=1\+\(weapon\.critical==="splashDamage1"&&result\.criticals>0\?1:0\)/);
+  assert.match(source,/const amount=weapon\.critical==="splashDamage1"&&result\.criticals>0\?1:0/);
   assert.match(source,/adjacentUnits=E\.livingEnemies\(state,attacker\)\.filter/);
   assert.match(source,/adjacentGarrisons=state\.garrisons\.filter/);
   assert.match(source,/Cracker Grenade AOE/);
-  assert.match(source,/เลือกเป้าหมายหลัก — หลัง Combat Damage ศัตรูทุกตัวที่ติดกับเป้าหมายจะรับ Damage/);
-  assert.doesNotMatch(source,/weapon\.effect==="splash"&&applied\.taken>0/);
+  assert.match(source,/Damage 0 \(Critical = 1\)/);
 });
 
 test("post-combat Responses remain available after a zero-damage attack", () => {
@@ -764,4 +765,146 @@ test("the attack UI prioritizes same-elevation Engaged units and Garrisons", () 
   assert.match(source,/const engaged=E\.engagedTargets\(state,unit\)/);
   assert.match(source,/engagedKeys\.has\(E\.key\(g\.q,g\.r\)\)/);
   assert.match(source,/ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน/);
+});
+
+
+test("a Response that destroys the active unit ends its Activation and advances safely", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/function finishDefeatedActiveActivation\(unit,source="Response"\)/);
+  assert.match(source,/state\.resolvedThisTick\.add\(unit\.id\)/);
+  assert.match(source,/state\.activeUnitId=null/);
+  assert.match(source,/scheduleStartActivation\(360\)/);
+  assert.match(source,/defeated&&finishDefeatedActiveActivation\(unit,"Iron Grip"\)/);
+  assert.match(source,/finishDefeatedActiveActivation\(attacker,"Combat Response"\)/);
+});
+
+test("Return Fire applies attacker-side Critical effects such as Beam Saber Strength", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const body=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(body,/applyAttackerCritical\(defender,weapon,result\)/);
+  assert.match(body,/if\(result\.criticals>0\)applyCritical\(defender,attacker,weapon,result\)/);
+});
+
+test("Lock Down and Breaking the Line require Line of Sight", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/card\.id==="lock-down"[\s\S]{0,180}E\.hasLineOfSight\(state,unit,target\)/);
+  assert.match(source,/card\.id==="breaking-line"[\s\S]{0,180}E\.hasLineOfSight\(state,unit,target\)/);
+  const block=source.match(/else if \(card\.id==="lock-down"\|\|card\.id==="breaking-line"\) \{[\s\S]*?\n    \}/)?.[0]||"";
+  assert.doesNotMatch(block,/ignoreLos\s*:\s*true/);
+  assert.match(block,/เลือก Unit ศัตรูใน Line of Sight/);
+});
+
+
+
+test("Saturated Fire uses Range 4 plus Line of Sight", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/E\.livingEnemies\(state,unit\)\.filter\(x=>E\.distance\(unit,x\)<=4&&E\.hasLineOfSight\(state,unit,x\)\)/);
+});
+
+test("Enforcer Heat Hawk can destroy Shield, Speed, or Strength after the Attack Roll", () => {
+  const heatHawk=D.units.find(unit=>unit.id==="zaku-enforcer").weapons.find(weapon=>weapon.id==="enforcer-heat-hawk");
+  assert.equal(heatHawk.effect,"destroyUpgrade");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const body=source.match(/function offerWeaponAfterRollEffect[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(body,/\["shield","speed","strength"\]/);
+  assert.match(body,/data-weapon-upgrade/);
+});
+
+test("LOS follows elevation direction, enemy blockers, and attacker choice between two hex lines", () => {
+  const s=E.setupGame(()=>0.5);
+  const attacker=s.units.find(unit=>unit.id==="gundam");
+  const enemy=s.units.find(unit=>unit.id==="chars-zaku");
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  attacker.zone="board";attacker.q=0;attacker.r=0;
+  enemy.zone="board";enemy.q=1;enemy.r=3;
+  // Low attacker: any intervening terrain higher than the attacker blocks.
+  const lowPath=E.line(attacker,enemy).slice(1,-1);
+  s.board[E.key(lowPath[0].q,lowPath[0].r)].elevation=1;
+  assert.equal(E.hasLineOfSight(s,attacker,enemy),false);
+  // High attacker shooting down: lower terrain is clear, terrain equal to attacker blocks.
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  s.board[E.key(attacker.q,attacker.r)].elevation=2;
+  s.board[E.key(lowPath[0].q,lowPath[0].r)].elevation=1;
+  assert.equal(E.hasLineOfSight(s,attacker,enemy),true);
+  s.board[E.key(lowPath[0].q,lowPath[0].r)].elevation=2;
+  assert.equal(E.hasLineOfSight(s,attacker,enemy),false);
+
+  // Exact-between case: if one of the two legal hex paths is clear, attacker may use it.
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  attacker.q=0;attacker.r=0;enemy.q=1;enemy.r=1;
+  const variants=E.lineVariants(attacker,enemy);
+  assert.equal(variants.length,2);
+  const a=variants[0][1],b=variants[1][1];
+  s.board[E.key(a.q,a.r)].elevation=1;
+  assert.equal(E.hasLineOfSight(s,attacker,enemy),true);
+  s.board[E.key(b.q,b.r)].elevation=1;
+  assert.equal(E.hasLineOfSight(s,attacker,enemy),false);
+});
+
+test("Push collision does not route around blockers and identifies Unit/Garrison collisions", () => {
+  const s=E.setupGame(()=>0.5);
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  const source=s.units.find(unit=>unit.id==="gundam");
+  const target=s.units.find(unit=>unit.id==="chars-zaku");
+  source.zone="board";source.q=5;source.r=5;
+  target.zone="board";target.q=6;target.r=5;
+  let step=E.forcedPushStep(s,source,target);
+  assert.equal(step.type,"move");
+  const destination={q:step.q,r:step.r};
+
+  const blocker=s.units.find(unit=>unit.id==="zaku-enforcer");
+  blocker.zone="board";blocker.q=destination.q;blocker.r=destination.r;
+  // Block any alternate equally-direct hex too so collision is mandatory.
+  const direct=E.neighbors(target.q,target.r).map(([q,r])=>({q,r,d:E.distance(source,{q,r})}));
+  const farthest=Math.max(...direct.map(x=>x.d));
+  const others=direct.filter(x=>x.d===farthest&&(x.q!==destination.q||x.r!==destination.r));
+  for(const other of others)s.board[E.key(other.q,other.r)].elevation=1;
+  step=E.forcedPushStep(s,source,target);
+  assert.equal(step.type,"collision");
+  assert.equal(step.unit?.id,blocker.id);
+
+  blocker.zone="reserve";
+  s.garrisons=[{id:"push-garrison",team:"zeon",q:destination.q,r:destination.r,hp:1,maxHp:1}];
+  step=E.forcedPushStep(s,source,target);
+  assert.equal(step.type,"collision");
+  assert.equal(step.garrison?.id,"push-garrison");
+});
+
+test("forced Push never invokes pickupAt and collision damage is handled for both objects", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const body=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
+  assert.doesNotMatch(body,/pickupAt/);
+  assert.match(body,/E\.applyDamage\(target,1\)/);
+  assert.match(body,/E\.applyDamage\(collidedUnit,1\)/);
+  assert.match(body,/damageGarrison\(source,collidedGarrison,1,"Push Collision"\)/);
+});
+
+test("Garrison defeat and rescue both award 2 VP", () => {
+  assert.equal(D.rules.rescue.vp,2);
+  assert.equal(D.rules.garrison.defeatVp,2);
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/D\.rules\.garrison\?\.defeatVp \?\? D\.rules\.rescue\.vp/);
+});
+
+test("Range-tagged Tactics use LOS and Forward Artillery counts team-wide rescues", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/rescued-extraction[\s\S]{0,260}hasOwnGarrisonInRange\(unit,3,true\)/);
+  assert.match(source,/rescueGarrison\(unit,3,false,[\s\S]{0,180}\{requireLos:true\}\)/);
+  assert.match(source,/sudden-pressure[\s\S]{0,400}E\.hasLineOfSight\(state,unit,target\)/);
+  assert.match(source,/state\.rescuedGarrisons\?\.fed\|\|0/);
+});
+
+test("Restart invalidates delayed gameplay callbacks and cache versions stay aligned", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const reset=source.match(/function resetGame\(\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(reset,/gameEpoch\+=1/);
+  assert.match(reset,/clearTimeout\(activationResumeTimer\)/);
+  assert.match(reset,/clearTimeout\(diceAnimationTimer\)/);
+  assert.match(reset,/clearInterval\(diceRollInterval\)/);
+  assert.match(source,/function scheduleStartActivation/);
+  assert.match(source,/if\(epoch!==gameEpoch\|\|state\?\.status!=="playing"\|\|state\.activeUnitId\)return/);
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const versions=[...html.matchAll(/(?:data|engine|game)\.js\?v=(\d+)/g)].map(match=>match[1]);
+  assert.equal(versions.length,3);
+  assert.equal(new Set(versions).size,1,"data.js, engine.js and game.js should share one cache-busting version");
 });
