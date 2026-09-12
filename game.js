@@ -975,7 +975,8 @@
     const moveDistance=D.rules.advance.distance+unit.upgrades.speed;
     const dashDistance=D.rules.dash.distance+(unit.id==="chars-zaku"?1:0);
     const item=(label,sub,action,disabled=false,cls="")=>`<button class="command-item ${cls}" data-menu-action="${action}" ${disabled?"disabled":""}><span>${label}</span><small>${sub}</small></button>`;
-    const adjustingMove=movementDraft?.unitId===unit.id;
+    const adjustingMove=movementDraft?.unitId===unit.id&&movementDraft.movementType==="advance";
+    const adjustingDash=movementDraft?.unitId===unit.id&&movementDraft.movementType==="dash";
     const main=(deploying?[
       item("Deploy Move",unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",false),
       item("Unit Card","INFO","info"),
@@ -983,7 +984,7 @@
     ]:[
       item(adjustingMove?"ปรับตำแหน่ง Move":"Move",adjustingMove?"เลือกใหม่ในพื้นที่เดิม":unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",a.advanced&&!adjustingMove),
       item("Attack","WEAPON","attack-menu",a.actionUsed),
-      item("Dash",`${dashDistance} HEX · TL${D.rules.dash.timeline}`,"dash",a.actionUsed),
+      item(adjustingDash?"ปรับตำแหน่ง Dash":"Dash",adjustingDash?"เลือกใหม่ในพื้นที่เดิม":`${dashDistance} HEX · TL${D.rules.dash.timeline}`,"dash",a.actionUsed&&!adjustingDash),
       item("Energize","+1 ENERGY · TL2","energize",a.actionUsed),
       item("Rescue","GARRISON · TL2","rescue",a.actionUsed||!hasOwnGarrisonInRange(unit)),
       item(unit.command.name,`⚡${unit.command.energy}`,"ability",a.commandUsed||unit.energy<unit.command.energy),
@@ -1117,9 +1118,11 @@
 
   function handleAction(action) {
     const unit=activeUnit(); if (!unit || mode) return;
-    if(movementDraft&&action!=="advance"){commitMovementDraft(()=>handleAction(action));return;}
+    if(movementDraft){
+      if(action===movementDraft.movementType){openMovementDraft(unit);return;}
+      commitMovementDraft(()=>handleAction(action));return;
+    }
     if (action==="advance") {
-      if(movementDraft){openMovementDraft(unit);return;}
       if (unit.statuses.slow) {
         unit.statuses.slow=false; state.activation.advanced=true; payTimeline(unit,D.rules.advance.timeline);
         addLog(`${unit.name} ใช้ Advance เพื่อลบ Slow และไม่เคลื่อนที่ (TL 0)`); renderAll(); return;
@@ -1127,6 +1130,7 @@
       if(!isAiTeam(unit.team)){beginAdjustableAdvance(unit);return;}
       startMove(D.rules.advance.distance+unit.upgrades.speed,D.rules.advance.timeline,"Advance",moved=>afterUnitMove(unit,"advance",null,moved));
     } else if (action==="dash") {
+      if(!isAiTeam(unit.team)){beginAdjustableDash(unit);return;}
       startMove(D.rules.dash.distance+(unit.id==="chars-zaku"?1:0),D.rules.dash.timeline,"Dash",moved=>afterUnitMove(unit,"dash",null,moved),{primaryAction:true});
     } else if (action==="energize") {
       unit.energy+=1; state.activation.actionUsed=true; payTimeline(unit,2);
@@ -1141,10 +1145,19 @@
   }
 
   function beginAdjustableAdvance(unit) {
-    if(!unit||unit.zone==="reserve")return false;
-    if(movementDraft?.unitId===unit.id)return openMovementDraft(unit);
-    const forbidden=new Set(D.map.featureCoordinates.bases.map(base=>E.key(base.q,base.r)));
     const allowance=D.rules.advance.distance+(unit.upgrades.speed||0);
+    return beginAdjustableMovement(unit,allowance,D.rules.advance.timeline,"Advance","advance",false);
+  }
+
+  function beginAdjustableDash(unit) {
+    const allowance=D.rules.dash.distance+(unit.id==="chars-zaku"?1:0);
+    return beginAdjustableMovement(unit,allowance,D.rules.dash.timeline,"Dash","dash",true);
+  }
+
+  function beginAdjustableMovement(unit,allowance,cost,label,movementType,primaryAction) {
+    if(!unit||unit.zone==="reserve")return false;
+    if(movementDraft?.unitId===unit.id&&movementDraft.movementType===movementType)return openMovementDraft(unit);
+    const forbidden=new Set(D.map.featureCoordinates.bases.map(base=>E.key(base.q,base.r)));
     const engaged=E.engagedTargets(state,unit);
     const reachable=E.reachable(state,unit,allowance,{forbidden});
     const wasDeploying=unit.zone==="deploying";
@@ -1161,7 +1174,8 @@
       allowance,
       effectiveAllowance:Math.max(0,allowance-(engaged.length?1:0)),
       engaged:engaged.length>0,
-      placed:!wasDeploying
+      placed:!wasDeploying,
+      cost,label,movementType,primaryAction
     };
     return openMovementDraft(unit);
   }
@@ -1170,9 +1184,9 @@
     const draft=movementDraft;
     if(!draft||draft.unitId!==unit?.id)return false;
     mode={
-      type:"move",unitId:unit.id,targets:new Set(draft.targets),cost:0,label:"Advance",afterMove:null,
-      primaryAction:false,allowStay:draft.placed,adjustableAdvance:true,returnMenu:"main",
-      hint:`Move: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged?` จาก ${draft.allowance} เพราะ ENCOUNTER -1`:""}) — ยืนยันเมื่อเลือก Action อื่น`
+      type:"move",unitId:unit.id,targets:new Set(draft.targets),cost:0,label:draft.label,afterMove:null,
+      primaryAction:draft.primaryAction,allowStay:draft.placed,adjustableMovement:true,returnMenu:"main",
+      hint:`${draft.label}: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged?` จาก ${draft.allowance} เพราะ ENCOUNTER -1`:""}) — ยืนยันเมื่อเลือก Action อื่น`
     };
     menuOpen=true;renderAll();return true;
   }
@@ -1186,10 +1200,14 @@
     const moved=unit.q!==draft.origin.q||unit.r!==draft.origin.r||draft.origin.zone==="deploying";
     const pickups=E.pickupAt(state,unit);
     playPickupFeedback(unit,pickups);
+    payTimeline(unit,draft.cost);
+    if(draft.movementType==="dash")SFX.dash();
+    if(draft.primaryAction)state.activation.actionUsed=true;
+    if(draft.movementType==="advance")state.activation.advanced=true;
     state.justDeployedUnitId=null;
-    addLog(`${unit.name} ยืนยัน Move ที่ Hex ${unit.q},${unit.r}`);
+    addLog(`${unit.name} ยืนยัน ${draft.label} ที่ Hex ${unit.q},${unit.r}`);
     const finish=()=>{renderAll();onComplete();};
-    afterUnitMove(unit,"advance",finish,moved);
+    afterUnitMove(unit,draft.movementType,finish,moved);
     renderAll();
   }
 
@@ -1278,13 +1296,15 @@
 
   function completeMove(q,r) {
     const unit=state.units.find(candidate=>candidate.id===mode?.unitId);if(!unit||mode?.type!=="move")return;
-    const adjustableAdvance=!!mode.adjustableAdvance;const primaryAction=mode.primaryAction;const wasDeploying=unit.zone==="deploying";const callback=mode.afterMove;const label=mode.label;const cost=mode.cost;
+    const adjustableMovement=!!mode.adjustableMovement;const primaryAction=mode.primaryAction;const wasDeploying=unit.zone==="deploying";const callback=mode.afterMove;const label=mode.label;const cost=mode.cost;
     const moved=unit.q!==q||unit.r!==r;
-    if(adjustableAdvance){
-      unit.q=q;unit.r=r;unit.zone="board";state.activation.advanced=true;
+    if(adjustableMovement){
+      unit.q=q;unit.r=r;unit.zone="board";
+      if(movementDraft?.movementType==="advance")state.activation.advanced=true;
+      if(movementDraft?.primaryAction)state.activation.actionUsed=true;
       if(movementDraft)movementDraft.placed=true;
       mode=null;menuOpen=true;menuView="main";
-      addLog(`${unit.name} วางตำแหน่ง Move ที่ Hex ${q},${r} — ยังปรับใหม่ได้จนกว่าจะเลือก Action อื่น`);
+      addLog(`${unit.name} วางตำแหน่ง ${label} ที่ Hex ${q},${r} — ยังปรับใหม่ได้จนกว่าจะเลือก Action อื่น`);
       renderAll();return;
     }
     unit.q=q;unit.r=r;unit.zone="board";const pickups=E.pickupAt(state,unit);playPickupFeedback(unit,pickups);payTimeline(unit,cost);
