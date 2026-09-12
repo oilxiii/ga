@@ -244,11 +244,7 @@ body.title-active { overflow: hidden; }
 .encounter-marker text { fill: #fff; text-anchor: middle; dominant-baseline: central; font-size: 7.6px; font-weight: 950; letter-spacing: .04em; paint-order: stroke; stroke: rgba(0,0,0,.72); stroke-width: 1.35px; }
 .encounter-marker.target rect { fill: #a70d25; stroke: #ff9cac; }
 .encounter-marker.penalty rect { fill: #193f63; stroke: #82dcff; }
-.encounter-marker.slow { animation-name: slow-marker-pulse; }
-.encounter-marker.slow rect { fill: #087fae; stroke: #9beaff; }
-.encounter-marker.slow text { fill: #e9fbff; }
 @keyframes encounter-marker-pulse { from { opacity: .78; filter: drop-shadow(0 2px 3px rgba(0,0,0,.9)); } to { opacity: 1; filter: drop-shadow(0 0 8px rgba(255,70,94,.82)); } }
-@keyframes slow-marker-pulse { from { opacity: .84; filter: drop-shadow(0 2px 3px rgba(0,0,0,.9)); } to { opacity: 1; filter: drop-shadow(0 0 8px rgba(68,202,255,.86)); } }
 @keyframes turn-camera-focus { 0%,100% { filter: drop-shadow(0 0 9px white); transform: scale(1); } 45% { filter: drop-shadow(0 0 19px #ffd45a); transform: scale(1.22); } }
 .unit-node.char-kick-victim .unit-base { stroke: #ff203d; stroke-width: 4.5; animation: char-kick-unit-pulse .68s ease-in-out infinite alternate; }
 .unit-node.char-kick-victim .unit-portrait, .feature-token.char-kick-victim { animation: char-kick-victim-flash .68s ease-in-out infinite alternate; }
