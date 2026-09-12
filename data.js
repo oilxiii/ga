@@ -7,7 +7,7 @@
       hp: 11, vp: 5, tl: 2, card: "assets/cards/card-001.jpg", portrait: "right",
       icon: "assets/icons/gundam.png",
       weapons: [
-        { id: "beam-saber", name: "Beam Saber", timeline: 2, range: 1, strength: 2, effect: "shieldBreak", critical: "gainStrength" },
+        { id: "beam-saber", name: "Beam Saber", timeline: 2, range: 1, strength: 2, effect: "shieldBreak", critical: "gainStrength", criticalTiming: "afterCombatDamage" },
         { id: "beam-rifle", name: "Beam Rifle", timeline: 4, range: 4, strength: 5, critical: "damage2" }
       ],
       command: { id: "white-base-unity", name: "White Base Unity", energy: 1, text: "เลือก Unit ฝ่ายเดียวกันใน Range 3 ที่มี Upgrade ไม่เกิน 1 ชิ้น แล้วเลือกมอบ Upgrade 1 ชิ้น" },
@@ -19,7 +19,7 @@
       icon: "assets/icons/guncannon.png",
       weapons: [
         { id: "gc-rifle", name: "Beam Rifle", timeline: 2, range: 3, strength: 2, critical: "slow" },
-        { id: "low-recoil-240", name: "240mm Low-Recoil Cannon", timeline: 3, range: 3, strength: 4, critical: "dashRescueTimeline0" }
+        { id: "low-recoil-240", name: "240mm Low-Recoil Cannon", timeline: 3, range: 3, strength: 4, critical: "dashRescueTimeline0", criticalTiming: "afterCombatDamage" }
       ],
       command: { id: "critical-shot", name: "Critical Shot", energy: 1, text: "ให้ศัตรูในระยะ 3 ติด Fracture" },
       ongoing: { name: "Federation Courage", text: "เมื่อมีอัปเกรด 2 ชิ้นขึ้นไป ผล 7–8 เป็น Critical" }
@@ -29,7 +29,7 @@
       hp: 9, vp: 3, tl: 3, card: "assets/cards/card-002.jpg", portrait: "right",
       icon: "assets/icons/guntank.png",
       weapons: [
-        { id: "bop-missile", name: "Quadruple Bop Missile", timeline: 2, range: 3, strength: 2, effect: "objectiveBonus", critical: "fracture" },
+        { id: "bop-missile", name: "Quadruple Bop Missile", timeline: 2, range: 3, strength: 2, effect: "objectiveBonus", critical: "fracture", criticalTiming: "afterCombatDamage" },
         { id: "low-recoil-120", name: "120mm Low-Recoil Cannon", timeline: 4, range: 4, strength: 4, ignoreLos: true, critical: "slow" }
       ],
       command: { id: "saturated-fire", name: "Saturated Fire", energy: 1, text: "ทอย 5 ลูก; ทุก Critical สร้าง Damage 1 แก่ศัตรูทุกตัวในระยะ 4" },
@@ -40,8 +40,8 @@
       hp: 8, vp: 5, tl: 1, card: "assets/cards/card-003.jpg", portrait: "right", weaponBadge: "AXE",
       icon: "assets/icons/chars-zaku.png",
       weapons: [
-        { id: "char-heat-hawk", name: "Heat Hawk", timeline: 2, range: 1, strength: 3, critical: "fracture" },
-        { id: "char-machine-gun", name: "Machine Gun", timeline: 3, range: 2, strength: 5, critical: "dashTimeline0" }
+        { id: "char-heat-hawk", name: "Heat Hawk", timeline: 2, range: 1, strength: 3, critical: "fracture", criticalTiming: "afterCombatDamage" },
+        { id: "char-machine-gun", name: "Machine Gun", timeline: 3, range: 2, strength: 5, critical: "dashTimeline0", criticalTiming: "afterCombatDamage" }
       ],
       command: { id: "burst-attack", name: "Burst Attack", energy: 1, text: "โจมตีด้วย Heat Hawk โดยใช้ Timeline 0" },
       ongoing: { name: "Three Times Faster", text: "เมื่อ Dash สามารถเคลื่อนที่เพิ่มได้อีก 1 ช่อง" },
@@ -67,7 +67,7 @@
         { id: "enforcer-heat-hawk", name: "Heat Hawk", timeline: 4, range: 1, strength: 5, effect: "destroyUpgrade", critical: "slow" }
       ],
       command: { id: "domination", name: "Domination", energy: 1, text: "ยึด Objective ที่อยู่บนช่องเดียวกันหรือช่องติดกัน" },
-      ongoing: { name: "Suppressing Presence", text: "ได้ Strength +1 เมื่อโจมตีศัตรูที่มี Status" }
+      ongoing: { name: "Suppressing Presence", text: "ได้ Strength +1 เมื่อโจมตี Unit ศัตรูที่มี Damage อยู่แล้ว" }
     }
   ];
 

@@ -86,35 +86,34 @@
     if (distance(attacker,target) <= 1) return {clear:true,paths:[{clear:true,path:line(attacker,target),blocker:null}]};
     const aElev = elevationAt(state, attacker.q, attacker.r);
     const tElev = elevationAt(state, target.q, target.r);
-    const highElev = Math.max(aElev,tElev);
-    const sameElevation = aElev === tElev;
     const inspectPath = path => {
       for (const hex of path.slice(1,-1)) {
         const hexElevation=elevationAt(state,hex.q,hex.r);
-        // Rulebook pp.19-22: terrain higher than both endpoints blocks. When the
-        // endpoints differ in elevation, terrain level with the higher endpoint blocks too.
-        if (hexElevation > highElev || (!sameElevation && hexElevation === highElev)) {
+        // LOS is judged from the attacker's elevation. Any intervening terrain above the
+        // attacker blocks. When firing downhill, terrain level with the attacker also blocks
+        // because the attacker cannot see through the crest of its own level.
+        const terrainBlocks = aElev > tElev ? hexElevation >= aElev : hexElevation > aElev;
+        if (terrainBlocks) {
           return {clear:false,path,blocker:{...hex,type:"terrain",elevation:hexElevation}};
         }
 
-        // Enemy pieces/constructs block only at the higher endpoint's elevation.
-        // Lower pieces can be fired over; allied pieces never block Line of Sight.
+        // Allied pieces never block LOS. Any intervening enemy Unit/Garrison/Base or
+        // enemy-controlled Objective blocks regardless of its elevation.
         const blockingUnit=unitAt(state,hex.q,hex.r);
-        if (blockingUnit && blockingUnit.team !== attacker.team && hexElevation === highElev) {
+        if (blockingUnit && blockingUnit.team !== attacker.team) {
           return {clear:false,path,blocker:{...hex,type:"unit",elevation:hexElevation,id:blockingUnit.id}};
         }
         const blockingGarrison=garrisonAt(state,hex.q,hex.r);
-        if (blockingGarrison && blockingGarrison.team !== attacker.team && hexElevation === highElev) {
+        if (blockingGarrison && blockingGarrison.team !== attacker.team) {
           return {clear:false,path,blocker:{...hex,type:"garrison",elevation:hexElevation,id:blockingGarrison.id}};
         }
 
-        // Enemy Bases and enemy-controlled Objectives are also enemy-side tokens.
         const blockingBase=DATA.map.featureCoordinates.bases.find(base=>base.q===hex.q&&base.r===hex.r);
-        if (blockingBase && blockingBase.team !== attacker.team && hexElevation === highElev) {
+        if (blockingBase && blockingBase.team !== attacker.team) {
           return {clear:false,path,blocker:{...hex,type:"base",elevation:hexElevation}};
         }
         const blockingObjective=state.objectives?.find(objective=>objective.q===hex.q&&objective.r===hex.r);
-        if (blockingObjective?.owner && blockingObjective.owner !== attacker.team && hexElevation === highElev) {
+        if (blockingObjective?.owner && blockingObjective.owner !== attacker.team) {
           return {clear:false,path,blocker:{...hex,type:"objective",elevation:hexElevation,id:blockingObjective.id}};
         }
       }
@@ -261,7 +260,7 @@
 
   function setupGame(rng = Math.random) {
     const selected = shuffle(DATA.mysteryPool, rng).slice(0, 9);
-    const units = DATA.units.map(unit => ({
+    const units = DATA.units.map((unit, index) => ({
       ...unit,
       maxHp: unit.hp,
       zone: "reserve",
@@ -272,6 +271,7 @@
       inactiveShields: 0,
       statuses: { slow: false, fracture: false, disarm: false },
       nextAt: unit.tl,
+      timelineSeq: index + 1,
       tempStrength: 0,
       critBoost: false,
       nextAttackDiscount: 0,
@@ -290,6 +290,7 @@
       phase: 1, round: 1, status: "playing", board: boardData(), units, garrisons, upgrades, energy, objectives,
       vp: { fed: 0, zeon: 0 }, rescuedGarrisons: { fed: 0, zeon: 0 }, usedTactics: new Set(), hands: { fed: [], zeon: [] }, tacticDecks: { fed: [], zeon: [] }, retiredTactics: { fed: [], zeon: [] }, tacticCycles: { fed: 1, zeon: 1 },
       currentTick: 1, resolvedThisTick: new Set(), log: [], activeUnitId: null,
+      timelineSeqCounter: units.length, lastActivatedTeam: null, responseTacticLock: { fed: false, zeon: false },
       activation: { advanced: false, actionUsed: false, commandUsed: false, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 }, winner: null
     };
     dealTacticHands(state, rng);
@@ -326,10 +327,30 @@
     return units.length===3&&units.every(unit=>unit.nextAt>limit);
   }
 
+  function advanceUnitTimeline(state, unit, amount) {
+    const cost=Math.max(0,Number(amount)||0);
+    if(!unit||cost===0)return unit?.nextAt;
+    unit.nextAt += cost;
+    state.timelineSeqCounter=(state.timelineSeqCounter||0)+1;
+    unit.timelineSeq=state.timelineSeqCounter;
+    return unit.nextAt;
+  }
+
   function chooseNextUnit(state) {
     const candidates = state.units.filter(unit => unit.nextAt === state.currentTick && !state.resolvedThisTick.has(unit.id));
     if (!candidates.length) return null;
-    return candidates.sort((a,b) => DATA.units.findIndex(x=>x.id===a.id)-DATA.units.findIndex(x=>x.id===b.id))[0];
+    const preferredTeam=state.lastActivatedTeam==="fed"?"zeon":state.lastActivatedTeam==="zeon"?"fed":null;
+    const dataIndex=unit=>DATA.units.findIndex(x=>x.id===unit.id);
+    return candidates.sort((a,b)=>{
+      if(a.team!==b.team&&preferredTeam){
+        if(a.team===preferredTeam)return -1;
+        if(b.team===preferredTeam)return 1;
+      }
+      const seqA=Number.isFinite(a.timelineSeq)?a.timelineSeq:dataIndex(a)+1;
+      const seqB=Number.isFinite(b.timelineSeq)?b.timelineSeq:dataIndex(b)+1;
+      if(seqA!==seqB)return seqA-seqB;
+      return dataIndex(a)-dataIndex(b);
+    })[0];
   }
 
   function livingEnemies(state, unit) {
@@ -361,9 +382,10 @@
     result.hits = result.results.filter(value => value === "hit").length;
     result.criticals = result.results.filter(value => value === "critical").length;
     result.damage = result.hits + result.criticals;
-    if (weapon.critical === "damage2" && result.criticals) result.damage += 2;
+    const criticalEffectsActive=result.criticals>0&&!result.criticalEffectsDisabled;
+    if (weapon.critical === "damage2" && criticalEffectsActive) result.damage += 2;
     result.criticalBonusDamage = 0;
-    if (weapon.critical === "rescuedGarrisonDamage" && result.criticals) {
+    if (weapon.critical === "rescuedGarrisonDamage" && criticalEffectsActive) {
       result.criticalBonusDamage = Math.max(0, Number(state?.rescuedGarrisons?.[attacker?.team]) || 0);
       result.damage += result.criticalBonusDamage;
     }
@@ -372,21 +394,34 @@
   }
 
   function rollAttack(state, attacker, defender, weapon, rng = Math.random) {
+    const defenderIsDamaged=Number.isFinite(defender?.hp)&&Number.isFinite(defender?.maxHp)&&defender.hp<defender.maxHp;
     const strengthBonus = attacker.upgrades.strength + attacker.tempStrength +
-      (attacker.id === "zaku-enforcer" && Object.values(defender.statuses).some(Boolean) ? 1 : 0);
+      (attacker.id === "zaku-enforcer" && defenderIsDamaged ? 1 : 0);
     const count = Math.max(1, weapon.strength + strengthBonus);
     const elevationMod = Math.sign(elevationAt(state, attacker.q, attacker.r) - elevationAt(state, defender.q, defender.r));
     const targeted = attacker.id === "guntank" && Object.values(attacker.upgrades).reduce((a,b)=>a+b,0) >= 2 ? 1 : 0;
     const accuracy = elevationMod + targeted;
-    let dice = Array.from({ length: count }, () => Math.floor(rng() * 10) + 1);
+    const dice = Array.from({ length: count }, () => Math.floor(rng() * 10) + 1);
     const critFloor = attacker.critBoost || (attacker.id === "guncannon" && Object.values(attacker.upgrades).reduce((a,b)=>a+b,0) >= 2) ? 7 : 9;
     let results = dice.map(die=>classifyAttackDie(die,accuracy,critFloor));
-    const wasDisarmed=attacker.statuses.disarm;
+    const wasDisarmed=!!attacker.statuses.disarm;
+    const disarmRerolled=[];
     if (wasDisarmed) {
-      results = results.map(() => "miss");
+      // Disarm: reroll every ordinary Hit once. Criticals remain damage, but all Critical
+      // effects are disabled for this attack. The Disarm token is then consumed.
+      results.forEach((classification,index)=>{
+        if(classification!=="hit")return;
+        disarmRerolled.push(index);
+        dice[index]=Math.floor(rng()*10)+1;
+        results[index]=classifyAttackDie(dice[index],accuracy,critFloor);
+      });
       attacker.statuses.disarm = false;
     }
-    return summarizeAttackResult(state,attacker,defender,weapon,{ dice, results, accuracy, critFloor, rerollEligible:attacker.id==="gundam"&&!wasDisarmed });
+    return summarizeAttackResult(state,attacker,defender,weapon,{
+      dice, results, accuracy, critFloor,
+      rerollEligible:attacker.id==="gundam",
+      disarmed:wasDisarmed, disarmRerolled, criticalEffectsDisabled:wasDisarmed
+    });
   }
 
   function rerollAttackDie(state, attacker, defender, weapon, result, index, rng = Math.random) {
@@ -482,7 +517,7 @@
     unit.q = null; unit.r = null;
     unit.hp = unit.maxHp;
     unit.statuses = { slow: false, fracture: false, disarm: false };
-    unit.nextAt += 2;
+    advanceUnitTimeline(state,unit,2);
     return true;
   }
 
@@ -501,7 +536,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += 1;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

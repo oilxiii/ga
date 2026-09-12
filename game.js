@@ -507,7 +507,7 @@
   function finishDefeatedActiveActivation(unit,source="Response") {
     if(!unit||unit.id!==state.activeUnitId||unit.zone!=="reserve")return false;
     state.resolvedThisTick.add(unit.id);
-    refreshPassedTeamTactics(unit.team);
+    state.lastActivatedTeam=unit.team;
     state.activeUnitId=null;
     unit.tempStrength=0;
     unit.critBoost=false;
@@ -688,7 +688,13 @@
       deployed = true;
     }
     state.activeUnitId = unit.id;
+    const carriedResponseLock=!!state.responseTacticLock?.[unit.team];
     state.activation = { advanced: false, actionUsed: false, commandUsed: false, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 };
+    if(carriedResponseLock){
+      state.activation.tacticUsed[unit.team]=true;
+      state.responseTacticLock[unit.team]=false;
+      addLog(`${D.teams[unit.team].short}: ใช้ Response ใน Turn ก่อนหน้า — Turn นี้ใช้ Tactic เพิ่มไม่ได้`);
+    }
     state.responseUsed = { fed: false, zeon: false };
     const reactivatedShields = E.reactivateShields(unit);
     if (reactivatedShields > 0) addLog(`${unit.name}: Shield Upgrade ${reactivatedShields} ชิ้นกลับมา Active`);
@@ -772,7 +778,7 @@
     unit.critBoost = false;
     unit.lastShotBonus = false;
     state.resolvedThisTick.add(unit.id);
-    refreshPassedTeamTactics(unit.team);
+    state.lastActivatedTeam=unit.team;
     state.activeUnitId = null;
     mode = null;
     movementDraft = null;
@@ -782,16 +788,6 @@
       capturedObjectives.forEach((objective,index)=>queueObjectiveCaptureFx(objective,unit.team,40+index*180));
       scheduleStartActivation(880);
     }else scheduleStartActivation();
-  }
-
-  function refreshPassedTeamTactics(team) {
-    if(state.phase!==1||state.tacticCycles[team]!==1||!E.teamPassedTimeline(state,team,10))return 0;
-    const before=state.hands[team].length;
-    E.dealTacticHand(state,team);
-    state.tacticCycles[team]=2;
-    const drawn=state.hands[team].length-before;
-    addLog(`${D.teams[team].short}: Unit ทั้ง 3 ผ่าน TL10 และจบ Activation แล้ว — จั่ว Tactic +${drawn}`);
-    return drawn;
   }
 
   function dealPendingPhaseTwoTactics() {
@@ -810,7 +806,7 @@
 
   function payTimeline(unit, amount) {
     const cost=Math.max(0,amount);
-    unit.nextAt += cost;
+    E.advanceUnitTimeline(state,unit,cost);
     state.activation.timelineSpent += cost;
   }
 
@@ -841,8 +837,9 @@
     $("#timeline").innerHTML = Array.from({length:10},(_,index)=>{
       const slot=index+1;
       const units=state.units.filter(unit=>E.timelineSlot(unit.nextAt)===slot);
-      const fedUnits=units.filter(unit=>unit.team==="fed");
-      const zeonUnits=units.filter(unit=>unit.team==="zeon");
+      const stackOrder=(a,b)=>(a.timelineSeq??0)-(b.timelineSeq??0);
+      const fedUnits=units.filter(unit=>unit.team==="fed").sort(stackOrder);
+      const zeonUnits=units.filter(unit=>unit.team==="zeon").sort(stackOrder);
       return `<div class="timeline-slot ${slot===state.round?"current":""}"><div class="slot-number">${slot}</div><div class="timeline-stack"><div class="timeline-team-row fed">${fedUnits.map(timelineIcon).join("")}</div><div class="timeline-team-row zeon">${zeonUnits.map(timelineIcon).join("")}</div></div></div>`;
     }).join("");
   }
@@ -1296,8 +1293,7 @@
     const wasDeploying=unit.zone==="deploying";
     if(!wasDeploying)reachable.set(E.key(unit.q,unit.r),0);
     if(!reachable.size&&wasDeploying){
-      unit.zone="reserve";unit.q=null;unit.r=null;unit.energy+=1;payTimeline(unit,2);state.resolvedThisTick.add(unit.id);state.activeUnitId=null;
-      refreshPassedTeamTactics(unit.team);
+      unit.zone="reserve";unit.q=null;unit.r=null;unit.energy+=1;payTimeline(unit,2);state.resolvedThisTick.add(unit.id);state.lastActivatedTeam=unit.team;state.activeUnitId=null;
       addLog(`${unit.name} ไม่มีช่อง Deploy ที่ถูกกติกา: Energize +1, Timeline +2 และกลับ Reserve`);renderAll();startActivation();return false;
     }
     movementDraft={
@@ -1368,8 +1364,7 @@
     const reachable=E.reachable(state,unit,allowance,{ignoreElevation:!!options.ignoreElevation,forbidden});
     if(options.destinationFilter){for(const target of [...reachable.keys()]){const [q,r]=E.fromKey(target);if(!options.destinationFilter({q,r}))reachable.delete(target);}}
     if(!reachable.size&&unit.zone==="deploying"){
-      unit.zone="reserve";unit.q=null;unit.r=null;unit.energy+=1;payTimeline(unit,2);state.resolvedThisTick.add(unit.id);state.activeUnitId=null;
-      refreshPassedTeamTactics(unit.team);
+      unit.zone="reserve";unit.q=null;unit.r=null;unit.energy+=1;payTimeline(unit,2);state.resolvedThisTick.add(unit.id);state.lastActivatedTeam=unit.team;state.activeUnitId=null;
       addLog(`${unit.name} ไม่มีช่อง Deploy ที่ถูกกติกา: Energize +1, Timeline +2 และกลับ Reserve`);renderAll();startActivation();return;
     }
     const allowStay=options.allowStay??unit.zone!=="deploying";
@@ -1583,17 +1578,15 @@
         const reductions={};
         offerFederationShield(attacker,garrison,weapon,result,reductions,()=>{
           const impact=damageGarrison(attacker,garrison,result.damage,`${attacker.name} ใช้ ${weapon.name}`);
-          applyAttackerCritical(attacker,weapon,result);
-          const splash=resolveSplashDamage(attacker,garrison,weapon,result,reductions);
-          const attackerResponses=availablePostCombat(attacker,"attacker");
-          const defenderResponders=splash.units.filter(unit=>unit.zone==="board");
-          const defenderResponses=defenderResponders.length?availablePostCombat(defenderResponders[0],"defender"):[];
+          resolveSplashDamage(attacker,garrison,weapon,result,reductions);
           renderAll();
           if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to:{q:impact.q,r:impact.r},garrison:true,destroyed:impact.destroyed});
-          openPostCombatResponses([
-            {cards:attackerResponses,role:"attacker",responders:[attacker]},
-            {cards:defenderResponses,role:"defender",responders:defenderResponders}
-          ],attacker,surrogate,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result));
+          resolveAfterCombatCritical(attacker,surrogate,weapon,result,()=>{
+            const attackerResponses=availablePostCombat(attacker,"attacker");
+            openPostCombatResponses([
+              {cards:attackerResponses,role:"attacker",responders:[attacker]}
+            ],attacker,surrogate,0,()=>{});
+          });
         });
       }));
     }});
@@ -1674,17 +1667,16 @@
     const {attacker,defender,weapon,result,reductions={}}=pendingAttack;
     const from={q:attacker.q,r:attacker.r};
     const to={q:defender.q,r:defender.r};
-    applyAttackerCritical(attacker,weapon,result);
-    // Rule (p.25): step 7 resolves Critical Hit Effects (Slow/Fracture/Push2) BEFORE step 8
-    // deals Damage. Resolving Push2 first lets it land on a still-healthy target (so a
-    // lethal Push collision reaches its collided bystander) and lets a freshly-applied
-    // Fracture status be eligible to trigger on this very attack's own damage.
     const dealDamageAndFinish=()=>{
-      const damage=Math.max(0,result.damage-(reductions[defender.id]||0));
-      const applied=E.applyDamage(defender,damage,{sourceType:"attack"});
-      if (applied.blocked) addLog(`Shield ป้องกัน Damage ${applied.blocked}`);
-      addLog(`${defender.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
-      const splash=resolveSplashDamage(attacker,defender,weapon,result,reductions);
+      let applied={incoming:0,blocked:0,taken:0,fractured:false};
+      let splash={units:[],garrisons:[]};
+      if(defender.zone==="board"){
+        const damage=Math.max(0,result.damage-(reductions[defender.id]||0));
+        applied=E.applyDamage(defender,damage,{sourceType:"attack"});
+        if (applied.blocked) addLog(`Shield ป้องกัน Damage ${applied.blocked}`);
+        addLog(`${defender.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
+        splash=resolveSplashDamage(attacker,defender,weapon,result,reductions);
+      }
       const defeated=defender.zone==="reserve"||E.defeatUnit(state,defender,attacker.team);
       if (attacker.lastShotBonus) {
         if (defeated) {
@@ -1693,25 +1685,45 @@
         }
         attacker.lastShotBonus=false;
       }
-      const defenderResponders=[...(defeated?[]:[defender]),...splash.units]
-        .filter((unit,index,list)=>unit.zone==="board"&&list.findIndex(candidate=>candidate.id===unit.id)===index);
-      const defenderResponses=defenderResponders.length?availablePostCombat(defenderResponders[0],"defender"):[];
-      const attackerResponses=availablePostCombat(attacker,"attacker");
       pendingAttack=null;
       renderAll();
       if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to,targetUnitId:defender.id,destroyed:defeated});
-      openPostCombatResponses([
-        {cards:attackerResponses,role:"attacker",responders:[attacker]},
-        {cards:defenderResponses,role:"defender",responders:defenderResponders}
-      ],attacker,defender,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result,()=>{
-        finishDefeatedActiveActivation(attacker,"Combat Response");
-      }));
+      resolveAfterCombatCritical(attacker,defender,weapon,result,()=>{
+        // Splash victims are secondary damage recipients, not the defending Unit of this attack.
+        const defenderResponders=defeated?[]:[defender].filter(unit=>unit.zone==="board");
+        const defenderResponses=defenderResponders.length?availablePostCombat(defenderResponders[0],"defender"):[];
+        const attackerResponses=availablePostCombat(attacker,"attacker");
+        openPostCombatResponses([
+          {cards:attackerResponses,role:"attacker",responders:[attacker]},
+          {cards:defenderResponses,role:"defender",responders:defenderResponders}
+        ],attacker,defender,0,()=>{
+          finishDefeatedActiveActivation(attacker,"Combat Response");
+        });
+      });
     };
-    if (result.criticals>0) applyCritical(attacker,defender,weapon,result,dealDamageAndFinish);
+    if (criticalEffectsActive(result) && weapon.criticalTiming!=="afterCombatDamage") applyCritical(attacker,defender,weapon,result,dealDamageAndFinish);
     else dealDamageAndFinish();
   }
 
+  function criticalEffectsActive(result) {
+    return !!result && result.criticals>0 && !result.criticalEffectsDisabled;
+  }
+
+  function resolveAfterCombatCritical(attacker,defender,weapon,result,onComplete=()=>{}) {
+    if(!criticalEffectsActive(result)||weapon.criticalTiming!=="afterCombatDamage"){onComplete();return;}
+    if(weapon.critical==="gainStrength"){applyAttackerCritical(attacker,weapon,result);onComplete();return;}
+    if(weapon.critical==="fracture"){
+      if(defender?.zone==="board")applyDebuff(defender,"fracture");
+      onComplete();return;
+    }
+    if(weapon.critical==="dashTimeline0"||weapon.critical==="dashRescueTimeline0"){
+      offerWeaponCriticalFollowUp(attacker,weapon,result,onComplete);return;
+    }
+    onComplete();
+  }
+
   function applyCritical(attacker,defender,weapon,result,onComplete=()=>{}) {
+    if(!criticalEffectsActive(result)){onComplete();return;}
     if (weapon.critical==="slow") applyDebuff(defender,"slow");
     if (weapon.critical==="fracture") applyDebuff(defender,"fracture");
     if (weapon.critical==="push2") { beginPushDirection(attacker,defender,2,onComplete,"Shoulder Bash Critical"); return; }
@@ -1719,7 +1731,7 @@
   }
 
   function applyAttackerCritical(attacker,weapon,result) {
-    if (result.criticals<1||weapon.critical!=="gainStrength") return;
+    if (!criticalEffectsActive(result)||weapon.critical!=="gainStrength") return;
     grantUpgrade(attacker,"strength",1);
     addLog(`Beam Saber Critical: ${attacker.name} รับ Strength Upgrade 1`);
   }
@@ -1732,7 +1744,7 @@
   function offerFederationShield(attacker,target,weapon,result,reductions,onComplete=()=>{}) {
     const candidates=[];
     if(target?.weapons&&target.team==="fed"&&result.damage>0)candidates.push({unit:target,damage:result.damage});
-    const splashDamage=weapon.effect==="splash"&&weapon.critical==="splashDamage1"&&result.criticals>0?1:0;
+    const splashDamage=weapon.effect==="splash"&&weapon.critical==="splashDamage1"&&criticalEffectsActive(result)?1:0;
     if(splashDamage>0)splashUnitTargets(attacker,target,weapon).filter(unit=>unit.team==="fed").forEach(unit=>candidates.push({unit,damage:splashDamage}));
     if(!candidates.length||!inHand("fed","federation-shield")||isUsed("federation-shield")||state.activation.tacticUsed.fed){onComplete();return;}
     const card=getTactic("federation-shield");
@@ -1755,7 +1767,7 @@
 
   function resolveSplashDamage(attacker,target,weapon,result,reductions={}) {
     if(weapon.effect!=="splash")return {units:[],garrisons:[]};
-    const amount=weapon.critical==="splashDamage1"&&result.criticals>0?1:0;
+    const amount=weapon.critical==="splashDamage1"&&criticalEffectsActive(result)?1:0;
     const adjacentUnits=splashUnitTargets(attacker,target,weapon);
     const adjacentGarrisons=state.garrisons.filter(garrison=>garrison.team!==attacker.team&&garrison.id!==target.id&&E.distance(garrison,target)===1);
     adjacentUnits.forEach(unit=>{
@@ -1774,7 +1786,7 @@
   }
 
   function offerWeaponCriticalFollowUp(attacker,weapon,result,onComplete=()=>{}) {
-    if(result.criticals<1||attacker.zone!=="board"){onComplete();return;}
+    if(!criticalEffectsActive(result)||attacker.zone!=="board"){onComplete();return;}
     if(attacker.id==="chars-zaku"&&weapon.critical==="dashTimeline0"){
       addLog("Machine Gun Critical: Char’s Zaku II สามารถ Dash โดยใช้ Timeline 0");
       if(!isAiTeam(attacker.team)){
@@ -1845,7 +1857,8 @@
         addLog(`${target.name} ชน Garrison — ${target.name} รับ Damage ${pushedDamage.taken}, Garrison รับ Damage ${info.damage}`);
         playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
       }else addLog(`${target.name} ชน${step.reason==="edge"?"ขอบสนาม":"พื้นที่สูง/สิ่งกีดขวาง"} — รับ Damage ${pushedDamage.taken}`);
-      playDamageFeedback({to:targetPos,targetUnitId:target.id,destroyed:target.hp<=0});
+      const pushedDefeated=E.defeatUnit(state,target,source.team);
+      playDamageFeedback({to:targetPos,targetUnitId:target.id,destroyed:pushedDefeated});
       break;
     }
     renderAll();
@@ -1859,8 +1872,9 @@
     if(!options.length){
       const targetPos={q:target.q,r:target.r};
       const damage=E.applyDamage(target,2,{sourceType:"collision"});
+      const defeated=E.defeatUnit(state,target,source.team);
       addLog(`${label}: ${target.name} ไม่มีช่องให้ผลักออก — ชนขอบสนามและรับ Damage ${damage.taken}`);
-      playDamageFeedback({to:targetPos,targetUnitId:target.id,destroyed:target.hp<=0});
+      playDamageFeedback({to:targetPos,targetUnitId:target.id,destroyed:defeated});
       renderAll();onComplete();return true;
     }
     const choose=option=>{
@@ -1922,29 +1936,31 @@
         showDiceRoll(result,`RETURN FIRE · ${weapon.name}`,()=>offerNewtypeReroll(returningUnit,attacker,weapon,result,()=>offerWeaponAfterRollEffect(returningUnit,attacker,weapon,()=>{
           const from={q:returningUnit.q,r:returningUnit.r};
           const to={q:attacker.q,r:attacker.r};
-          applyAttackerCritical(returningUnit,weapon,result);
-          // Rule (p.25): Critical Hit Effects (step 7) resolve before Damage (step 8) here too.
           const finishReturnFire=()=>{
-            const applied=E.applyDamage(attacker,result.damage,{sourceType:"attack"});
-            if(applied.blocked)addLog(`Return Fire: Shield ป้องกัน Damage ${applied.blocked}`);
-            const splash=resolveSplashDamage(returningUnit,attacker,weapon,result);
-            returningUnit.nextAt+=Math.max(0,weapon.timeline-1);
+            let applied={incoming:0,blocked:0,taken:0,fractured:false};
+            if(attacker.zone==="board"){
+              applied=E.applyDamage(attacker,result.damage,{sourceType:"attack"});
+              if(applied.blocked)addLog(`Return Fire: Shield ป้องกัน Damage ${applied.blocked}`);
+              resolveSplashDamage(returningUnit,attacker,weapon,result);
+            }
+            E.advanceUnitTimeline(state,returningUnit,Math.max(0,weapon.timeline-1));
             addLog(`Return Fire ที่ยืนยันแล้ว: ${returningUnit.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
             const defeated=attacker.zone==="reserve"||E.defeatUnit(state,attacker,returningUnit.team);
             renderAll();
             if(result.damage>0)playCombatFeedback({from,to,targetUnitId:attacker.id,destroyed:defeated});
-            const returnDefenderResponders=[...(defeated?[]:[attacker]),...splash.units].filter(unit=>unit.zone==="board");
-            const returnDefenderResponses=returnDefenderResponders.length?availablePostCombat(returnDefenderResponders[0],"defender"):[];
-            const returnAttackerResponses=availablePostCombat(returningUnit,"attacker");
-            // Rule (p.25): when both sides could Respond at the same time, the attacking
-            // player's abilities resolve first. `returningUnit` is the attacker of this
-            // Return Fire counter-attack, so its Response window must be queued first.
-            openPostCombatResponses([
-              {cards:returnAttackerResponses,role:"attacker",responders:[returningUnit]},
-              {cards:returnDefenderResponses,role:"defender",responders:returnDefenderResponders}
-            ],returningUnit,attacker,0,()=>offerWeaponCriticalFollowUp(returningUnit,weapon,result,done));
+            resolveAfterCombatCritical(returningUnit,attacker,weapon,result,()=>{
+              // Only the actual defending Unit receives defender Response windows; splash
+              // recipients are secondary targets and cannot Return Fire/Shattered Formation.
+              const returnDefenderResponders=defeated?[]:[attacker].filter(unit=>unit.zone==="board");
+              const returnDefenderResponses=returnDefenderResponders.length?availablePostCombat(returnDefenderResponders[0],"defender"):[];
+              const returnAttackerResponses=availablePostCombat(returningUnit,"attacker");
+              openPostCombatResponses([
+                {cards:returnAttackerResponses,role:"attacker",responders:[returningUnit]},
+                {cards:returnDefenderResponses,role:"defender",responders:returnDefenderResponders}
+              ],returningUnit,attacker,0,done);
+            });
           };
-          if(result.criticals>0)applyCritical(returningUnit,attacker,weapon,result,finishReturnFire);
+          if(criticalEffectsActive(result)&&weapon.criticalTiming!=="afterCombatDamage")applyCritical(returningUnit,attacker,weapon,result,finishReturnFire);
           else finishReturnFire();
         })));
       };
@@ -1969,9 +1985,9 @@
     if (unit.energy<1||state.activation.commandUsed) return;
     const spend=()=>{unit.energy-=1;state.activation.commandUsed=true;};
     if (unit.id==="gundam") {
-      const allies=state.units.filter(x=>x.team===unit.team&&x.zone==="board"&&E.distance(unit,x)<=3&&totalUpgrades(x)<=1);
-      if (!allies.length) { addLog("White Base Unity: ไม่มีพันธมิตรในระยะ 3");menuOpen=true;renderAll();return; }
-      mode={type:"select-unit",unitId:unit.id,targets:new Set(allies.map(x=>E.key(x.q,x.r))),hint:"White Base Unity: เลือกพันธมิตรที่มี Upgrade ไม่เกิน 1 ชิ้น",callback:target=>chooseWhiteBaseUpgrade(target,spend)};
+      const allies=state.units.filter(x=>x.team===unit.team&&x.zone==="board"&&E.distance(unit,x)<=3&&E.hasLineOfSight(state,unit,x)&&totalUpgrades(x)<=1);
+      if (!allies.length) { addLog("White Base Unity: ไม่มีพันธมิตรใน Range 3 และ Line of Sight");menuOpen=true;renderAll();return; }
+      mode={type:"select-unit",unitId:unit.id,targets:new Set(allies.map(x=>E.key(x.q,x.r))),hint:"White Base Unity: เลือกพันธมิตรใน LOS ที่มี Upgrade ไม่เกิน 1 ชิ้น",callback:target=>chooseWhiteBaseUpgrade(target,spend)};
     } else if (unit.id==="guncannon") {
       selectEnemy(unit,3,"Critical Shot: เลือกศัตรู",target=>{spend();applyDebuff(target,"fracture");addLog(`${target.name} ติด Fracture`);});
     } else if (unit.id==="guntank") {
@@ -2087,7 +2103,7 @@
   }
 
   function markCommand(card) { E.retireTacticCard(state,card.team,card.id);state.activation.tacticUsed[card.team]=true;addLog(`ใช้ Tactic: ${card.name}`); }
-  function useResponse(card) { E.retireTacticCard(state,card.team,card.id);state.activation.tacticUsed[card.team]=true;state.responseUsed[card.team]=true;addLog(`Response: ${card.name}`); }
+  function useResponse(card) { E.retireTacticCard(state,card.team,card.id);state.activation.tacticUsed[card.team]=true;state.responseUsed[card.team]=true;const active=activeUnit();if(active&&active.team!==card.team){state.responseTacticLock[card.team]=true;}addLog(`Response: ${card.name}`); }
 
   function continueCrimsonExecution(card,unit) {
     if(!unit||unit.id!==state.activeUnitId||unit.zone!=="board")return false;
@@ -2387,7 +2403,7 @@
 
   function showRules() {
     const modal=ensureModal();
-    modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — เฉพาะ Char’s Zaku II Dash ได้เพิ่ม 1 ช่องจาก Three Times Faster</li><li>Speed เพิ่มระยะเฉพาะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วนการลงที่ต่ำไม่เพิ่มค่าใช้จ่าย</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป</li><li>แต่ละฝ่ายเริ่ม Phase 1 ด้วย Tactic สุ่ม 3 จากสำรับ 9 ใบ; เมื่อ Unit ทั้ง 3 ของฝ่ายนั้นผ่าน TL10 และจบ Activation แล้ว ฝ่ายนั้นจั่วเพิ่ม 3 ใบทันทีโดยไม่ต้องรออีกฝ่าย</li><li>ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation; กดการ์ดเพื่ออ่านก่อน แล้วจึงกด Confirm</li><li>ไม่มีการโจมตีสวนกลับอัตโนมัติ ยกเว้นยืนยันใช้ Return Fire</li><li>ช่องสีฟ้าคือช่องเดินที่ตรวจระยะและความสูงแล้ว; ช่องสีแดงคือเป้าหมายที่อยู่ใน Range และ Line of Sight</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest: ฝ่ายเราต้องมี Unit ในระยะ 1 มากกว่า; จุดกลางจะถูกยึด ส่วนจุดศัตรูจะกลับเป็นกลางก่อนและต้อง Contest ชนะอีกครั้งจึงยึดได้</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ 1 VP เมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และการทำลาย Garrison ศัตรูหรือ Rescue Garrison ฝ่ายเดียวกันได้ 2 VP</li></ul><p>พิกัด Feature และชั้นความสูงอ้างอิงภาพ Sleeping Leviathan ที่อัปโหลด; การ์ดทั้ง 24 ใบใช้ภาพจริงจาก PDF</p></div>`;
+    modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — เฉพาะ Char’s Zaku II Dash ได้เพิ่ม 1 ช่องจาก Three Times Faster</li><li>Speed เพิ่มระยะเฉพาะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วนการลงที่ต่ำไม่เพิ่มค่าใช้จ่าย</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป; ถ้าฝ่ายเดียวกันซ้อนช่องเดียวกัน ตัวที่เข้าช่องก่อนเล่นก่อน และถ้าสองฝ่ายชน Round เดียวกัน ฝ่ายที่ไม่ได้ Activate ล่าสุดได้สิทธิ์ก่อน</li><li>แต่ละฝ่ายเริ่ม Phase 1 ด้วย Tactic สุ่ม 3 จากสำรับ 9 ใบ; หลังจบ Phase 1 และคิดคะแนน Objective แล้ว ทั้งสองฝ่ายจั่วเพิ่มฝ่ายละ 3 ใบพร้อมกันก่อนเริ่ม Phase 2</li><li>ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation; หากใช้ Response ใน Turn ของคู่ต่อสู้ Turn ถัดไปของฝ่ายนั้นจะใช้ Tactic เพิ่มไม่ได้; กดการ์ดเพื่ออ่านก่อน แล้วจึงกด Confirm</li><li>ไม่มีการโจมตีสวนกลับอัตโนมัติ ยกเว้นยืนยันใช้ Return Fire</li><li>ช่องสีฟ้าคือช่องเดินที่ตรวจระยะและความสูงแล้ว; ช่องสีแดงคือเป้าหมายที่อยู่ใน Range และ Line of Sight</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest: ฝ่ายเราต้องมี Unit ในระยะ 1 มากกว่า; จุดกลางจะถูกยึด ส่วนจุดศัตรูจะกลับเป็นกลางก่อนและต้อง Contest ชนะอีกครั้งจึงยึดได้</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ 1 VP เมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และการทำลาย Garrison ศัตรูหรือ Rescue Garrison ฝ่ายเดียวกันได้ 2 VP</li></ul><p>พิกัด Feature และชั้นความสูงอ้างอิงภาพ Sleeping Leviathan ที่อัปโหลด; การ์ดทั้ง 24 ใบใช้ภาพจริงจาก PDF</p></div>`;
     modal.classList.add("show");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);
   }
