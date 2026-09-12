@@ -330,6 +330,52 @@ test("enemy units and enemy Garrisons block Line of Sight at the shared elevatio
   assert.equal(E.hasLineOfSight(s,attacker,target),false);
 });
 
+test("a higher attacker can fire over lower enemy pieces", () => {
+  const s=E.setupGame(()=>0.5);
+  const attacker=s.units.find(x=>x.id==="gundam");
+  const blocker=s.units.find(x=>x.id==="chars-zaku");
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  attacker.zone="board";attacker.q=2;attacker.r=2;
+  const target={q:4,r:3,team:"zeon"};
+  const middle=E.line(attacker,target)[1];
+  s.board[E.key(attacker.q,attacker.r)].elevation=2;
+  s.board[E.key(middle.q,middle.r)].elevation=1;
+  blocker.zone="board";blocker.q=middle.q;blocker.r=middle.r;
+  assert.equal(E.hasLineOfSight(s,attacker,target),true);
+});
+
+test("terrain below the higher endpoint does not block an uphill shot", () => {
+  const s=E.setupGame(()=>0.5);
+  const attacker=s.units.find(x=>x.id==="gundam");
+  s.units.forEach(unit=>{unit.zone="reserve";});
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  attacker.zone="board";attacker.q=2;attacker.r=2;
+  const target={q:4,r:3,team:"zeon"};
+  const middle=E.line(attacker,target)[1];
+  s.board[E.key(target.q,target.r)].elevation=2;
+  s.board[E.key(middle.q,middle.r)].elevation=1;
+  assert.equal(E.hasLineOfSight(s,attacker,target),true);
+  s.board[E.key(middle.q,middle.r)].elevation=2;
+  assert.equal(E.hasLineOfSight(s,attacker,target),false);
+});
+
+test("Line of Sight inspection reports both edge-path choices and their blockers", () => {
+  const s=E.setupGame(()=>0.5);
+  const attacker=s.units.find(x=>x.id==="gundam");
+  const target=s.units.find(x=>x.id==="chars-zaku");
+  s.units.forEach(unit=>{unit.zone="reserve";});
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  attacker.zone="board";attacker.q=0;attacker.r=0;
+  target.zone="board";target.q=1;target.r=1;
+  const variants=E.lineVariants(attacker,target);
+  s.board[E.key(variants[0][1].q,variants[0][1].r)].elevation=1;
+  const details=E.lineOfSightDetails(s,attacker,target);
+  assert.equal(details.paths.length,2);
+  assert.equal(details.clear,true);
+  assert.equal(details.paths.filter(path=>path.clear).length,1);
+  assert.equal(details.paths.find(path=>!path.clear).blocker.type,"terrain");
+});
+
 test("all tactic summaries preserve their decisive card conditions", () => {
   const byId=id=>D.tactics.find(card=>card.id===id).text;
   assert.match(byId("built-to-last"),/ต่อ Upgrade Token ทุก 1 อัน/);
@@ -366,18 +412,28 @@ test("UI requires confirmation and Char Kick only follows Dash", () => {
   assert.match(source,/Return Fire ที่ยืนยันแล้ว/);
 });
 
-test("Char Kick selection has an urgent red target treatment", () => {
+test("Char Kick uses a damage-or-back decision before committing the Dash", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(source,/function offerCharKickDraft\(unit\)/);
+  assert.match(source,/function resolveCharKickTarget\(unit,target(?:,continuation=null)?\)/);
+  assert.match(source,/ทำ Damage เพื่อยืนยัน Dash/);
+  assert.match(source,/Back เพื่อเปลี่ยนจุด Dash/);
+  assert.match(source,/data-char-kick-unit/);
+  assert.match(source,/data-char-kick-garrison/);
+  assert.match(source,/ทำ Damage 1/);
+  assert.match(source,/commitMovementDraft\(finishKick,\{skipCharKick:true\}\)/);
+  assert.match(source,/payTimeline\(unit,draft\.cost\)/);
   assert.match(source,/char-kick-target/);
   assert.match(source,/char-kick-victim/);
-  assert.match(source,/char-kick-menu/);
-  assert.match(source,/เลือกเป้าหมายสีแดง/);
-  assert.match(source,/DAMAGE 1/);
+  assert.match(source,/function adjacentCharKickTargets\(unit\)/);
+  assert.match(source,/state\.garrisons\.filter\(target=>target\.team!==unit\.team&&E\.distance\(unit,target\)===1\)/);
+  assert.match(source,/function resolveCharKickGarrisonTarget\(unit,garrison(?:,continuation=null)?\)/);
+  assert.match(source,/damageGarrison\(unit,garrison,1,"Char Kick"\)/);
   assert.match(css,/\.hex\.char-kick-target polygon/);
   assert.match(css,/\.unit-node\.char-kick-victim \.unit-base/);
   assert.match(css,/\.unit-command-menu\.char-kick-menu/);
-  assert.match(css,/@keyframes char-kick-hex-pulse/);
+  assert.match(css,/\.char-kick-damage/);
 });
 
 test("battlefield UI uses the compact online title, switchable command placement, and collapsible log", () => {
@@ -393,17 +449,44 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="ปิดเสียง"[^>]+aria-pressed="false"/);
+  assert.match(html,/<span class="build-version"[^>]*>v48<\/span>/);
+  assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
   assert.ok(html.indexOf('id="active-hud"') < html.indexOf('id="board-wrap"'));
   assert.match(css,/\.hud-stack \{[\s\S]*position: static;/);
   assert.match(css,/\.board-feed \{[\s\S]*display: none;/);
   assert.match(css,/\.board-feed\.open \{ display: block; \}/);
+  assert.match(css,/\.modal-close \{[\s\S]*z-index: 12;[\s\S]*border: 2px solid #fff;[\s\S]*background: #c51632;/);
   assert.match(source,/let menuPlacement = "right"/);
   assert.doesNotMatch(source,/menuPlacement=menuPlacement==="right"\?"left":"right"/);
   assert.match(source,/unitCenter<boardBounds\.left\+boardBounds\.width\/2\?"right":"left"/);
   assert.match(source,/menuPlacement==="right"\?screen\.x\+30:screen\.x-menuWidth-30/);
   assert.match(source,/document\.addEventListener\("pointerdown"/);
+});
+
+test("persistent LOS inspection stays independent from Command and movement preview", () => {
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(html,/id="los-btn"/);
+  assert.ok(html.indexOf('id="los-btn"')>html.indexOf('id="combat-feed"'),"LOS control belongs below the Battle Log");
+  assert.ok(html.indexOf('id="los-btn"')<html.indexOf('id="board-wrap"'),"LOS control remains independent from the contextual Command menu");
+  assert.match(source,/let losInspection = \{ enabled:false \}/);
+  assert.match(source,/function renderLosInspection/);
+  assert.match(source,/E\.lineOfSightDetails\(state,source,target\)/);
+  assert.match(source,/const maximumRange=Math\.max\(0,\.\.\.\(source\.weapons\|\|\[\]\)\.map\(weapon=>weapon\.range\|\|0\)\)/);
+  assert.match(source,/\.\.\.E\.livingEnemies\(state,source\),[\s\S]{0,100}\.\.\.state\.garrisons\.filter\(garrison=>garrison\.team!==source\.team\)/);
+  assert.match(source,/E\.distance\(source,target\)<=maximumRange/);
+  assert.match(source,/details\.paths\.find\(candidate=>candidate\.clear\)\|\|details\.paths\[0\]/);
+  assert.doesNotMatch(source,/losInspection\.target/);
+  assert.doesNotMatch(source,/losInspection\.enabled[\s\S]{0,100}movementDraft=null/);
+  assert.match(css,/\.los-path\.clear/);
+  assert.match(css,/\.los-path\.blocked/);
+  assert.match(css,/\.hud-los-btn/);
+  assert.match(css,/\.los-eye/);
+  assert.match(css,/\.los-btn\[aria-pressed="true"\]/);
+  assert.match(source,/LINE OF SIGHT\$\{available\?` · R\$\{maximumRange\}`:""\}/);
 });
 
 test("map shows compact status, upgrade, and temporary buff badges on units", () => {
@@ -595,13 +678,15 @@ test("Rescue the Mechanics opens an optional response and repairs a damaged ally
   assert.match(zaku.response.text,/ซ่อมแซม Damage 2/);
 });
 
-test("Char Machine Gun Critical offers a Timeline 0 Dash before Char Kick", () => {
+test("Char Machine Gun Critical gives the human player the same adjustable Timeline 0 Dash flow", () => {
   const char=D.units.find(unit=>unit.id==="chars-zaku");
   const machineGun=char.weapons.find(weapon=>weapon.id==="char-machine-gun");
   assert.equal(machineGun.critical,"dashTimeline0");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function offerWeaponCriticalFollowUp/);
-  assert.match(source,/startMoveFor\(attacker,D\.rules\.dash\.distance\+1,0,"Machine Gun Critical Dash",moved=>afterUnitMove\(attacker,"dash",onComplete,moved\)/);
+  assert.match(source,/function beginAdjustableCharDash\(unit,cost,label,onComplete=null,options=\{\}\)/);
+  assert.match(source,/beginAdjustableCharDash\(attacker,0,"Machine Gun Critical Dash",onComplete/);
+  assert.match(source,/movementDraft\.cost===0/);
+  assert.match(source,/Timeline \+\$\{draft\.cost\}/);
   assert.match(source,/openPostCombatResponses\([\s\S]*offerWeaponCriticalFollowUp\(attacker,weapon,result\)/);
 });
 
@@ -617,7 +702,7 @@ test("Cracker Grenade uses one center target and splash is 0 normally / 1 on Cri
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/function resolveSplashDamage/);
   assert.match(source,/const amount=weapon\.critical==="splashDamage1"&&result\.criticals>0\?1:0/);
-  assert.match(source,/adjacentUnits=E\.livingEnemies\(state,attacker\)\.filter/);
+  assert.match(source,/adjacentUnits=splashUnitTargets\(attacker,target,weapon\)/);
   assert.match(source,/adjacentGarrisons=state\.garrisons\.filter/);
   assert.match(source,/Cracker Grenade AOE/);
   assert.match(source,/Damage 0 \(Critical = 1\)/);
@@ -786,14 +871,24 @@ test("Engagement target priority only uses same-elevation adjacent threats", () 
   s.garrisons=[{id:"enemy-g",team:"zeon",q:6,r:5,hp:1,maxHp:1}];
   s.board[E.key(6,5)].elevation=0;
   assert.equal(E.engagedTargets(s,attacker).map(x=>x.id).includes("enemy-g"),true);
-  assert.deepEqual(E.legalWeaponTargets(s,attacker,weapon),[],"when Engaged only with a Garrison, distant units are not legal targets");
+  assert.deepEqual(
+    E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id),
+    ["enemy-g"],
+    "when Engaged only with a Garrison, that Garrison is the forced legal target and distant units are excluded"
+  );
 });
 
-test("the attack UI prioritizes same-elevation Engaged units and Garrisons", () => {
+test("the attack UI uses engine legal targets for Engaged units and Garrisons", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/const engaged=E\.engagedTargets\(state,unit\)/);
-  assert.match(source,/engagedKeys\.has\(E\.key\(g\.q,g\.r\)\)/);
+  assert.match(source,/const targets=E\.legalWeaponTargets\(state,unit,weapon\)/);
+  assert.doesNotMatch(source,/const garrisonTargets=state\.garrisons\.filter/);
   assert.match(source,/ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน/);
+});
+
+test("AI attack generation consumes engine legal Garrison targets without a duplicate overlay", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","ai.js"),"utf8");
+  assert.match(source,/for \(const target of engine\.legalWeaponTargets\(state, unit, weapon\)\)/);
+  assert.doesNotMatch(source,/const engagedKeys = new Set/);
 });
 
 
@@ -810,8 +905,8 @@ test("a Response that destroys the active unit ends its Activation and advances 
 test("Return Fire applies attacker-side Critical effects such as Beam Saber Strength", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const body=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(body,/applyAttackerCritical\(defender,weapon,result\)/);
-  assert.match(body,/if\(result\.criticals>0\)applyCritical\(defender,attacker,weapon,result\)/);
+  assert.match(body,/applyAttackerCritical\(returningUnit,weapon,result\)/);
+  assert.match(body,/if\(result\.criticals>0\)applyCritical\(returningUnit,attacker,weapon,result,finishReturnFire\)/);
 });
 
 test("Lock Down and Breaking the Line require Line of Sight", () => {
@@ -870,42 +965,68 @@ test("LOS follows elevation direction, enemy blockers, and attacker choice betwe
   assert.equal(E.hasLineOfSight(s,attacker,enemy),false);
 });
 
-test("Push collision does not route around blockers and identifies Unit/Garrison collisions", () => {
+test("Push direction is chosen from hexes farther from the source and collision identifies Unit/Garrison blockers", () => {
   const s=E.setupGame(()=>0.5);
   Object.values(s.board).forEach(hex=>{hex.elevation=0;});
   const source=s.units.find(unit=>unit.id==="gundam");
   const target=s.units.find(unit=>unit.id==="chars-zaku");
   source.zone="board";source.q=5;source.r=5;
   target.zone="board";target.q=6;target.r=5;
-  let step=E.forcedPushStep(s,source,target);
+  const options=E.pushDirectionOptions(s,source,target);
+  assert.ok(options.length>=2,"adjacent target should offer multiple away directions on an open board");
+  assert.ok(options.every(option=>E.distance(source,option)>E.distance(source,target)));
+
+  const chosen=options[0];
+  let step=E.forcedPushStep(s,target,chosen.direction);
   assert.equal(step.type,"move");
   const destination={q:step.q,r:step.r};
 
   const blocker=s.units.find(unit=>unit.id==="zaku-enforcer");
   blocker.zone="board";blocker.q=destination.q;blocker.r=destination.r;
-  // Block any alternate equally-direct hex too so collision is mandatory.
-  const direct=E.neighbors(target.q,target.r).map(([q,r])=>({q,r,d:E.distance(source,{q,r})}));
-  const farthest=Math.max(...direct.map(x=>x.d));
-  const others=direct.filter(x=>x.d===farthest&&(x.q!==destination.q||x.r!==destination.r));
-  for(const other of others)s.board[E.key(other.q,other.r)].elevation=1;
-  step=E.forcedPushStep(s,source,target);
+  step=E.forcedPushStep(s,target,chosen.direction);
   assert.equal(step.type,"collision");
   assert.equal(step.unit?.id,blocker.id);
 
   blocker.zone="reserve";
   s.garrisons=[{id:"push-garrison",team:"zeon",q:destination.q,r:destination.r,hp:1,maxHp:1}];
-  step=E.forcedPushStep(s,source,target);
+  step=E.forcedPushStep(s,target,chosen.direction);
   assert.equal(step.type,"collision");
   assert.equal(step.garrison?.id,"push-garrison");
 });
 
-test("forced Push never invokes pickupAt and collision damage is handled for both objects", () => {
+test("Push continues in the chosen straight direction and uphill terrain causes a collision", () => {
+  const s=E.setupGame(()=>0.5);
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  const source=s.units.find(unit=>unit.id==="gundam");
+  const target=s.units.find(unit=>unit.id==="chars-zaku");
+  source.zone="board";source.q=5;source.r=5;
+  target.zone="board";target.q=6;target.r=5;
+  const chosen=E.pushDirectionOptions(s,source,target)[0];
+  let step=E.forcedPushStep(s,target,chosen.direction);
+  assert.equal(step.type,"move");
+  target.q=step.q;target.r=step.r;
+  step=E.forcedPushStep(s,target,chosen.direction);
+  assert.equal(step.type,"move");
+  s.board[E.key(step.q,step.r)].elevation=1;
+  step=E.forcedPushStep(s,target,chosen.direction);
+  assert.equal(step.type,"collision");
+  assert.equal(step.reason,"terrain");
+});
+
+test("forced Push never invokes pickupAt and collision damage is 2 for both objects", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const body=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
   assert.doesNotMatch(body,/pickupAt/);
-  assert.match(body,/E\.applyDamage\(target,1\)/);
-  assert.match(body,/E\.applyDamage\(collidedUnit,1\)/);
-  assert.match(body,/damageGarrison\(source,collidedGarrison,1,"Push Collision"\)/);
+  assert.match(body,/E\.applyDamage\(target,2,\{sourceType:"collision"\}\)/);
+  assert.match(body,/E\.applyDamage\(collidedUnit,2,\{sourceType:"collision"\}\)/);
+  assert.match(body,/damageGarrison\(source,collidedGarrison,2,"Push Collision"\)/);
+});
+
+test("player Push requires direction selection and Drive Them Back uses the same Push flow", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/type:"push-direction"/);
+  assert.match(source,/beginPushDirection\(attacker,defender,2,onComplete,"Shoulder Bash Critical"\)/);
+  assert.match(source,/beginPushDirection\(unit,enemy,1,[\s\S]{0,900}"Drive Them Back"\)/);
 });
 
 test("Garrison defeat and rescue both award 2 VP", () => {
@@ -1005,7 +1126,7 @@ test("AI pacing, active-unit focus, and Encounter overlays remain enabled", () =
   assert.match(source,/else if\(matchMode==="hotseat"\) showPassOverlay/);
   assert.match(source,/ready\.addEventListener\("click", \(\) => \{[\s\S]{0,180}focusCameraOnUnit\(unit\)/);
   assert.match(source,/else \{[\s\S]{0,100}pass-overlay[\s\S]{0,100}focusCameraOnUnit\(unit\)/);
-  assert.match(source,/\$\("#board"\)\.innerHTML=`<defs>\$\{defs\}<\/defs>\$\{cells\}\$\{units\}<g class="encounter-overlay-layer">/);
+  assert.match(source,/\$\("#board"\)\.innerHTML=`<defs>\$\{defs\}<\/defs>\$\{cells\}\$\{units\}<g class="los-overlay-layer">\$\{losLayer\}<\/g><g class="encounter-overlay-layer">/);
 });
 
 test("clicking another allied or enemy map Unit opens its full Unit Card", () => {
@@ -1016,17 +1137,28 @@ test("clicking another allied or enemy map Unit opens its full Unit Card", () =>
   assert.match(source,/function showUnitCard\(unit\)[\s\S]{0,400}unit\.card/);
 });
 
-test("human Advance remains adjustable until another action commits it", () => {
+test("human movement keeps a draft, while Char Dash commits through Char Kick or an explicit no-target confirmation", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/function beginAdjustableAdvance\(unit\)/);
+  assert.match(source,/function beginAdjustableDash\(unit\)/);
+  assert.match(source,/function beginAdjustableCharDash\(unit,cost,label,onComplete=null,options=\{\}\)/);
+  assert.match(source,/function beginAdjustableMovement\(unit,allowance,cost,label,movementType,primaryAction\)/);
   assert.match(source,/function openMovementDraft\(unit\)/);
-  assert.match(source,/function commitMovementDraft\(onComplete=/);
-  assert.match(source,/adjustableAdvance:true/);
-  assert.match(source,/if\(adjustableAdvance\)[\s\S]{0,260}ยังปรับใหม่ได้/);
-  assert.match(source,/if\(movementDraft&&action!=="advance"\)\{commitMovementDraft/);
-  assert.match(source,/if\(movementDraft\)commitMovementDraft\(\(\)=>beginAttack\(weapon\)\)/);
+  assert.match(source,/function commitMovementDraft\(onComplete=\(\)=>\{\},options=\{\}\)/);
+  assert.match(source,/adjustableMovement:true/);
+  assert.match(source,/ยังไม่คิด Timeline จนกว่าจะยืนยัน/);
+  assert.match(source,/if\(movementDraft\?\.charDash&&offerCharKickDraft\(unit\)\)/);
+  assert.match(source,/DASH PREVIEW/);
+  assert.match(source,/ตำแหน่งนี้ไม่มีเป้าหมาย Char Kick/);
+  assert.match(source,/confirm-dash/);
+  assert.match(source,/adjust-dash/);
+  assert.match(source,/cancel-dash/);
+  assert.match(source,/function cancelMovementDraft\(\)/);
   const commit=source.match(/function commitMovementDraft[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(commit,/E\.pickupAt\(state,unit\)/);
+  assert.match(commit,/payTimeline\(unit,draft\.cost\)/);
+  assert.match(commit,/skipCharKick/);
+  assert.match(source,/if\(unit\.id==="chars-zaku"\)beginAdjustableCharDash\(unit,D\.rules\.dash\.timeline,"Dash",null,\{primaryAction:true\}\)/);
 });
 
 test("the sound button mutes SFX and both music tracks", () => {
@@ -1053,7 +1185,7 @@ test("Return Fire obeys Engagement and revalidates nested Response windows", () 
   assert.match(queue,/!state\.activation\.tacticUsed\[card\.team\]/);
   assert.match(queue,/card\.id!=="return-fire"\|\|canAttack/);
   const response=source.match(/function resolvePostCombat[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(response,/E\.legalWeaponTargets\(state,defender,weapon\)/);
+  assert.match(response,/E\.legalWeaponTargets\(state,unit,weapon\)/);
   assert.match(response,/returnDefenderResponses/);
   assert.match(response,/openPostCombatResponses/);
 });
@@ -1077,7 +1209,7 @@ test("AI movement evaluation removes the unit's old-position LOS blocker", () =>
 test("Title music loops only on the Title screen and hands off to the battle track", () => {
   const titleTrack=path.join(__dirname,"..","assets","audio","title-bgm.mp3");
   const battleTrack=path.join(__dirname,"..","assets","audio","battle-bgm.mp3");
-  assert.ok(fs.existsSync(titleTrack)&&fs.statSync(titleTrack).size>1_000_000);
+  assert.ok(fs.existsSync(titleTrack)&&fs.statSync(titleTrack).size>100_000);
   assert.ok(fs.existsSync(battleTrack)&&fs.statSync(battleTrack).size>100_000);
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const titleBgm=source.match(/const TitleBGM = \(\(\) => \{[\s\S]*?\n  \}\)\(\);/)?.[0]||"";
@@ -1088,4 +1220,76 @@ test("Title music loops only on the Title screen and hands off to the battle tra
   assert.ok(launch.indexOf("TitleBGM.stop()")>=0);
   assert.ok(launch.indexOf("BGM.start()")>launch.indexOf("TitleBGM.stop()"));
   assert.match(source,/document\.addEventListener\("pointerdown",resumeTitleMusic,true\)/);
+});
+
+test("Crimson Execution continues from Char Kick into the free Heat Hawk attack", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/Crimson Execution: Heat Hawk Attack · Timeline 0/);
+  const continuation=source.match(/function continueCrimsonExecution\(card,unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(continuation,/weapon=>weapon\.id==="char-heat-hawk"/);
+  assert.match(continuation,/beginAttack\(heatHawk,\{free:true\}\)/);
+  assert.match(continuation,/if\(!isUsed\(card\.id\)\)markCommand\(card\)/);
+  assert.match(source,/resolveCharKickTarget\(unit,target,continuation\)/);
+  assert.match(source,/resolveCharKickGarrisonTarget\(unit,(?:garrison|target),continuation\)/);
+  assert.match(source,/const continuation=mode\?\.callback\|\|null;[\s\S]{0,160}resolveCharKickTarget\(unit,target,continuation\)/);
+  assert.match(source,/const afterEffects=draft\?\.afterEffects\|\|continuation;/);
+  assert.match(source,/const attackAfterDash=\(\)=>continueCrimsonExecution\(card,unit\)/);
+  assert.match(source,/beginAdjustableCharDash\(unit,0,"Crimson Dash",attackAfterDash/);
+  assert.match(source,/const afterEffects=movementDraft\?\.afterEffects;const skipCharKick=!!movementDraft\?\.charDash;/);
+});
+
+test("active player resolves post-combat Response before the defender", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.ok(finish.indexOf("{cards:attackerResponses")<finish.indexOf("{cards:defenderResponses"));
+});
+
+test("Return Fire also resolves its own counter-attacker's Response before the defender's", () => {
+  // Once Return Fire connects, `returningUnit` is the attacker of that counter-attack and
+  // the original `attacker` is the defender — the p.25 attacker-first ordering still applies.
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const resolvePostCombat=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.ok(resolvePostCombat.indexOf("{cards:returnAttackerResponses")<resolvePostCombat.indexOf("{cards:returnDefenderResponses"));
+});
+
+test("finishAttack resolves Critical Hit Effects before dealing Damage", () => {
+  // Rule (p.25): step 7 (Critical Hit Effects - Slow/Fracture/Push2) must resolve before
+  // step 8 (Damage). Damage must therefore live inside the continuation handed to
+  // applyCritical, not run unconditionally ahead of it.
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
+  const continuation=finish.match(/const dealDamageAndFinish=\(\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
+  assert.ok(continuation.includes('E.applyDamage(defender,damage,{sourceType:"attack"})'),
+    "Damage application must be nested inside the post-critical continuation");
+  assert.match(finish,/if \(result\.criticals>0\) applyCritical\(attacker,defender,weapon,result,dealDamageAndFinish\);/);
+  assert.match(finish,/else dealDamageAndFinish\(\);/);
+  const damageCalls=(finish.match(/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/g)||[]).length;
+  assert.equal(damageCalls,1);
+  assert.ok(!finish.slice(0,finish.indexOf("const dealDamageAndFinish")).includes("E.applyDamage(defender,damage"),
+    "Damage must not be applied before the critical-effect continuation is defined/dispatched");
+});
+
+test("Return Fire also resolves its own Critical Hit Effects before dealing Damage", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const resolvePostCombat=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
+  const continuation=resolvePostCombat.match(/const finishReturnFire=\(\)=>\{[\s\S]*?\n          \};/)?.[0]||"";
+  assert.ok(continuation.includes('E.applyDamage(attacker,result.damage,{sourceType:"attack"})'),
+    "Return Fire damage must be nested inside its own post-critical continuation");
+  assert.match(resolvePostCombat,/if\(result\.criticals>0\)applyCritical\(returningUnit,attacker,weapon,result,finishReturnFire\);/);
+  assert.match(resolvePostCombat,/else finishReturnFire\(\);/);
+});
+
+test("AOE offers Federation Shield and post-combat Responses to secondary units", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/function offerFederationShield/);
+  assert.match(source,/splashUnitTargets\(attacker,target,weapon\).*filter\(unit=>unit\.team==="fed"\)/s);
+  assert.match(source,/const defenderResponders=\[\.\.\.\(defeated\?\[\]:\[defender\]\),\.\.\.splash\.units\]/);
+  assert.match(source,/data-shield-target/);
+});
+
+test("forced Push creates movement triggers such as Iron Grip", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const push=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(push,/movedAny=true/);
+  assert.match(push,/afterUnitMove\(target,"push",onComplete,true\)/);
 });

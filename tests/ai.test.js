@@ -140,3 +140,13 @@ test("AI attack valuation counts only Shield upgrades that are still active", ()
   const activeScore = attacks.find(choice => choice.target === activeTarget).score;
   assert.ok(inactiveScore > activeScore, "face-down Shields must not reduce the estimated kill chance");
 });
+
+
+test("AI commits an allowed stay instead of clicking an invalid current hex", () => {
+  const game = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
+  const resolver = game.match(/function scheduleAiResolveMode[\s\S]*?\n  \}/)?.[0] || "";
+  assert.match(resolver, /mode\.type==="move"&&mode\.allowStay&&choice\.q===unit\.q&&choice\.r===unit\.r/);
+  assert.match(resolver, /completeMove\(unit\.q,unit\.r\)/);
+  assert.match(game, /const AI_WATCHDOG_ATTEMPTS = 12/);
+  assert.match(game, /attempt>AI_WATCHDOG_ATTEMPTS/);
+});
