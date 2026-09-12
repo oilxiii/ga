@@ -334,6 +334,15 @@ body.title-active { overflow: hidden; }
 .char-kick-alert strong { font-size: .78rem; letter-spacing: .03em; }
 .char-kick-alert span { color: #fff0a8; font-size: 1rem; font-weight: 950; letter-spacing: .1em; text-shadow: 0 0 10px #ff314c; }
 .char-kick-alert small { color: #ffb9c4; font-size: .55rem; font-weight: 850; }
+.dash-preview-note { display:grid; gap:4px; margin:6px 3px 5px; padding:8px 9px; border:1px solid rgba(78,186,255,.7); background:linear-gradient(90deg,rgba(4,46,78,.76),rgba(7,22,39,.94)); text-align:center; }
+.dash-preview-note strong { color:#e8f8ff; font-size:.76rem; letter-spacing:.03em; }
+.dash-preview-note small { color:#8edcff; font-size:.56rem; line-height:1.35; }
+.command-item.confirm-move { border-color:#5bd6ff; background:linear-gradient(90deg,rgba(0,111,174,.88),rgba(7,54,90,.92)); color:#fff; box-shadow:inset 0 0 18px rgba(65,200,255,.12); }
+.command-item.confirm-move small { color:#b9ebff; }
+
+.unit-command-menu.char-kick-menu .char-kick-damage { border-color:#ff6a7d; background:linear-gradient(90deg,rgba(190,14,43,.82),rgba(91,4,20,.92)); }
+.unit-command-menu.char-kick-menu .char-kick-damage span { color:#fff; font-weight:950; }
+.unit-command-menu.char-kick-menu .char-kick-damage small { color:#ffd7dd; }
 .unit-command-menu.char-kick-menu .command-item:hover:not(:disabled), .unit-command-menu.char-kick-menu .command-item:focus-visible { color: #fff; background: #d71936; }
 .unit-command-menu.char-kick-menu .command-item:hover small, .unit-command-menu.char-kick-menu .command-item:focus-visible small { color: #ffdce1; }
 .command-caption { display: flex; justify-content: space-between; padding: 4px 7px 6px; color: #81d9ff; font-size: .64rem; font-weight: 950; letter-spacing: .12em; border-bottom: 1px solid rgba(92,184,229,.3); }
@@ -558,7 +567,54 @@ body.title-active { overflow: hidden; }
 }
 .combat-shot-fx,
 .combat-impact-fx,
-.combat-explosion-fx { pointer-events: none; }
+.combat-explosion-fx,
+.attack-targeting-fx { pointer-events: none; }
+.attack-targeting-fx { isolation: isolate; }
+.targeting-guide {
+  stroke-width: 1.5;
+  stroke-dasharray: 5 7;
+  animation: targeting-guide-in .48s ease-out both;
+}
+.targeting-reticle {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.targeting-ring { fill: rgba(0,12,22,.18); }
+.targeting-ring.outer { stroke-width: 2.6; stroke-dasharray: 9 5; }
+.targeting-ring.inner { stroke-width: 1.5; stroke-dasharray: 3 3; }
+.targeting-cross, .targeting-corners {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: square;
+}
+.targeting-reticle.locked .targeting-ring.outer { animation: target-reticle-lock .2s ease-out both; }
+.target-lock-mark { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.target-lock-mark circle { fill: none; stroke-width: 2.8; stroke-dasharray: 7 4; }
+.target-lock-mark path { fill: none; stroke-width: 2.2; stroke-linecap: round; }
+.target-lock-mark.show { animation: target-lock-pop .2s ease-out both; }
+/* Lock-on color follows the attacking faction, including Garrison targets. */
+.attack-targeting-fx.team-fed .targeting-guide { stroke: rgba(104,220,255,.42); filter: drop-shadow(0 0 4px rgba(54,202,255,.95)); }
+.attack-targeting-fx.team-fed .targeting-reticle { filter: drop-shadow(0 0 5px #3bd9ff) drop-shadow(0 0 10px rgba(46,177,255,.85)); }
+.attack-targeting-fx.team-fed .targeting-ring { stroke: #73e7ff; }
+.attack-targeting-fx.team-fed .targeting-cross,
+.attack-targeting-fx.team-fed .targeting-corners { stroke: #e9fcff; }
+.attack-targeting-fx.team-fed .targeting-reticle.locked .targeting-ring.outer { stroke: #dffaff; }
+.attack-targeting-fx.team-fed .targeting-reticle.locked .targeting-ring.inner,
+.attack-targeting-fx.team-fed .targeting-reticle.locked .targeting-cross,
+.attack-targeting-fx.team-fed .targeting-reticle.locked .targeting-corners { stroke: #55dcff; }
+.attack-targeting-fx.team-fed .target-lock-mark circle { stroke: #55dcff; filter: drop-shadow(0 0 6px #28c8ff); }
+.attack-targeting-fx.team-fed .target-lock-mark path { stroke: #effcff; filter: drop-shadow(0 0 5px #28c8ff); }
+.attack-targeting-fx.team-zeon .targeting-guide { stroke: rgba(255,72,88,.46); filter: drop-shadow(0 0 4px rgba(255,42,66,.95)); }
+.attack-targeting-fx.team-zeon .targeting-reticle { filter: drop-shadow(0 0 5px #ff4359) drop-shadow(0 0 10px rgba(255,36,65,.85)); }
+.attack-targeting-fx.team-zeon .targeting-ring { stroke: #ff5366; }
+.attack-targeting-fx.team-zeon .targeting-cross,
+.attack-targeting-fx.team-zeon .targeting-corners { stroke: #fff0f2; }
+.attack-targeting-fx.team-zeon .targeting-reticle.locked .targeting-ring.outer { stroke: #ffd9de; }
+.attack-targeting-fx.team-zeon .targeting-reticle.locked .targeting-ring.inner,
+.attack-targeting-fx.team-zeon .targeting-reticle.locked .targeting-cross,
+.attack-targeting-fx.team-zeon .targeting-reticle.locked .targeting-corners { stroke: #ff334c; }
+.attack-targeting-fx.team-zeon .target-lock-mark circle { stroke: #ff334c; filter: drop-shadow(0 0 6px #ff2745); }
+.attack-targeting-fx.team-zeon .target-lock-mark path { stroke: #fff0f2; filter: drop-shadow(0 0 5px #ff2745); }
 .combat-shot-glow {
   stroke: rgba(139,232,255,.65);
   stroke-width: 8;
@@ -606,6 +662,9 @@ body.title-active { overflow: hidden; }
 .combat-explosion-fx.garrison-fx .explosion-backflash { animation-name: combat-garrison-explosion-backflash; }
 .combat-explosion-fx.garrison-fx .explosion-shockwave { animation-name: combat-garrison-explosion-shockwave; }
 
+@keyframes targeting-guide-in { 0%{opacity:0;stroke-dashoffset:80} 25%{opacity:.95} 100%{opacity:.35;stroke-dashoffset:0} }
+@keyframes target-reticle-lock { 0%{transform:scale(1.15);opacity:1} 55%{transform:scale(.76);opacity:1} 100%{transform:scale(1);opacity:1} }
+@keyframes target-lock-pop { 0%{opacity:0;transform:scale(1.75)} 55%{opacity:1;transform:scale(.88)} 100%{opacity:1;transform:scale(1)} }
 @keyframes combat-unit-hit {
   0% { transform: translate(0,0) rotate(0); }
   18% { transform: translate(-5px,1px) rotate(-3deg); }
@@ -645,6 +704,9 @@ body.title-active { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .unit-node.combat-hit,
   .feature-token.garrison.combat-hit,
+  .targeting-guide,
+  .targeting-reticle,
+  .target-lock-mark,
   .combat-shot-glow,
   .combat-shot-line,
   .impact-flash,

@@ -25,9 +25,13 @@
   let aiPreferredTargetKey = null;
   let aiResponsePending = false;
   let aiEffectPending = false;
+  let attackTargetingBusy = false;
+  let targetingFxTimer = null;
+  let targetingFxFrame = null;
   let movementDraft = null;
   let soundMuted = false;
   const AI_PACE = Object.freeze({ firstTurn: 1450, turnStart: 1200, target: 650, poll: 900, between: 620, finish: 820 });
+  const AI_WATCHDOG_ATTEMPTS = 12;
 
   function activeUnit() { return state.units.find(unit => unit.id === state.activeUnitId); }
   function teamName(team) { return D.teams[team].name; }
@@ -280,6 +284,49 @@
   function boardPoint(q,r) {
     const size=27,x0=72,y0=32,dx=size*1.5,dy=Math.sqrt(3)*size;
     return {x:x0+q*dx,y:y0+(r+(q&1)*.5)*dy};
+  }
+
+  function playAttackTargetingFx({from,to,team="fed",garrison=false,onComplete=()=>{}}) {
+    const svg=$("#board");
+    if(!svg||from?.q==null||to?.q==null){onComplete();return;}
+    const a=boardPoint(from.q,from.r),b=boardPoint(to.q,to.r);
+    const ns="http://www.w3.org/2000/svg";
+    const group=document.createElementNS(ns,"g");
+    group.classList.add("attack-targeting-fx");
+    group.classList.add(team==="zeon"?"team-zeon":"team-fed");
+    if(garrison)group.classList.add("garrison-target");
+    group.innerHTML=`<line class="targeting-guide" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"></line><g class="targeting-reticle" transform="translate(${a.x} ${a.y})"><circle class="targeting-ring outer" r="19"></circle><circle class="targeting-ring inner" r="9"></circle><path class="targeting-cross" d="M-25 0H-12 M12 0H25 M0-25V-12 M0 12V25"></path><path class="targeting-corners" d="M-20-12V-20H-12 M12-20H20V-12 M20 12V20H12 M-12 20H-20V12"></path></g><g class="target-lock-mark" transform="translate(${b.x} ${b.y})"><circle r="22"></circle><path d="M-28 0H-18 M18 0H28 M0-28V-18 M0 18V28"></path></g>`;
+    const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const travelTime=reduced?70:470;
+    const lockTime=reduced?70:190;
+    const epoch=gameEpoch;
+    attackTargetingBusy=true;
+    if(isAiTurn())aiEffectPending=true;
+    menuOpen=false;menuView="main";renderAll();
+    svg.appendChild(group);
+    const reticle=group.querySelector(".targeting-reticle");
+    const lock=group.querySelector(".target-lock-mark");
+    const started=performance.now();
+    const ease=t=>1-Math.pow(1-t,3);
+    const step=now=>{
+      if(epoch!==gameEpoch){group.remove();attackTargetingBusy=false;aiEffectPending=false;targetingFxFrame=null;return;}
+      const t=Math.min(1,(now-started)/travelTime);
+      const e=ease(t);
+      const x=a.x+(b.x-a.x)*e,y=a.y+(b.y-a.y)*e;
+      reticle.setAttribute("transform",`translate(${x} ${y})`);
+      if(t<1){targetingFxFrame=requestAnimationFrame(step);return;}
+      targetingFxFrame=null;
+      reticle.classList.add("locked");
+      lock.classList.add("show");
+      targetingFxTimer=setTimeout(()=>{
+        targetingFxTimer=null;
+        group.remove();
+        if(epoch!==gameEpoch){attackTargetingBusy=false;aiEffectPending=false;return;}
+        attackTargetingBusy=false;aiEffectPending=false;
+        onComplete();
+      },lockTime);
+    };
+    targetingFxFrame=requestAnimationFrame(step);
   }
 
   function spawnShotFx(from,to) {
@@ -612,6 +659,10 @@
     if(activationResumeTimer){clearTimeout(activationResumeTimer);activationResumeTimer=null;}
     if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
     if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
+    if(targetingFxTimer){clearTimeout(targetingFxTimer);targetingFxTimer=null;}
+    if(targetingFxFrame){cancelAnimationFrame(targetingFxFrame);targetingFxFrame=null;}
+    attackTargetingBusy=false;
+    document.querySelectorAll(".attack-targeting-fx").forEach(node=>node.remove());
     $("#dice-roll-overlay")?.classList.remove("show");
     closeModal();
     state = E.setupGame();
@@ -963,8 +1014,25 @@
     if(unit&&isAiTeam(unit.team)){menu.innerHTML="";return;}
     if (!unit||!menuOpen) { menu.innerHTML=""; return; }
     if (mode) {
-      const charKickAlert=mode.type==="char-kick"?`<div class="char-kick-alert"><strong>เลือกเป้าหมายสีแดง</strong><span>DAMAGE 1</span><small>UNIT หรือ GARRISON ที่ติดกัน</small></div>`:"";
-      menu.innerHTML=`<div class="command-caption"><span>${mode.type.toUpperCase()}</span><span>SELECTING</span></div>${charKickAlert}<div class="command-list">${mode.type==="move"&&mode.allowStay?`<button class="command-item" id="stay-in-place"><span>อยู่ช่องเดิม</span><small>0 HEX</small></button>`:""}<button class="command-item" id="cancel-mode"><span>‹ Back</span><small>CANCEL</small></button></div>`;
+      const draftKick=mode.type==="char-kick"&&mode.fromDashDraft;
+      const kickUnitTargets=mode.type==="char-kick"?[...state.units].filter(target=>target.zone==="board"&&target.team!==unit.team&&mode.targets?.has(E.key(target.q,target.r))):[];
+      const kickGarrisonTargets=mode.type==="char-kick"?state.garrisons.filter(target=>target.team!==unit.team&&mode.targets?.has(E.key(target.q,target.r))):[];
+      const charKickAlert=mode.type==="char-kick"?`<div class="char-kick-alert"><strong>CHAR KICK</strong><span>DAMAGE 1</span><small>${draftKick?`ทำ Damage เพื่อยืนยัน Dash · TL${movementDraft?.cost??0}`:"เลือก UNIT หรือ GARRISON ศัตรูที่ติดกัน"}</small></div>`:"";
+      const kickButtons=mode.type==="char-kick"?[
+        ...kickUnitTargets.map(target=>`<button class="command-item char-kick-damage" data-char-kick-unit="${target.id}"><span>ทำ Damage 1</span><small>${target.name}</small></button>`),
+        ...kickGarrisonTargets.map(target=>`<button class="command-item char-kick-damage" data-char-kick-garrison="${target.id}"><span>ทำ Damage 1</span><small>${D.teams[target.team].short} Garrison</small></button>`)
+      ].join(""):"";
+      const backText=draftKick?"‹ Back · เปลี่ยนจุด Dash":"‹ Back";
+      const backSub=draftKick?"SELECT DASH HEX AGAIN":"CANCEL";
+      menu.innerHTML=`<div class="command-caption"><span>${mode.type.toUpperCase()}</span><span>${draftKick?"DASH DECISION":"SELECTING"}</span></div>${charKickAlert}<div class="command-list">${kickButtons}${mode.type==="move"&&mode.allowStay?`<button class="command-item" id="stay-in-place"><span>อยู่ช่องเดิม</span><small>0 HEX</small></button>`:""}<button class="command-item" id="cancel-mode"><span>${backText}</span><small>${backSub}</small></button></div>`;
+      menu.querySelectorAll("[data-char-kick-unit]").forEach(button=>button.addEventListener("click",()=>{
+        const target=state.units.find(candidate=>candidate.id===button.dataset.charKickUnit);
+        if(target)resolveCharKickTarget(unit,target);
+      }));
+      menu.querySelectorAll("[data-char-kick-garrison]").forEach(button=>button.addEventListener("click",()=>{
+        const target=state.garrisons.find(candidate=>candidate.id===button.dataset.charKickGarrison);
+        if(target)resolveCharKickGarrisonTarget(unit,target);
+      }));
       menu.querySelector("#stay-in-place")?.addEventListener("click",()=>completeMove(unit.q,unit.r));
       menu.querySelector("#cancel-mode").addEventListener("click",()=>{const back=mode.returnMenu||"main";const onCancel=mode.onCancel;mode=null;menuOpen=true;menuView=back;if(onCancel)onCancel();renderAll();});
       positionCommandMenu(unit);
@@ -977,6 +1045,21 @@
     const item=(label,sub,action,disabled=false,cls="")=>`<button class="command-item ${cls}" data-menu-action="${action}" ${disabled?"disabled":""}><span>${label}</span><small>${sub}</small></button>`;
     const adjustingMove=movementDraft?.unitId===unit.id&&movementDraft.movementType==="advance";
     const adjustingDash=movementDraft?.unitId===unit.id&&movementDraft.movementType==="dash";
+    if(adjustingDash&&movementDraft?.placed){
+      const freeNote=movementDraft.cost===0?" · FREE TL0":"";
+      menu.innerHTML=`<div class="command-caption"><span>DASH PREVIEW</span><span>${unit.weaponBadge||unit.model}</span></div><div class="dash-preview-note"><strong>ตำแหน่งนี้ไม่มีเป้าหมาย Char Kick</strong><small>ยืนยันเพื่อจบ Dash${freeNote} หรือเปลี่ยนตำแหน่งเพื่อหาเป้าหมายใหม่</small></div><div class="command-list">${item("ยืนยัน Dash",`TL${movementDraft.cost}${freeNote}`,"confirm-dash",false,"confirm-move")} ${item("เปลี่ยนตำแหน่ง","SELECT HEX AGAIN","adjust-dash")} ${item("ยกเลิก Dash","RETURN TO START","cancel-dash",false,"danger")}</div>`;
+      menu.querySelectorAll("[data-menu-action]").forEach(btn=>btn.addEventListener("click",()=>{
+        const action=btn.dataset.menuAction;
+        if(action==="confirm-dash"){
+          const afterEffects=movementDraft?.afterEffects;const skipCharKick=!!movementDraft?.charDash;
+          menuOpen=false;commitMovementDraft(()=>{if(afterEffects)afterEffects();else menuOpen=true;renderAll();},{skipCharKick});return;
+        }
+        if(action==="adjust-dash"){openMovementDraft(unit);return;}
+        if(action==="cancel-dash"){cancelMovementDraft();return;}
+      }));
+      positionCommandMenu(unit);
+      return;
+    }
     const main=(deploying?[
       item("Deploy Move",unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",false),
       item("Unit Card","INFO","info"),
@@ -1038,7 +1121,7 @@
     const hand=state.hands[unit.team].map(getTactic);
     $("#tactic-hand").innerHTML=hand.map(card=>{
       const used=isUsed(card.id);
-      const legal=!used && card.timing==="COMMAND" && !state.activation.tacticUsed[card.team] && !mode;
+      const legal=!used && card.timing==="COMMAND" && !state.activation.tacticUsed[card.team] && !mode && !attackTargetingBusy;
       return `<button class="tactic-card ${used?"used":legal?"legal":""}" data-card="${card.id}" aria-label="${card.name}"><img src="${card.card}" alt="การ์ดจริง ${card.name}"><span class="card-state">${used?"USED · VIEW":legal?"VIEW · CONFIRM":"VIEW · "+card.timing}</span></button>`;
     }).join("");
     $("#tactic-hand").querySelectorAll("[data-card]").forEach(card=>card.addEventListener("click",()=>handleTactic(card.dataset.card)));
@@ -1117,6 +1200,7 @@
   }
 
   function handleAction(action) {
+    if(attackTargetingBusy)return;
     const unit=activeUnit(); if (!unit || mode) return;
     if(movementDraft){
       if(action===movementDraft.movementType){openMovementDraft(unit);return;}
@@ -1130,7 +1214,11 @@
       if(!isAiTeam(unit.team)){beginAdjustableAdvance(unit);return;}
       startMove(D.rules.advance.distance+unit.upgrades.speed,D.rules.advance.timeline,"Advance",moved=>afterUnitMove(unit,"advance",null,moved));
     } else if (action==="dash") {
-      if(!isAiTeam(unit.team)){beginAdjustableDash(unit);return;}
+      if(!isAiTeam(unit.team)){
+        if(unit.id==="chars-zaku")beginAdjustableCharDash(unit,D.rules.dash.timeline,"Dash",null,{primaryAction:true});
+        else beginAdjustableDash(unit);
+        return;
+      }
       startMove(D.rules.dash.distance+(unit.id==="chars-zaku"?1:0),D.rules.dash.timeline,"Dash",moved=>afterUnitMove(unit,"dash",null,moved),{primaryAction:true});
     } else if (action==="energize") {
       unit.energy+=1; state.activation.actionUsed=true; payTimeline(unit,2);
@@ -1152,6 +1240,16 @@
   function beginAdjustableDash(unit) {
     const allowance=D.rules.dash.distance+(unit.id==="chars-zaku"?1:0);
     return beginAdjustableMovement(unit,allowance,D.rules.dash.timeline,"Dash","dash",true);
+  }
+
+  function beginAdjustableCharDash(unit,cost,label,onComplete=null,options={}) {
+    const started=beginAdjustableMovement(unit,D.rules.dash.distance+1,cost,label,"dash",!!options.primaryAction);
+    if(started&&movementDraft?.unitId===unit.id){
+      movementDraft.charDash=true;
+      movementDraft.afterEffects=onComplete;
+      movementDraft.onCancel=options.onCancel||onComplete||null;
+    }
+    return started;
   }
 
   function beginAdjustableMovement(unit,allowance,cost,label,movementType,primaryAction) {
@@ -1191,7 +1289,23 @@
     menuOpen=true;renderAll();return true;
   }
 
-  function commitMovementDraft(onComplete=()=>{}) {
+  function cancelMovementDraft() {
+    const draft=movementDraft;
+    if(!draft)return false;
+    const unit=state.units.find(candidate=>candidate.id===draft.unitId);
+    movementDraft=null;
+    if(!unit){if(draft.onCancel)draft.onCancel();return false;}
+    unit.q=draft.origin.q;unit.r=draft.origin.r;unit.zone=draft.origin.zone;
+    if(draft.movementType==="dash"&&draft.primaryAction)state.activation.actionUsed=false;
+    if(draft.movementType==="advance")state.activation.advanced=false;
+    mode=null;menuOpen=true;menuView="main";
+    addLog(`${unit.name} ยกเลิก ${draft.label} และกลับตำแหน่งเดิม`);
+    renderAll();
+    if(draft.onCancel)draft.onCancel();
+    return true;
+  }
+
+  function commitMovementDraft(onComplete=()=>{},options={}) {
     const draft=movementDraft;
     if(!draft){onComplete();return;}
     const unit=state.units.find(candidate=>candidate.id===draft.unitId);
@@ -1207,7 +1321,7 @@
     state.justDeployedUnitId=null;
     addLog(`${unit.name} ยืนยัน ${draft.label} ที่ Hex ${unit.q},${unit.r}`);
     const finish=()=>{renderAll();onComplete();};
-    afterUnitMove(unit,draft.movementType,finish,moved);
+    afterUnitMove(unit,draft.movementType,finish,moved,{skipCharKick:!!options.skipCharKick});
     renderAll();
   }
 
@@ -1233,6 +1347,7 @@
 
   function handleHexClick(q,r,event=null) {
     if(event?.currentTarget?.classList?.contains("unit-node"))event.stopPropagation();
+    if(attackTargetingBusy)return;
     const controllingUnit=modeUnit();
     if(controllingUnit&&isAiTeam(controllingUnit.team)&&!aiPerforming)return;
     if (!mode) {
@@ -1276,21 +1391,15 @@
       renderAll();
     } else if (mode.type==="char-kick") {
       const target=E.unitAt(state,q,r);
-      const garrison=state.garrisons.find(g=>g.q===q&&g.r===r&&g.team!==unit.team);
+      const garrison=state.garrisons.find(item=>item.q===q&&item.r===r&&item.team!==unit.team);
       const callback=mode.callback;
-      mode=null;
-      if(target){
-        const to={q:target.q,r:target.r};
-        E.applyDamage(target,1);addLog(`Char Kick: ${target.name} รับ Damage 1`);
-        const defeated=E.defeatUnit(state,target,unit.team);
-        playDamageFeedback({to,targetUnitId:target.id,destroyed:defeated});
+      if(target&&target.team!==unit.team){
+        if(resolveCharKickTarget(unit,target))return;
       }
-      else if(garrison){
-        const info=damageGarrison(unit,garrison,1,"Char Kick");
-        playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
+      if(garrison){
+        if(resolveCharKickGarrisonTarget(unit,garrison))return;
       }
-      if(callback)callback();
-      renderAll();
+      mode=null;if(callback)callback();renderAll();
     }
   }
 
@@ -1304,7 +1413,8 @@
       if(movementDraft?.primaryAction)state.activation.actionUsed=true;
       if(movementDraft)movementDraft.placed=true;
       mode=null;menuOpen=true;menuView="main";
-      addLog(`${unit.name} วางตำแหน่ง ${label} ที่ Hex ${q},${r} — ยังปรับใหม่ได้จนกว่าจะเลือก Action อื่น`);
+      addLog(`${unit.name} วางตำแหน่ง ${label} ที่ Hex ${q},${r} — ยังไม่คิด Timeline จนกว่าจะยืนยัน`);
+      if(movementDraft?.charDash&&offerCharKickDraft(unit)){renderAll();return;}
       renderAll();return;
     }
     unit.q=q;unit.r=r;unit.zone="board";const pickups=E.pickupAt(state,unit);playPickupFeedback(unit,pickups);payTimeline(unit,cost);
@@ -1315,13 +1425,74 @@
     mode=null;addLog(`${unit.name} ใช้ ${label} ที่ Hex ${q},${r}`);if(callback)callback(moved);renderAll();
   }
 
-  function afterUnitMove(unit, movementType, afterEffects=null, movementOccurred=true) {
-    if (unit.id==="chars-zaku" && movementType==="dash") {
-      const enemyUnits=E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)===1);
-      const enemyGarrisons=state.garrisons.filter(target=>target.team!==unit.team&&E.distance(unit,target)===1);
-      const targets=[...enemyUnits,...enemyGarrisons];
-      if (targets.length) {
-        mode={type:"char-kick",unitId:unit.id,targets:new Set(targets.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint:"Char Kick: เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1",callback:afterEffects,onCancel:afterEffects};
+  function adjacentCharKickTargets(unit) {
+    const units=E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)===1);
+    const garrisons=state.garrisons.filter(target=>target.team!==unit.team&&E.distance(unit,target)===1);
+    return {units,garrisons,all:[...units,...garrisons]};
+  }
+
+  function offerCharKickDraft(unit) {
+    const draft=movementDraft;
+    if(!draft?.charDash||draft.unitId!==unit.id)return false;
+    const targets=adjacentCharKickTargets(unit);
+    if(!targets.all.length)return false;
+    addLog(`Char Kick: เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อทำ Damage 1 หรือ Back เพื่อเปลี่ยนจุด Dash`);
+    mode={
+      type:"char-kick",unitId:unit.id,targets:new Set(targets.all.map(target=>E.key(target.q,target.r))),
+      returnMenu:"main",fromDashDraft:true,
+      hint:`Char Kick: ทำ Damage 1 เพื่อยืนยัน ${draft.label} (TL${draft.cost}) หรือ Back เพื่อเปลี่ยนจุด Dash`,
+      onCancel:()=>openMovementDraft(unit)
+    };
+    menuOpen=true;menuView="main";
+    return true;
+  }
+
+  function resolveCharKickTarget(unit,target) {
+    if(!unit||!target||target.team===unit.team)return false;
+    const draft=movementDraft?.charDash&&movementDraft.unitId===unit.id?movementDraft:null;
+    const finishKick=()=>{
+      const to={q:target.q,r:target.r};
+      E.applyDamage(target,1);addLog(`Char Kick: ${target.name} รับ Damage 1`);
+      const defeated=E.defeatUnit(state,target,unit.team);
+      playDamageFeedback({to,targetUnitId:target.id,destroyed:defeated});
+      const afterEffects=draft?.afterEffects;
+      if(afterEffects)afterEffects();
+      else {menuOpen=true;menuView="main";}
+      renderAll();
+    };
+    mode=null;
+    if(draft){
+      addLog(`${unit.name} ยืนยัน ${draft.label}${draft.cost===0?" ฟรี":""} ด้วย Char Kick — Timeline +${draft.cost}`);
+      commitMovementDraft(finishKick,{skipCharKick:true});
+    }else finishKick();
+    return true;
+  }
+
+  function resolveCharKickGarrisonTarget(unit,garrison) {
+    if(!unit||!garrison||garrison.team===unit.team)return false;
+    const draft=movementDraft?.charDash&&movementDraft.unitId===unit.id?movementDraft:null;
+    const finishKick=()=>{
+      const info=damageGarrison(unit,garrison,1,"Char Kick");
+      playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
+      const afterEffects=draft?.afterEffects;
+      if(afterEffects)afterEffects();
+      else {menuOpen=true;menuView="main";}
+      renderAll();
+    };
+    mode=null;
+    if(draft){
+      addLog(`${unit.name} ยืนยัน ${draft.label}${draft.cost===0?" ฟรี":""} ด้วย Char Kick — Timeline +${draft.cost}`);
+      commitMovementDraft(finishKick,{skipCharKick:true});
+    }else finishKick();
+    return true;
+  }
+
+  function afterUnitMove(unit, movementType, afterEffects=null, movementOccurred=true, options={}) {
+    if (!options.skipCharKick && unit.id==="chars-zaku" && movementType==="dash") {
+      const targets=adjacentCharKickTargets(unit);
+      if (targets.all.length) {
+        addLog(`Char Kick พร้อมใช้งานหลัง Dash — เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1`);
+        mode={type:"char-kick",unitId:unit.id,targets:new Set(targets.all.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint:"Char Kick: เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1",callback:afterEffects,onCancel:afterEffects};
         menuOpen=true;
         return;
       }
@@ -1364,22 +1535,26 @@
   }
 
   function resolveGarrisonAttack(attacker,garrison,weapon,options={}) {
-    const surrogate={...garrison,upgrades:{shield:0,speed:0,strength:0},statuses:{slow:false,fracture:false,disarm:false}};
-    const result=E.rollAttack(state,attacker,surrogate,weapon);
-    lastDice=result;
-    if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
-    attacker.nextAttackDiscount=0;attacker.lastShotBonus=false;
-    renderAll();
-    showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,surrogate,weapon,result,()=>{
-      const from={q:attacker.q,r:attacker.r};
-      const impact=damageGarrison(attacker,garrison,result.damage,`${attacker.name} ใช้ ${weapon.name}`);
-      applyAttackerCritical(attacker,weapon,result);
-      resolveSplashDamage(attacker,garrison,weapon,result);
-      const attackerResponses=availablePostCombat(attacker,"attacker");
+    const from={q:attacker.q,r:attacker.r};
+    const to={q:garrison.q,r:garrison.r};
+    playAttackTargetingFx({from,to,team:attacker.team,garrison:true,onComplete:()=>{
+      if(state?.status!=="playing"||attacker.zone!=="board"||!state.garrisons.some(item=>item.id===garrison.id))return;
+      const surrogate={...garrison,upgrades:{shield:0,speed:0,strength:0},statuses:{slow:false,fracture:false,disarm:false}};
+      const result=E.rollAttack(state,attacker,surrogate,weapon);
+      lastDice=result;
+      if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
+      attacker.nextAttackDiscount=0;attacker.lastShotBonus=false;
       renderAll();
-      if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to:{q:impact.q,r:impact.r},garrison:true,destroyed:impact.destroyed});
-      openPostCombatResponses([{cards:attackerResponses,role:"attacker"}],attacker,surrogate,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result));
-    }));
+      showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,surrogate,weapon,result,()=>{
+        const impact=damageGarrison(attacker,garrison,result.damage,`${attacker.name} ใช้ ${weapon.name}`);
+        applyAttackerCritical(attacker,weapon,result);
+        resolveSplashDamage(attacker,garrison,weapon,result);
+        const attackerResponses=availablePostCombat(attacker,"attacker");
+        renderAll();
+        if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to:{q:impact.q,r:impact.r},garrison:true,destroyed:impact.destroyed});
+        openPostCombatResponses([{cards:attackerResponses,role:"attacker"}],attacker,surrogate,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result));
+      }));
+    }});
   }
 
   function damageGarrison(source,garrison,amount,label) {
@@ -1431,21 +1606,26 @@
   }
 
   function resolveAttack(attacker,defender,weapon,options={}) {
-    const result=E.rollAttack(state,attacker,defender,weapon);
-    lastDice=result;
-    if (!options.free) {
-      state.activation.actionUsed=true;
-      payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));
-    }
-    attacker.nextAttackDiscount=0;
-    pendingAttack={attacker,defender,weapon,result,reduction:0};
-    addLog(`${attacker.name} ใช้ ${weapon.name}: ${result.hits} Hit · ${result.criticals} Critical`);
-    renderAll();
-    showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,defender,weapon,result,()=>offerWeaponAfterRollEffect(attacker,defender,weapon,()=>{
-      if (defender.team==="fed"&&result.damage>0&&inHand("fed","federation-shield")&&!isUsed("federation-shield")&&!state.activation.tacticUsed.fed) {
-        openResponse([getTactic("federation-shield")], card=>{ useResponse(card); pendingAttack.reduction=2; finishAttack(); }, finishAttack);
-      } else finishAttack();
-    })));
+    const from={q:attacker.q,r:attacker.r};
+    const to={q:defender.q,r:defender.r};
+    playAttackTargetingFx({from,to,team:attacker.team,onComplete:()=>{
+      if(state?.status!=="playing"||attacker.zone!=="board"||defender.zone!=="board")return;
+      const result=E.rollAttack(state,attacker,defender,weapon);
+      lastDice=result;
+      if (!options.free) {
+        state.activation.actionUsed=true;
+        payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));
+      }
+      attacker.nextAttackDiscount=0;
+      pendingAttack={attacker,defender,weapon,result,reduction:0};
+      addLog(`${attacker.name} ใช้ ${weapon.name}: ${result.hits} Hit · ${result.criticals} Critical`);
+      renderAll();
+      showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,defender,weapon,result,()=>offerWeaponAfterRollEffect(attacker,defender,weapon,()=>{
+        if (defender.team==="fed"&&result.damage>0&&inHand("fed","federation-shield")&&!isUsed("federation-shield")&&!state.activation.tacticUsed.fed) {
+          openResponse([getTactic("federation-shield")], card=>{ useResponse(card); pendingAttack.reduction=2; finishAttack(); }, finishAttack);
+        } else finishAttack();
+      })));
+    }});
   }
 
   function finishAttack() {
@@ -1516,8 +1696,13 @@
     if(result.criticals<1||attacker.zone!=="board"){onComplete();return;}
     if(attacker.id==="chars-zaku"&&weapon.critical==="dashTimeline0"){
       addLog("Machine Gun Critical: Char’s Zaku II สามารถ Dash โดยใช้ Timeline 0");
+      if(!isAiTeam(attacker.team)){
+        const started=beginAdjustableCharDash(attacker,0,"Machine Gun Critical Dash",onComplete,{primaryAction:false,onCancel:onComplete});
+        if(!started)onComplete();
+        return;
+      }
       const started=startMoveFor(attacker,D.rules.dash.distance+1,0,"Machine Gun Critical Dash",moved=>afterUnitMove(attacker,"dash",onComplete,moved),{returnMenu:"main",onCancel:onComplete});
-      if(started&&isAiTeam(attacker.team))scheduleAiResolveMode();
+      if(started)scheduleAiResolveMode();
       if(!started)onComplete();
       return;
     }
@@ -1888,7 +2073,18 @@
       }
       else choice=A.chooseModeTarget(state,unit,mode,D,E);
       aiPreferredTargetKey=null;
-      if(choice){aiClickHex(choice.q,choice.r);return;}
+      if(choice){
+        // A.chooseMove may legitimately decide that staying put is best when the
+        // movement mode allows zero displacement (notably Guncannon/Char Critical
+        // Dash follow-ups). The current hex is intentionally not in mode.targets,
+        // so routing that decision through handleHexClick used to leave the AI
+        // stuck in MOVE mode indefinitely. Commit the stay directly instead.
+        if(mode.type==="move"&&mode.allowStay&&choice.q===unit.q&&choice.r===unit.r){
+          addLog(`AI · ${unit.name} เลือกคงตำแหน่งสำหรับ ${mode.label||"Move"}`);
+          aiPerforming=true;try{completeMove(unit.q,unit.r);}finally{aiPerforming=false;}return;
+        }
+        aiClickHex(choice.q,choice.r);return;
+      }
       if(mode.type==="move"&&mode.allowStay){aiPerforming=true;try{completeMove(unit.q,unit.r);}finally{aiPerforming=false;}return;}
       const onCancel=mode.onCancel;mode=null;menuOpen=false;if(onCancel)onCancel();renderAll();
     },delay);
@@ -1899,7 +2095,7 @@
     if(mode){
       const actor=modeUnit();
       const aiOwned=!!actor&&isAiTeam(actor.team);
-      if(aiOwned&&attempt>120){
+      if(aiOwned&&attempt>AI_WATCHDOG_ATTEMPTS){
         const onCancel=mode.onCancel;mode=null;menuOpen=false;
         addLog("AI ยกเลิกการเลือกเป้าหมายที่ใช้เวลานานผิดปกติ");
         renderAll();
@@ -1914,8 +2110,8 @@
     if(modal?.classList.contains("show")){
       scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt),AI_PACE.poll);return;
     }
-    if(diceAnimationTimer||pendingAttack||transitionBusy||aiResponsePending||aiEffectPending){
-      if(attempt>120){
+    if(diceAnimationTimer||pendingAttack||transitionBusy||aiResponsePending||aiEffectPending||attackTargetingBusy){
+      if(attempt>AI_WATCHDOG_ATTEMPTS){
         addLog("AI ยุติขั้นตอนภายในที่ใช้เวลานานผิดปกติ");
         mode=null;pendingAttack=null;aiResponsePending=false;aiEffectPending=false;closeModal();renderAll();aiFinishTurn(unit);return;
       }
