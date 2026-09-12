@@ -911,11 +911,21 @@
     }).join("")}</g>`;
   }
 
-  function encounterMarker(cx,cy,text,kind) {
-    const width=text==="ENCOUNTER"?82:64;
-    const height=22;
-    const y=Math.max(4,Math.min(624,cy-67));
-    return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
+  function markerWidth(text) { return text==="ENCOUNTER"?82:text==="MOVE -1"?64:52; }
+
+  function alertMarker(x,y,text,kind) {
+    const width=markerWidth(text),height=22;
+    return `<g class="encounter-marker ${kind}" transform="translate(${x} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
+  }
+
+  function stackedUnitMarkers(cx,cy,labels) {
+    if(!labels.length)return "";
+    const height=22,gap=3;
+    const top=cy-67-(labels.length-1)*(height+gap);
+    if(top>=4)return labels.map((label,index)=>alertMarker(cx-markerWidth(label.text)/2,top+index*(height+gap),label.text,label.kind)).join("");
+    const totalWidth=labels.reduce((sum,label)=>sum+markerWidth(label.text),0)+(labels.length-1)*gap;
+    let x=Math.max(4,Math.min(776-totalWidth,cx-totalWidth/2));
+    return labels.map(label=>{const marker=alertMarker(x,4,label.text,label.kind);x+=markerWidth(label.text)+gap;return marker;}).join("");
   }
 
   function focusCameraOnUnit(unit) {
@@ -977,16 +987,22 @@
         <text class="unit-name" x="${cx}" y="${cy+34}">${unit.name === "Zaku II" ? unit.role : unit.name}</text>
       </g>`;
     }
-    let encounterLayer="";
-    if(active&&hasEncounter){
-      const activeCx=x0+active.q*dx,activeCy=y0+(active.r+(active.q&1)*.5)*dy;
-      encounterLayer+=encounterMarker(activeCx,activeCy,"MOVE -1","penalty");
-      encounterTargets.forEach(target=>{
-        const targetCx=x0+target.q*dx,targetCy=y0+(target.r+(target.q&1)*.5)*dy;
-        encounterLayer+=encounterMarker(targetCx,targetCy,"ENCOUNTER","target");
-      });
-    }
-    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="encounter-overlay-layer">${encounterLayer}</g>`;
+    let alertLayer="";
+    const encounterTargetKeys=new Set(encounterTargets.map(target=>E.key(target.q,target.r)));
+    state.units.filter(unit=>unit.zone==="board"||unit.zone==="deploying").forEach(unit=>{
+      const labels=[];
+      if(unit.statuses?.slow)labels.push({text:"SLOW",kind:"slow"});
+      if(active&&hasEncounter&&unit.id===active.id)labels.push({text:"MOVE -1",kind:"penalty"});
+      else if(active&&unit.team!==active.team&&encounterTargetKeys.has(E.key(unit.q,unit.r)))labels.push({text:"ENCOUNTER",kind:"target"});
+      if(!labels.length)return;
+      const cx=x0+unit.q*dx,cy=y0+(unit.r+(unit.q&1)*.5)*dy;
+      alertLayer+=stackedUnitMarkers(cx,cy,labels);
+    });
+    if(active&&hasEncounter)encounterTargets.filter(target=>state.garrisons.includes(target)).forEach(target=>{
+      const cx=x0+target.q*dx,cy=y0+(target.r+(target.q&1)*.5)*dy;
+      alertLayer+=stackedUnitMarkers(cx,cy,[{text:"ENCOUNTER",kind:"target"}]);
+    });
+    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="encounter-overlay-layer">${alertLayer}</g>`;
     $("#board").querySelectorAll("[data-q]").forEach(node => node.addEventListener("click", event => handleHexClick(Number(node.dataset.q),Number(node.dataset.r),event)));
   }
 
