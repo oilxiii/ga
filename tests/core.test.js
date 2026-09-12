@@ -991,17 +991,29 @@ test("AI waits for human choices and resolves hidden AI declines without a tell"
   assert.match(source,/modal\?\.classList\.contains\("show"\)[\s\S]{0,160}AI_PACE\.poll/);
 });
 
-test("v28 slows AI, focuses its unit, and marks Encounter pieces", () => {
+test("AI pacing, active-unit focus, and Encounter overlays remain enabled", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   assert.match(source,/const AI_PACE = Object\.freeze\(\{ firstTurn: 1450, turnStart: 1200/);
   assert.match(source,/function focusCameraOnUnit\(unit\)/);
   assert.match(source,/focusCameraOnUnit\(unit\);[\s\S]{0,80}scheduleAiTurn/);
   assert.match(source,/E\.engagedTargets\(state,active\)/);
-  assert.match(source,/encounterMarker\(cx,cy,"MOVE -1","penalty"\)/);
-  assert.match(source,/encounterMarker\(cx,cy,"ENCOUNTER","target"\)/);
+  assert.match(source,/encounterMarker\(activeCx,activeCy,"MOVE -1","penalty"\)/);
+  assert.match(source,/encounterMarker\(targetCx,targetCy,"ENCOUNTER","target"\)/);
   assert.match(css,/\.encounter-marker\.target rect/);
-  assert.match(css,/\.unit-node\.ai-camera-focus \.unit-base/);
+  assert.match(css,/\.unit-node\.turn-camera-focus \.unit-base/);
+  assert.match(source,/else if\(matchMode==="hotseat"\) showPassOverlay/);
+  assert.match(source,/ready\.addEventListener\("click", \(\) => \{[\s\S]{0,180}focusCameraOnUnit\(unit\)/);
+  assert.match(source,/else \{[\s\S]{0,100}pass-overlay[\s\S]{0,100}focusCameraOnUnit\(unit\)/);
+  assert.match(source,/\$\("#board"\)\.innerHTML=`<defs>\$\{defs\}<\/defs>\$\{cells\}\$\{units\}<g class="encounter-overlay-layer">/);
+});
+
+test("clicking another allied or enemy map Unit opens its full Unit Card", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const clickHandler=source.match(/function handleHexClick\(q,r,event=null\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(clickHandler,/classList\?\.contains\("unit-node"\)\)event\.stopPropagation\(\)/);
+  assert.match(clickHandler,/else if\(clicked\)\{[\s\S]{0,180}showUnitCard\(clicked\)/);
+  assert.match(source,/function showUnitCard\(unit\)[\s\S]{0,400}unit\.card/);
 });
 
 test("human Advance remains adjustable until another action commits it", () => {

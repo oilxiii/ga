@@ -657,7 +657,10 @@
       focusCameraOnUnit(unit);
       scheduleAiTurn(unit,first?AI_PACE.firstTurn:AI_PACE.turnStart);
     } else if(matchMode==="hotseat") showPassOverlay(unit, first);
-    else $("#pass-overlay")?.classList.remove("show");
+    else {
+      $("#pass-overlay")?.classList.remove("show");
+      focusCameraOnUnit(unit);
+    }
   }
 
   function showPassOverlay(unit, first) {
@@ -671,7 +674,11 @@
     overlay.setAttribute("aria-labelledby","pass-team-title");
     overlay.classList.add("show");
     const ready=$("#ready-btn");
-    ready.addEventListener("click", () => {overlay.classList.remove("show");$(".game-shell")?.focus();});
+    ready.addEventListener("click", () => {
+      overlay.classList.remove("show");
+      $(".game-shell")?.focus();
+      focusCameraOnUnit(unit);
+    });
     ready.focus();
   }
 
@@ -854,9 +861,10 @@
   }
 
   function encounterMarker(cx,cy,text,kind) {
-    const width=text==="ENCOUNTER"?78:60;
-    const y=cy<78?cy+43:cy-61;
-    return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="19" rx="4"></rect><text x="${width/2}" y="12.5">${text}</text></g>`;
+    const width=text==="ENCOUNTER"?82:64;
+    const height=22;
+    const y=Math.max(4,Math.min(624,cy-67));
+    return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
   }
 
   function focusCameraOnUnit(unit) {
@@ -873,8 +881,8 @@
         behavior:"smooth"
       });
       node.scrollIntoView?.({behavior:"smooth",block:"center",inline:"center"});
-      node.classList.add("ai-camera-focus");
-      setTimeout(()=>node.classList.remove("ai-camera-focus"),1500);
+      node.classList.add("turn-camera-focus");
+      setTimeout(()=>node.classList.remove("turn-camera-focus"),1500);
     });
   }
 
@@ -882,7 +890,6 @@
     const size = 27, x0 = 72, y0 = 32, dx = size*1.5, dy = Math.sqrt(3)*size;
     const active = activeUnit();
     const encounterTargets=active?E.engagedTargets(state,active):[];
-    const encounterKeys=new Set(encounterTargets.map(target=>E.key(target.q,target.r)));
     const hasEncounter=encounterTargets.length>0;
     let defs = "";
     let cells = "";
@@ -901,7 +908,6 @@
         ${f ? f.icon
           ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
           : `<g class="objective-flag ${f.team}" aria-label="Objective ${f.team === "neutral" ? "ยังไม่มีผู้ครอบครอง" : `ครอบครองโดย ${teamName(f.team)}`}"><title>Objective · 1 VP เมื่อจบ Phase</title><path class="objective-pole" d="M ${cx-7} ${cy+13} V ${cy-12}"></path><path class="objective-cloth" d="M ${cx-6} ${cy-11} L ${cx+11} ${cy-6} L ${cx-6} ${cy+1} Z"></path><path class="objective-base" d="M ${cx-13} ${cy+13} H ${cx-1}"></path></g>` : ""}
-        ${f?.type==="garrison"&&encounterKeys.has(E.key(q,r))?encounterMarker(cx,cy,"ENCOUNTER","target"):""}
       </g>`;
     }
     let units = "";
@@ -915,14 +921,21 @@
         <image class="unit-portrait" href="${unit.icon}" x="${cx-18}" y="${cy-20}" width="36" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})"></image>
         ${unit.weaponBadge ? `<rect class="weapon-badge" x="${cx+8}" y="${cy-21}" width="23" height="11" rx="2"></rect><text class="weapon-badge-text" x="${cx+19.5}" y="${cy-15.5}">${unit.weaponBadge}</text>` : ""}
         ${renderUnitEffectBadges(unit,cx,cy)}
-        ${unit.id===active?.id&&hasEncounter?encounterMarker(cx,cy,"MOVE -1","penalty"):""}
-        ${unit.team!==active?.team&&encounterKeys.has(E.key(unit.q,unit.r))?encounterMarker(cx,cy,"ENCOUNTER","target"):""}
         <rect class="unit-hp-bg" x="${cx-20}" y="${cy+20}" width="40" height="5" rx="2"></rect>
         <rect class="unit-hp" x="${cx-19}" y="${cy+21}" width="${38*unit.hp/unit.maxHp}" height="3" rx="1"></rect>
         <text class="unit-name" x="${cx}" y="${cy+34}">${unit.name === "Zaku II" ? unit.role : unit.name}</text>
       </g>`;
     }
-    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}`;
+    let encounterLayer="";
+    if(active&&hasEncounter){
+      const activeCx=x0+active.q*dx,activeCy=y0+(active.r+(active.q&1)*.5)*dy;
+      encounterLayer+=encounterMarker(activeCx,activeCy,"MOVE -1","penalty");
+      encounterTargets.forEach(target=>{
+        const targetCx=x0+target.q*dx,targetCy=y0+(target.r+(target.q&1)*.5)*dy;
+        encounterLayer+=encounterMarker(targetCx,targetCy,"ENCOUNTER","target");
+      });
+    }
+    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="encounter-overlay-layer">${encounterLayer}</g>`;
     $("#board").querySelectorAll("[data-q]").forEach(node => node.addEventListener("click", event => handleHexClick(Number(node.dataset.q),Number(node.dataset.r),event)));
   }
 
@@ -1201,6 +1214,7 @@
   }
 
   function handleHexClick(q,r,event=null) {
+    if(event?.currentTarget?.classList?.contains("unit-node"))event.stopPropagation();
     const controllingUnit=modeUnit();
     if(controllingUnit&&isAiTeam(controllingUnit.team)&&!aiPerforming)return;
     if (!mode) {
@@ -1213,6 +1227,12 @@
         menuOpen=true;
         menuView="main";
         renderActions();
+      }
+      else if(clicked){
+        menuOpen=false;
+        menuView="main";
+        renderActions();
+        showUnitCard(clicked);
       }
       else if(menuOpen){menuOpen=false;menuView="main";renderActions();}
       return;
