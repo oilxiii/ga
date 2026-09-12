@@ -159,6 +159,7 @@ body.title-active { overflow: hidden; }
 .text-btn { padding: 5px 9px; color: #8bd6ff; font-size: .72rem; }
 .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 7px; }
 .topbar-actions .icon-btn { justify-self: auto; }
+.build-version { align-self: center; padding: 3px 6px; color: #7892a7; border: 1px solid rgba(120,146,167,.28); background: rgba(3,12,20,.52); font-size: .56rem; font-weight: 900; line-height: 1; letter-spacing: .08em; text-transform: uppercase; }
 #sound-btn { font-size: 1.05rem; line-height: 1; }
 #sound-btn[aria-pressed="true"] { color: #ff9ca9; border-color: rgba(255,64,90,.58); background: rgba(255,64,90,.1); }
 
