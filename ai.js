@@ -56,15 +56,8 @@
     const choices = [];
     for (const weapon of unit.weapons) {
       for (const target of engine.legalWeaponTargets(state, unit, weapon)) {
-        choices.push({ weapon, target, isGarrison: false, score: attackScore(state, unit, target, weapon, engine, false) });
-      }
-      const engaged = engine.engagedTargets(state, unit);
-      const engagedKeys = new Set(engaged.map(target => keyOf(engine, target)));
-      for (const target of state.garrisons) {
-        if (target.team === unit.team) continue;
-        if (engaged.length ? !engagedKeys.has(keyOf(engine, target)) : engine.distance(unit, target) > weapon.range) continue;
-        if (!weapon.ignoreLos && !engine.hasLineOfSight(state, unit, target)) continue;
-        choices.push({ weapon, target, isGarrison: true, score: attackScore(state, unit, target, weapon, engine, true) });
+        const isGarrison = (state.garrisons || []).some(garrison => garrison === target || garrison.id === target.id);
+        choices.push({ weapon, target, isGarrison, score: attackScore(state, unit, target, weapon, engine, isGarrison) });
       }
     }
     return choices.sort((a, b) => b.score - a.score);

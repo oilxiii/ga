@@ -303,10 +303,13 @@
   }
 
   function legalWeaponTargets(state, unit, weapon) {
-    const enemies = livingEnemies(state, unit);
+    const enemyUnits = livingEnemies(state, unit);
+    const enemyGarrisons = (state.garrisons || []).filter(garrison => garrison.team !== unit.team);
     const engaged = engagedTargets(state, unit);
-    const engagedUnits = engagedEnemies(state, unit);
-    const targetPool = engaged.length ? engagedUnits : enemies;
+    // Engagement applies to both enemy Units and enemy Garrisons. Keep the rule in
+    // one engine-level source of truth so UI, AI, Responses, and future systems all
+    // receive the same legal target set.
+    const targetPool = engaged.length ? engaged : [...enemyUnits, ...enemyGarrisons];
     return targetPool.filter(target => {
       if (distance(unit, target) > weapon.range) return false;
       return weapon.ignoreLos || hasLineOfSight(state, unit, target);

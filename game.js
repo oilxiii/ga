@@ -1517,18 +1517,12 @@
   function beginAttack(weapon, options={}) {
     const unit=activeUnit();
     const engaged=E.engagedTargets(state,unit);
-    const engagedKeys=new Set(engaged.map(target=>E.key(target.q,target.r)));
     const targets=E.legalWeaponTargets(state,unit,weapon);
-    const garrisonTargets=state.garrisons.filter(g=>
-      g.team!==unit.team &&
-      (engaged.length ? engagedKeys.has(E.key(g.q,g.r)) : E.distance(unit,g)<=weapon.range) &&
-      (weapon.ignoreLos||E.hasLineOfSight(state,unit,g))
-    );
-    if (!targets.length&&!garrisonTargets.length) { addLog(`${weapon.name}: ไม่มีเป้าหมายที่อยู่ใน Range และ Line of Sight`); renderAll(); return false; }
+    if (!targets.length) { addLog(`${weapon.name}: ไม่มีเป้าหมายที่อยู่ใน Range และ Line of Sight`); renderAll(); return false; }
     const normalHint=weapon.effect==="splash"
       ? `${weapon.name}: เลือกเป้าหมายหลัก — หลัง Combat Damage ศัตรูทุกตัวที่ติดกับเป้าหมายจะรับ Damage 0 (Critical = 1)`
       : `${weapon.name}: เลือกยูนิตหรือ Garrison สีแดง`;
-    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,targets:new Set([...targets,...garrisonTargets].map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน`:normalHint};
+    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน`:normalHint};
     menuOpen=true;
     renderAll();
     return true;
