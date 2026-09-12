@@ -184,24 +184,41 @@
   }
 
 
-  function forcedPushStep(state, source, target) {
-    if (!state || !source || !target || target.zone !== "board") return { type:"blocked", reason:"invalid" };
-    const candidates=neighbors(target.q,target.r).map(([q,r])=>({q,r,d:distance(source,{q,r})}));
-    if(!candidates.length) return { type:"collision", reason:"edge", q:target.q, r:target.r };
-    const farthest=Math.max(...candidates.map(candidate=>candidate.d));
-    const direct=candidates.filter(candidate=>candidate.d===farthest);
+  function pushDirectionOptions(state, source, target) {
+    if (!state || !source || !target || target.zone !== "board") return [];
+    const currentDistance=distance(source,target);
+    const targetCube=oddqToCube(target.q,target.r);
+    return neighbors(target.q,target.r)
+      .map(([q,r])=>({q,r,d:distance(source,{q,r})}))
+      .filter(candidate=>candidate.d>currentDistance)
+      .map(candidate=>{
+        const cube=oddqToCube(candidate.q,candidate.r);
+        return {
+          q:candidate.q,r:candidate.r,
+          direction:{x:cube.x-targetCube.x,y:cube.y-targetCube.y,z:cube.z-targetCube.z}
+        };
+      });
+  }
+
+  function forcedPushStep(state, target, direction) {
+    if (!state || !target || target.zone !== "board" || !direction) return { type:"blocked", reason:"invalid" };
+    const currentCube=oddqToCube(target.q,target.r);
+    const destinationCube={
+      x:currentCube.x+direction.x,
+      y:currentCube.y+direction.y,
+      z:currentCube.z+direction.z
+    };
+    const [q,r]=cubeToOddq(destinationCube);
+    if(!inBounds(q,r))return {type:"collision",reason:"edge",q:target.q,r:target.r};
     const currentElevation=elevationAt(state,target.q,target.r);
-    const terrainLegal=direct.filter(candidate=>elevationAt(state,candidate.q,candidate.r)<=currentElevation);
-    const open=terrainLegal.find(candidate=>!unitAt(state,candidate.q,candidate.r)&&!garrisonAt(state,candidate.q,candidate.r));
-    if(open) return { type:"move", q:open.q, r:open.r };
-    const occupied=terrainLegal.find(candidate=>unitAt(state,candidate.q,candidate.r)||garrisonAt(state,candidate.q,candidate.r));
-    if(occupied){
-      return {
-        type:"collision",reason:"occupied",q:occupied.q,r:occupied.r,
-        unit:unitAt(state,occupied.q,occupied.r),garrison:garrisonAt(state,occupied.q,occupied.r)
-      };
+    const destinationElevation=elevationAt(state,q,r);
+    if(destinationElevation>currentElevation)return {type:"collision",reason:"terrain",q,r};
+    const occupiedUnit=unitAt(state,q,r);
+    const occupiedGarrison=garrisonAt(state,q,r);
+    if(occupiedUnit||occupiedGarrison){
+      return {type:"collision",reason:"occupied",q,r,unit:occupiedUnit,garrison:occupiedGarrison};
     }
-    return { type:"collision", reason:"terrain", q:target.q, r:target.r };
+    return {type:"move",q,r};
   }
 
   function shuffle(values, rng = Math.random) {
@@ -467,7 +484,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += 1;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

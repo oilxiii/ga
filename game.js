@@ -1022,9 +1022,11 @@
         ...kickUnitTargets.map(target=>`<button class="command-item char-kick-damage" data-char-kick-unit="${target.id}"><span>ทำ Damage 1</span><small>${target.name}</small></button>`),
         ...kickGarrisonTargets.map(target=>`<button class="command-item char-kick-damage" data-char-kick-garrison="${target.id}"><span>ทำ Damage 1</span><small>${D.teams[target.team].short} Garrison</small></button>`)
       ].join(""):"";
+      const pushAlert=mode.type==="push-direction"?`<div class="char-kick-alert push-direction-alert"><strong>PUSH DIRECTION</strong><span>${mode.steps} HEX</span><small>เลือก Hex สีแดงด้านหลังเป้าหมายเพื่อกำหนดทิศทาง · ถ้าชนจะเกิด Damage 2</small></div>`:"";
       const backText=draftKick?"‹ Back · เปลี่ยนจุด Dash":"‹ Back";
       const backSub=draftKick?"SELECT DASH HEX AGAIN":"CANCEL";
-      menu.innerHTML=`<div class="command-caption"><span>${mode.type.toUpperCase()}</span><span>${draftKick?"DASH DECISION":"SELECTING"}</span></div>${charKickAlert}<div class="command-list">${kickButtons}${mode.type==="move"&&mode.allowStay?`<button class="command-item" id="stay-in-place"><span>อยู่ช่องเดิม</span><small>0 HEX</small></button>`:""}<button class="command-item" id="cancel-mode"><span>${backText}</span><small>${backSub}</small></button></div>`;
+      const cancelButton=mode.type==="push-direction"?"":`<button class="command-item" id="cancel-mode"><span>${backText}</span><small>${backSub}</small></button>`;
+      menu.innerHTML=`<div class="command-caption"><span>${mode.type.toUpperCase()}</span><span>${draftKick?"DASH DECISION":"SELECTING"}</span></div>${charKickAlert}${pushAlert}<div class="command-list">${kickButtons}${mode.type==="move"&&mode.allowStay?`<button class="command-item" id="stay-in-place"><span>อยู่ช่องเดิม</span><small>0 HEX</small></button>`:""}${cancelButton}</div>`;
       menu.querySelectorAll("[data-char-kick-unit]").forEach(button=>button.addEventListener("click",()=>{
         const target=state.units.find(candidate=>candidate.id===button.dataset.charKickUnit);
         if(target)resolveCharKickTarget(unit,target);
@@ -1034,7 +1036,7 @@
         if(target)resolveCharKickGarrisonTarget(unit,target);
       }));
       menu.querySelector("#stay-in-place")?.addEventListener("click",()=>completeMove(unit.q,unit.r));
-      menu.querySelector("#cancel-mode").addEventListener("click",()=>{const back=mode.returnMenu||"main";const onCancel=mode.onCancel;mode=null;menuOpen=true;menuView=back;if(onCancel)onCancel();renderAll();});
+      menu.querySelector("#cancel-mode")?.addEventListener("click",()=>{const back=mode.returnMenu||"main";const onCancel=mode.onCancel;mode=null;menuOpen=true;menuView=back;if(onCancel)onCancel();renderAll();});
       positionCommandMenu(unit);
       return;
     }
@@ -1400,6 +1402,11 @@
         if(resolveCharKickGarrisonTarget(unit,garrison))return;
       }
       mode=null;if(callback)callback();renderAll();
+    } else if (mode.type==="push-direction") {
+      const option=mode.pushOptions?.find(candidate=>candidate.q===q&&candidate.r===r);
+      const callback=mode.callback;
+      if(!option||!callback)return;
+      callback(option);
     }
   }
 
@@ -1633,33 +1640,37 @@
     if (applied.blocked) addLog(`Shield ป้องกัน Damage ${applied.blocked}`);
     addLog(`${defender.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
     applyAttackerCritical(attacker,weapon,result);
-    if (result.criticals>0) applyCritical(attacker,defender,weapon,result);
-    resolveSplashDamage(attacker,defender,weapon,result);
-    const defeated=E.defeatUnit(state,defender,attacker.team);
-    if (attacker.lastShotBonus) {
-      if (defeated) {
-        grantUpgrade(attacker,"strength",1);
-        addLog(`Last Shot Counts: ${attacker.name} รับ Strength Upgrade เพิ่มอีก 1`);
+    const finishCriticalAndCombat=()=>{
+      resolveSplashDamage(attacker,defender,weapon,result);
+      const defeated=E.defeatUnit(state,defender,attacker.team);
+      if (attacker.lastShotBonus) {
+        if (defeated) {
+          grantUpgrade(attacker,"strength",1);
+          addLog(`Last Shot Counts: ${attacker.name} รับ Strength Upgrade เพิ่มอีก 1`);
+        }
+        attacker.lastShotBonus=false;
       }
-      attacker.lastShotBonus=false;
-    }
-    const defenderResponses=defeated?[]:availablePostCombat(defender,"defender");
-    const attackerResponses=availablePostCombat(attacker,"attacker");
-    pendingAttack=null;
-    renderAll();
-    if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to,targetUnitId:defender.id,destroyed:defeated});
-    openPostCombatResponses([
-      {cards:defenderResponses,role:"defender"},
-      {cards:attackerResponses,role:"attacker"}
-    ],attacker,defender,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result,()=>{
-      finishDefeatedActiveActivation(attacker,"Combat Response");
-    }));
+      const defenderResponses=defeated?[]:availablePostCombat(defender,"defender");
+      const attackerResponses=availablePostCombat(attacker,"attacker");
+      pendingAttack=null;
+      renderAll();
+      if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to,targetUnitId:defender.id,destroyed:defeated});
+      openPostCombatResponses([
+        {cards:defenderResponses,role:"defender"},
+        {cards:attackerResponses,role:"attacker"}
+      ],attacker,defender,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result,()=>{
+        finishDefeatedActiveActivation(attacker,"Combat Response");
+      }));
+    };
+    if (result.criticals>0) applyCritical(attacker,defender,weapon,result,finishCriticalAndCombat);
+    else finishCriticalAndCombat();
   }
 
-  function applyCritical(attacker,defender,weapon,result) {
+  function applyCritical(attacker,defender,weapon,result,onComplete=()=>{}) {
     if (weapon.critical==="slow") applyDebuff(defender,"slow");
     if (weapon.critical==="fracture") applyDebuff(defender,"fracture");
-    if (weapon.critical==="push2") pushAway(attacker,defender,2);
+    if (weapon.critical==="push2") { beginPushDirection(attacker,defender,2,onComplete,"Shoulder Bash Critical"); return; }
+    onComplete();
   }
 
   function applyAttackerCritical(attacker,weapon,result) {
@@ -1725,33 +1736,71 @@
     modal.querySelector("#skip-critical-rescue").addEventListener("click",()=>{closeModal();renderAll();onComplete();});
   }
 
-  function pushAway(source,target,steps) {
+  function pushAway(source,target,steps,direction,onComplete=()=>{}) {
     // Forced movement is not a Move/Dash, so it never collects Energy/Mystery Upgrades.
-    // If a Push collides with terrain, a Unit, or a Garrison, the pushed Unit takes Damage 1;
-    // colliding Units/Garrisons also take Damage 1.
+    // A Push follows the direction chosen by the attacker in a straight line. If it collides
+    // with terrain, the board edge, a Unit, or a Garrison, the pushed Unit takes Damage 2.
+    // A collided Unit/Garrison also takes Damage 2.
     for (let i=0;i<steps;i++) {
       if(target.zone!=="board"||target.hp<=0)break;
-      const step=E.forcedPushStep(state,source,target);
-      if(step.type==="move") { target.q=step.q;target.r=step.r;continue; }
+      const step=E.forcedPushStep(state,target,direction);
+      if(step.type==="move") {
+        target.q=step.q;target.r=step.r;
+        addLog(`Push: ${target.name} ถูกผลักไป Hex ${target.q},${target.r}`);
+        continue;
+      }
 
-      E.applyDamage(target,1);
+      const targetPos={q:target.q,r:target.r};
+      const pushedDamage=E.applyDamage(target,2,{sourceType:"collision"});
       if(step.unit){
         const collidedUnit=step.unit;
         const to={q:collidedUnit.q,r:collidedUnit.r};
-        E.applyDamage(collidedUnit,1);
+        const collisionDamage=E.applyDamage(collidedUnit,2,{sourceType:"collision"});
         // VP belongs to the opposing faction of the defeated Unit, never to its own side.
         const scoringTeam=collidedUnit.team===source.team?target.team:source.team;
         const defeated=E.defeatUnit(state,collidedUnit,scoringTeam);
-        addLog(`${target.name} ชน ${collidedUnit.name} — ทั้งคู่รับ Damage 1`);
+        addLog(`${target.name} ชน ${collidedUnit.name} — ${target.name} รับ Damage ${pushedDamage.taken}, ${collidedUnit.name} รับ Damage ${collisionDamage.taken}`);
         playDamageFeedback({to,targetUnitId:collidedUnit.id,destroyed:defeated});
       }else if(step.garrison){
         const collidedGarrison=step.garrison;
-        const info=damageGarrison(source,collidedGarrison,1,"Push Collision");
-        addLog(`${target.name} ชน Garrison — ทั้งคู่รับ Damage 1`);
+        const info=damageGarrison(source,collidedGarrison,2,"Push Collision");
+        addLog(`${target.name} ชน Garrison — ${target.name} รับ Damage ${pushedDamage.taken}, Garrison รับ Damage ${info.damage}`);
         playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
-      }else addLog(`${target.name} ชน${step.reason==="edge"?"ขอบสนาม":"สิ่งกีดขวาง"}และรับ Damage 1`);
+      }else addLog(`${target.name} ชน${step.reason==="edge"?"ขอบสนาม":"พื้นที่สูง/สิ่งกีดขวาง"} — รับ Damage ${pushedDamage.taken}`);
+      playDamageFeedback({to:targetPos,targetUnitId:target.id,destroyed:target.hp<=0});
       break;
     }
+    renderAll();
+    onComplete();
+  }
+
+  function beginPushDirection(source,target,steps,onComplete=()=>{},label="PUSH") {
+    if(!source||!target||target.zone!=="board"||target.hp<=0){onComplete();return false;}
+    const options=E.pushDirectionOptions(state,source,target);
+    if(!options.length){
+      const targetPos={q:target.q,r:target.r};
+      const damage=E.applyDamage(target,2,{sourceType:"collision"});
+      addLog(`${label}: ${target.name} ไม่มีช่องให้ผลักออก — ชนขอบสนามและรับ Damage ${damage.taken}`);
+      playDamageFeedback({to:targetPos,targetUnitId:target.id,destroyed:target.hp<=0});
+      renderAll();onComplete();return true;
+    }
+    const choose=option=>{
+      mode=null;menuOpen=false;
+      addLog(`${label}: เลือกทิศผลักผ่าน Hex ${option.q},${option.r}`);
+      pushAway(source,target,steps,option.direction,onComplete);
+    };
+    if(isAiTeam(source.team)){
+      const choice=A.choosePushDirection?.(state,source,target,options,steps,E)||options[0];
+      addLog(`AI · ${source.name} เลือกทิศทาง Push`);
+      choose(choice);return true;
+    }
+    mode={
+      type:"push-direction",unitId:source.id,pushTargetId:target.id,steps,label,required:true,
+      targets:new Set(options.map(option=>E.key(option.q,option.r))),pushOptions:options,
+      hint:`${label}: เลือก Hex สีแดงเพื่อกำหนดทิศทางผลัก ${steps} ช่อง`,
+      callback:choose
+    };
+    menuOpen=true;menuView="main";renderAll();return true;
   }
 
   function availablePostCombat(unit,role) {
@@ -1795,19 +1844,22 @@
           const applied=E.applyDamage(attacker,result.damage,{sourceType:"attack"});
           if(applied.blocked)addLog(`Return Fire: Shield ป้องกัน Damage ${applied.blocked}`);
           applyAttackerCritical(defender,weapon,result);
-          if(result.criticals>0)applyCritical(defender,attacker,weapon,result);
-          resolveSplashDamage(defender,attacker,weapon,result);
-          defender.nextAt+=Math.max(0,weapon.timeline-1);
-          addLog(`Return Fire ที่ยืนยันแล้ว: ${defender.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
-          const defeated=E.defeatUnit(state,attacker,defender.team);
-          renderAll();
-          if(result.damage>0)playCombatFeedback({from,to,targetUnitId:attacker.id,destroyed:defeated});
-          const returnDefenderResponses=defeated?[]:availablePostCombat(attacker,"defender");
-          const returnAttackerResponses=availablePostCombat(defender,"attacker");
-          openPostCombatResponses([
-            {cards:returnDefenderResponses,role:"defender"},
-            {cards:returnAttackerResponses,role:"attacker"}
-          ],defender,attacker,0,()=>offerWeaponCriticalFollowUp(defender,weapon,result,done));
+          const finishReturnFire=()=>{
+            resolveSplashDamage(defender,attacker,weapon,result);
+            defender.nextAt+=Math.max(0,weapon.timeline-1);
+            addLog(`Return Fire ที่ยืนยันแล้ว: ${defender.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
+            const defeated=E.defeatUnit(state,attacker,defender.team);
+            renderAll();
+            if(result.damage>0)playCombatFeedback({from,to,targetUnitId:attacker.id,destroyed:defeated});
+            const returnDefenderResponses=defeated?[]:availablePostCombat(attacker,"defender");
+            const returnAttackerResponses=availablePostCombat(defender,"attacker");
+            openPostCombatResponses([
+              {cards:returnDefenderResponses,role:"defender"},
+              {cards:returnAttackerResponses,role:"attacker"}
+            ],defender,attacker,0,()=>offerWeaponCriticalFollowUp(defender,weapon,result,done));
+          };
+          if(result.criticals>0)applyCritical(defender,attacker,weapon,result,finishReturnFire);
+          else finishReturnFire();
         })));
       };
       if(isAiTeam(defender.team)){
@@ -1967,7 +2019,16 @@
       const canPushFrom=hex=>E.livingEnemies(state,unit).some(enemy=>E.distance(hex,enemy)===1);
       startMove(2,0,"Drive Them Back",moved=>{
         markCommand(card);
-        afterUnitMove(unit,"tactic",()=>selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{pushAway(unit,enemy,1);E.applyDamage(enemy,1);E.defeatUnit(state,enemy,unit.team);addLog(`${enemy.name} ถูกผลักและรับ Damage 1`);}),moved);
+        afterUnitMove(unit,"tactic",()=>selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{
+          beginPushDirection(unit,enemy,1,()=>{
+            const to={q:enemy.q,r:enemy.r};
+            const applied=E.applyDamage(enemy,1,{sourceType:"tactic"});
+            const defeated=E.defeatUnit(state,enemy,unit.team);
+            addLog(`${enemy.name} รับ Damage ${applied.taken} จาก Drive Them Back หลังการผลัก`);
+            if(applied.taken>0)playDamageFeedback({to,targetUnitId:enemy.id,destroyed:defeated});
+            renderAll();
+          },"Drive Them Back");
+        }),moved);
       },{allowStay:canPushFrom(unit),destinationFilter:canPushFrom});
     }
     else if (card.id==="sudden-pressure") {

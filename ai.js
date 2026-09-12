@@ -169,6 +169,25 @@
     return targets.sort((a, b) => b.score - a.score)[0] || null;
   }
 
+
+  function choosePushDirection(state, source, target, options, steps, engine) {
+    const scored=(options||[]).map(option=>{
+      const cloneTarget={...target};
+      let score=0;
+      for(let i=0;i<Math.max(1,steps||1);i+=1){
+        const step=engine.forcedPushStep(state,cloneTarget,option.direction);
+        if(step.type==="move"){cloneTarget.q=step.q;cloneTarget.r=step.r;score+=4;continue;}
+        score+=22;
+        if(step.unit)score+=step.unit.team===source.team?-70:90+(step.unit.vp||0)*8;
+        else if(step.garrison)score+=step.garrison.team===source.team?-60:80;
+        else if(step.reason==="terrain"||step.reason==="edge")score+=28;
+        break;
+      }
+      return {...option,score};
+    });
+    return scored.sort((a,b)=>b.score-a.score||a.q-b.q||a.r-b.r)[0]||null;
+  }
+
   function chooseUpgrade(target, defensive = false) {
     if (defensive) {
       if (target.hp <= target.maxHp * 0.5) return "shield";
@@ -194,7 +213,7 @@
     return false;
   }
 
-  const api = { attacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, chooseUpgrade, shouldUseResponse };
+  const api = { attacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, chooseUpgrade, shouldUseResponse };
   root.GA_AI = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
