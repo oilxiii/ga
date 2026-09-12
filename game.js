@@ -30,6 +30,7 @@
   let targetingFxFrame = null;
   let movementDraft = null;
   let soundMuted = false;
+  let losInspection = { enabled:false };
   const AI_PACE = Object.freeze({ firstTurn: 1450, turnStart: 1200, target: 650, poll: 900, between: 620, finish: 820 });
   const AI_WATCHDOG_ATTEMPTS = 12;
 
@@ -669,6 +670,7 @@
     state.responseUsed = { fed: false, zeon: false };
     lastDice = null;
     mode = null;
+    losInspection = { enabled:false };
     menuOpen = false;
     transitionBusy = false;
     hidePhaseTransition();
@@ -814,6 +816,7 @@
 
   function renderAll() {
     renderHeader();
+    renderLosButton();
     renderTimeline();
     renderBoard();
     renderUnitCard();
@@ -918,6 +921,28 @@
     return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
   }
 
+  function renderLosInspection(source,x0,y0,dx,dy) {
+    if(!losInspection.enabled||!source||source.zone==="reserve")return "";
+    const maximumRange=Math.max(0,...(source.weapons||[]).map(weapon=>weapon.range||0));
+    const point=hex=>`${x0+hex.q*dx},${y0+(hex.r+(hex.q&1)*.5)*dy}`;
+    const targets=[
+      ...E.livingEnemies(state,source),
+      ...state.garrisons.filter(garrison=>garrison.team!==source.team)
+    ];
+    return targets
+      .filter(target=>E.distance(source,target)<=maximumRange)
+      .map(target=>{
+        const distance=E.distance(source,target);
+        const details=E.lineOfSightDetails(state,source,target);
+        // A line exactly on a hex border gives the acting player a choice. Display the
+        // clear route whenever one exists; otherwise show one blocked route in red.
+        const route=details.paths.find(candidate=>candidate.clear)||details.paths[0];
+        const status=details.clear?"clear":"blocked";
+        const targetX=x0+target.q*dx,targetY=y0+(target.r+(target.q&1)*.5)*dy;
+        return `<polyline class="los-path ${status}" points="${route.path.map(point).join(" ")}"></polyline><circle class="los-endpoint ${status}" cx="${targetX}" cy="${targetY}" r="25"></circle><g class="los-range-badge ${status}" transform="translate(${targetX+20} ${targetY-21})"><circle r="8"></circle><text y=".5">${distance}</text></g>`;
+      }).join("");
+  }
+
   function focusCameraOnUnit(unit) {
     if(!unit)return;
     requestAnimationFrame(()=>{
@@ -940,6 +965,7 @@
   function renderBoard() {
     const size = 27, x0 = 72, y0 = 32, dx = size*1.5, dy = Math.sqrt(3)*size;
     const active = activeUnit();
+    const losMaximumRange=active?Math.max(0,...(active.weapons||[]).map(weapon=>weapon.range||0)):0;
     const encounterTargets=active?E.engagedTargets(state,active):[];
     const hasEncounter=encounterTargets.length>0;
     let defs = "";
@@ -953,11 +979,13 @@
       if (mode?.type === "char-kick" && isTargetable(q,r)) cls.push("char-kick-target");
       if (active?.q===q && active?.r===r) cls.push("selected");
       const f=featureAt(q,r);
+      const losGarrison=losInspection.enabled&&active&&f?.type==="garrison"&&f.team!==active.team&&E.distance(active,{q,r})<=losMaximumRange;
+      const losGarrisonBlocked=losGarrison&&!E.hasLineOfSight(state,active,{q,r,team:f.team});
       cells += `<g class="${cls.join(" ")}" data-q="${q}" data-r="${r}">
         <polygon points="${hexPoints(cx,cy,size-1)}"></polygon>
         <text class="elevation-label" x="${cx-18}" y="${cy-14}">L${hex.elevation}</text>
         ${f ? f.icon
-          ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
+          ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""} ${losGarrison?"los-inspectable":""} ${losGarrisonBlocked?"los-blocked-target":""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
           : `<g class="objective-flag ${f.team}" aria-label="Objective ${f.team === "neutral" ? "ยังไม่มีผู้ครอบครอง" : `ครอบครองโดย ${teamName(f.team)}`}"><title>Objective · 1 VP เมื่อจบ Phase</title><path class="objective-pole" d="M ${cx-7} ${cy+13} V ${cy-12}"></path><path class="objective-cloth" d="M ${cx-6} ${cy-11} L ${cx+11} ${cy-6} L ${cx-6} ${cy+1} Z"></path><path class="objective-base" d="M ${cx-13} ${cy+13} H ${cx-1}"></path></g>` : ""}
       </g>`;
     }
@@ -967,7 +995,9 @@
       const clip=`clip-${unit.id}`;
       defs += `<clipPath id="${clip}"><circle cx="${cx}" cy="${cy-2}" r="17"></circle></clipPath>`;
       const teamClass=unit.team;
-      units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
+      const losInspectable=losInspection.enabled&&active&&unit.team!==active.team&&E.distance(active,unit)<=losMaximumRange;
+      const losBlocked=losInspectable&&!E.hasLineOfSight(state,active,unit);
+      units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""} ${losInspectable?"los-inspectable":""} ${losBlocked?"los-blocked-target":""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
         <circle class="unit-base ${teamClass}" cx="${cx}" cy="${cy}" r="20"></circle>
         <image class="unit-portrait" href="${unit.icon}" x="${cx-18}" y="${cy-20}" width="36" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})"></image>
         ${unit.weaponBadge ? `<rect class="weapon-badge" x="${cx+8}" y="${cy-21}" width="23" height="11" rx="2"></rect><text class="weapon-badge-text" x="${cx+19.5}" y="${cy-15.5}">${unit.weaponBadge}</text>` : ""}
@@ -986,7 +1016,8 @@
         encounterLayer+=encounterMarker(targetCx,targetCy,"ENCOUNTER","target");
       });
     }
-    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="encounter-overlay-layer">${encounterLayer}</g>`;
+    const losLayer=renderLosInspection(active,x0,y0,dx,dy);
+    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="los-overlay-layer">${losLayer}</g><g class="encounter-overlay-layer">${encounterLayer}</g>`;
     $("#board").querySelectorAll("[data-q]").forEach(node => node.addEventListener("click", event => handleHexClick(Number(node.dataset.q),Number(node.dataset.r),event)));
   }
 
@@ -1549,13 +1580,21 @@
       attacker.nextAttackDiscount=0;attacker.lastShotBonus=false;
       renderAll();
       showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,surrogate,weapon,result,()=>{
-        const impact=damageGarrison(attacker,garrison,result.damage,`${attacker.name} ใช้ ${weapon.name}`);
-        applyAttackerCritical(attacker,weapon,result);
-        resolveSplashDamage(attacker,garrison,weapon,result);
-        const attackerResponses=availablePostCombat(attacker,"attacker");
-        renderAll();
-        if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to:{q:impact.q,r:impact.r},garrison:true,destroyed:impact.destroyed});
-        openPostCombatResponses([{cards:attackerResponses,role:"attacker"}],attacker,surrogate,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result));
+        const reductions={};
+        offerFederationShield(attacker,garrison,weapon,result,reductions,()=>{
+          const impact=damageGarrison(attacker,garrison,result.damage,`${attacker.name} ใช้ ${weapon.name}`);
+          applyAttackerCritical(attacker,weapon,result);
+          const splash=resolveSplashDamage(attacker,garrison,weapon,result,reductions);
+          const attackerResponses=availablePostCombat(attacker,"attacker");
+          const defenderResponders=splash.units.filter(unit=>unit.zone==="board");
+          const defenderResponses=defenderResponders.length?availablePostCombat(defenderResponders[0],"defender"):[];
+          renderAll();
+          if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to:{q:impact.q,r:impact.r},garrison:true,destroyed:impact.destroyed});
+          openPostCombatResponses([
+            {cards:attackerResponses,role:"attacker",responders:[attacker]},
+            {cards:defenderResponses,role:"defender",responders:defenderResponders}
+          ],attacker,surrogate,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result));
+        });
       }));
     }});
   }
@@ -1620,13 +1659,11 @@
         payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));
       }
       attacker.nextAttackDiscount=0;
-      pendingAttack={attacker,defender,weapon,result,reduction:0};
+      pendingAttack={attacker,defender,weapon,result,reductions:{}};
       addLog(`${attacker.name} ใช้ ${weapon.name}: ${result.hits} Hit · ${result.criticals} Critical`);
       renderAll();
       showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,defender,weapon,result,()=>offerWeaponAfterRollEffect(attacker,defender,weapon,()=>{
-        if (defender.team==="fed"&&result.damage>0&&inHand("fed","federation-shield")&&!isUsed("federation-shield")&&!state.activation.tacticUsed.fed) {
-          openResponse([getTactic("federation-shield")], card=>{ useResponse(card); pendingAttack.reduction=2; finishAttack(); }, finishAttack);
-        } else finishAttack();
+        offerFederationShield(attacker,defender,weapon,result,pendingAttack.reductions,finishAttack);
       })));
     }});
   }
@@ -1634,17 +1671,21 @@
   function finishAttack() {
     closeModal();
     if (!pendingAttack) return;
-    const {attacker,defender,weapon,result,reduction}=pendingAttack;
-    const damage=Math.max(0,result.damage-reduction);
+    const {attacker,defender,weapon,result,reductions={}}=pendingAttack;
     const from={q:attacker.q,r:attacker.r};
     const to={q:defender.q,r:defender.r};
-    const applied=E.applyDamage(defender,damage,{sourceType:"attack"});
-    if (applied.blocked) addLog(`Shield ป้องกัน Damage ${applied.blocked}`);
-    addLog(`${defender.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
     applyAttackerCritical(attacker,weapon,result);
-    const finishCriticalAndCombat=()=>{
-      resolveSplashDamage(attacker,defender,weapon,result);
-      const defeated=E.defeatUnit(state,defender,attacker.team);
+    // Rule (p.25): step 7 resolves Critical Hit Effects (Slow/Fracture/Push2) BEFORE step 8
+    // deals Damage. Resolving Push2 first lets it land on a still-healthy target (so a
+    // lethal Push collision reaches its collided bystander) and lets a freshly-applied
+    // Fracture status be eligible to trigger on this very attack's own damage.
+    const dealDamageAndFinish=()=>{
+      const damage=Math.max(0,result.damage-(reductions[defender.id]||0));
+      const applied=E.applyDamage(defender,damage,{sourceType:"attack"});
+      if (applied.blocked) addLog(`Shield ป้องกัน Damage ${applied.blocked}`);
+      addLog(`${defender.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
+      const splash=resolveSplashDamage(attacker,defender,weapon,result,reductions);
+      const defeated=defender.zone==="reserve"||E.defeatUnit(state,defender,attacker.team);
       if (attacker.lastShotBonus) {
         if (defeated) {
           grantUpgrade(attacker,"strength",1);
@@ -1652,20 +1693,22 @@
         }
         attacker.lastShotBonus=false;
       }
-      const defenderResponses=defeated?[]:availablePostCombat(defender,"defender");
+      const defenderResponders=[...(defeated?[]:[defender]),...splash.units]
+        .filter((unit,index,list)=>unit.zone==="board"&&list.findIndex(candidate=>candidate.id===unit.id)===index);
+      const defenderResponses=defenderResponders.length?availablePostCombat(defenderResponders[0],"defender"):[];
       const attackerResponses=availablePostCombat(attacker,"attacker");
       pendingAttack=null;
       renderAll();
       if(result.damage>0)playResolvedAttackFeedback({attacker,weapon,result,from,to,targetUnitId:defender.id,destroyed:defeated});
       openPostCombatResponses([
-        {cards:defenderResponses,role:"defender"},
-        {cards:attackerResponses,role:"attacker"}
+        {cards:attackerResponses,role:"attacker",responders:[attacker]},
+        {cards:defenderResponses,role:"defender",responders:defenderResponders}
       ],attacker,defender,0,()=>offerWeaponCriticalFollowUp(attacker,weapon,result,()=>{
         finishDefeatedActiveActivation(attacker,"Combat Response");
       }));
     };
-    if (result.criticals>0) applyCritical(attacker,defender,weapon,result,finishCriticalAndCombat);
-    else finishCriticalAndCombat();
+    if (result.criticals>0) applyCritical(attacker,defender,weapon,result,dealDamageAndFinish);
+    else dealDamageAndFinish();
   }
 
   function applyCritical(attacker,defender,weapon,result,onComplete=()=>{}) {
@@ -1681,22 +1724,53 @@
     addLog(`Beam Saber Critical: ${attacker.name} รับ Strength Upgrade 1`);
   }
 
-  function resolveSplashDamage(attacker,target,weapon,result) {
-    if(weapon.effect!=="splash")return;
+  function splashUnitTargets(attacker,target,weapon) {
+    if(weapon.effect!=="splash")return [];
+    return E.livingEnemies(state,attacker).filter(unit=>unit.id!==target.id&&E.distance(unit,target)===1);
+  }
+
+  function offerFederationShield(attacker,target,weapon,result,reductions,onComplete=()=>{}) {
+    const candidates=[];
+    if(target?.weapons&&target.team==="fed"&&result.damage>0)candidates.push({unit:target,damage:result.damage});
+    const splashDamage=weapon.effect==="splash"&&weapon.critical==="splashDamage1"&&result.criticals>0?1:0;
+    if(splashDamage>0)splashUnitTargets(attacker,target,weapon).filter(unit=>unit.team==="fed").forEach(unit=>candidates.push({unit,damage:splashDamage}));
+    if(!candidates.length||!inHand("fed","federation-shield")||isUsed("federation-shield")||state.activation.tacticUsed.fed){onComplete();return;}
+    const card=getTactic("federation-shield");
+    const priority=candidates.slice().sort((a,b)=>((b.damage>=b.unit.hp)*100+b.damage)-((a.damage>=a.unit.hp)*100+a.damage))[0];
+    const totalShields=Math.max(0,priority.unit.upgrades?.shield||0);
+    const inactiveShields=Math.min(totalShields,Math.max(0,priority.unit.inactiveShields||0));
+    const activeShields=Math.max(0,totalShields-inactiveShields);
+    const applyTo=unit=>{useResponse(card);reductions[unit.id]=2;closeModal();renderAll();onComplete();};
+    openResponse([card],()=>{
+      if(candidates.length===1){applyTo(candidates[0].unit);return;}
+      if(isAiTeam("fed")){
+        applyTo(priority.unit);return;
+      }
+      const modal=ensureModal();
+      modal.innerHTML=`<div class="modal-card"><span class="eyebrow">EARTH FEDERATION SHIELD // TARGET</span><h2>เลือกยูนิตที่จะลด Damage 2</h2><p>การโจมตีแบบ AOE สร้างผลโจมตีแยกกับยูนิตทุกตัว เลือกป้องกันได้ 1 ตัว</p><div class="modal-actions">${candidates.map(({unit,damage})=>`<button class="primary-btn" data-shield-target="${unit.id}">${unit.name} · Damage ${damage}</button>`).join("")}</div></div>`;
+      modal.classList.add("show");
+      modal.querySelectorAll("[data-shield-target]").forEach(button=>button.addEventListener("click",()=>applyTo(candidates.find(item=>item.unit.id===button.dataset.shieldTarget).unit)));
+    },onComplete,{damage:priority.damage,effectiveDamage:Math.max(0,priority.damage-activeShields),activeShields,hp:priority.unit.hp});
+  }
+
+  function resolveSplashDamage(attacker,target,weapon,result,reductions={}) {
+    if(weapon.effect!=="splash")return {units:[],garrisons:[]};
     const amount=weapon.critical==="splashDamage1"&&result.criticals>0?1:0;
-    const adjacentUnits=E.livingEnemies(state,attacker).filter(unit=>unit.id!==target.id&&E.distance(unit,target)===1);
+    const adjacentUnits=splashUnitTargets(attacker,target,weapon);
     const adjacentGarrisons=state.garrisons.filter(garrison=>garrison.team!==attacker.team&&garrison.id!==target.id&&E.distance(garrison,target)===1);
     adjacentUnits.forEach(unit=>{
       const to={q:unit.q,r:unit.r};
-      const applied=E.applyDamage(unit,amount);addLog(`Cracker Grenade AOE: ${unit.name} รับ Damage ${applied.taken}`);
+      const reducedAmount=Math.max(0,amount-(reductions[unit.id]||0));
+      const applied=E.applyDamage(unit,reducedAmount);addLog(`Cracker Grenade AOE: ${unit.name} รับ Damage ${applied.taken}`);
       const defeated=E.defeatUnit(state,unit,attacker.team);
-      if(amount>0)playDamageFeedback({to,targetUnitId:unit.id,destroyed:defeated});
+      if(applied.taken>0)playDamageFeedback({to,targetUnitId:unit.id,destroyed:defeated});
     });
     adjacentGarrisons.forEach(garrison=>{
       const info=damageGarrison(attacker,garrison,amount,"Cracker Grenade AOE");
       if(amount>0)playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
     });
     if(adjacentUnits.length||adjacentGarrisons.length)addLog(`Cracker Grenade: กระจาย Damage ${amount} ใส่ศัตรูรอบเป้าหมาย ${adjacentUnits.length+adjacentGarrisons.length} จุด`);
+    return {units:adjacentUnits,garrisons:adjacentGarrisons};
   }
 
   function offerWeaponCriticalFollowUp(attacker,weapon,result,onComplete=()=>{}) {
@@ -1743,11 +1817,13 @@
     // A Push follows the direction chosen by the attacker in a straight line. If it collides
     // with terrain, the board edge, a Unit, or a Garrison, the pushed Unit takes Damage 2.
     // A collided Unit/Garrison also takes Damage 2.
+    let movedAny=false;
     for (let i=0;i<steps;i++) {
       if(target.zone!=="board"||target.hp<=0)break;
       const step=E.forcedPushStep(state,target,direction);
       if(step.type==="move") {
         target.q=step.q;target.r=step.r;
+        movedAny=true;
         addLog(`Push: ${target.name} ถูกผลักไป Hex ${target.q},${target.r}`);
         continue;
       }
@@ -1773,7 +1849,8 @@
       break;
     }
     renderAll();
-    onComplete();
+    if(movedAny&&target.zone==="board")afterUnitMove(target,"push",onComplete,true);
+    else onComplete();
   }
 
   function beginPushDirection(source,target,steps,onComplete=()=>{},label="PUSH") {
@@ -1816,10 +1893,10 @@
     if(next<0){onComplete();return;}
     const actualIndex=index+next; const responseWindow=windows[actualIndex];
     const continueQueue=()=>openPostCombatResponses(windows,attacker,defender,actualIndex+1,onComplete);
-    const respondingUnit=responseWindow.role==="defender"?defender:attacker;
-    if(respondingUnit.zone!=="board")return continueQueue();
+    const responders=(responseWindow.responders||[responseWindow.role==="defender"?defender:attacker]).filter(unit=>unit?.zone==="board");
+    if(!responders.length)return continueQueue();
     const opposingUnit=responseWindow.role==="defender"?attacker:defender;
-    const canAttack=respondingUnit.weapons.some(weapon=>E.legalWeaponTargets(state,respondingUnit,weapon).some(target=>target.id===opposingUnit.id));
+    const canAttack=responders.some(respondingUnit=>respondingUnit.weapons.some(weapon=>E.legalWeaponTargets(state,respondingUnit,weapon).some(target=>target.id===opposingUnit.id)));
     const legalCards=responseWindow.cards.filter(card=>
       inHand(card.team,card.id)&&
       !isUsed(card.id)&&
@@ -1827,57 +1904,64 @@
       (card.id!=="return-fire"||canAttack)
     );
     if(!legalCards.length)return continueQueue();
-    openResponse(legalCards,card=>resolvePostCombat(card,attacker,defender,responseWindow.role,continueQueue),continueQueue,{canAttack});
+    openResponse(legalCards,card=>resolvePostCombat(card,attacker,defender,responseWindow.role,continueQueue,responders),continueQueue,{canAttack});
   }
 
-  function resolvePostCombat(card,attacker,defender,role,done=()=>{}) {
+  function resolvePostCombat(card,attacker,defender,role,done=()=>{},responders=[]) {
     useResponse(card);
     if (card.id==="return-fire") {
-      const weapons=defender.weapons.filter(weapon=>E.legalWeaponTargets(state,defender,weapon).some(target=>target.id===attacker.id));
-      if (!weapons.length) {
+      const returnOptions=(responders.length?responders:[defender]).flatMap(unit=>unit.weapons
+        .filter(weapon=>E.legalWeaponTargets(state,unit,weapon).some(target=>target.id===attacker.id))
+        .map(weapon=>({unit,weapon})));
+      if (!returnOptions.length) {
         addLog("Return Fire: ไม่มีอาวุธที่โจมตีผู้โจมตีได้");closeModal();renderAll();done();return;
       }
-      const fireReturnWeapon=weapon=>{
-        const result=E.rollAttack(state,defender,attacker,weapon);
+      const fireReturnWeapon=(returningUnit,weapon)=>{
+        const result=E.rollAttack(state,returningUnit,attacker,weapon);
         lastDice=result;closeModal();renderAll();
-        showDiceRoll(result,`RETURN FIRE · ${weapon.name}`,()=>offerNewtypeReroll(defender,attacker,weapon,result,()=>offerWeaponAfterRollEffect(defender,attacker,weapon,()=>{
-          const from={q:defender.q,r:defender.r};
+        showDiceRoll(result,`RETURN FIRE · ${weapon.name}`,()=>offerNewtypeReroll(returningUnit,attacker,weapon,result,()=>offerWeaponAfterRollEffect(returningUnit,attacker,weapon,()=>{
+          const from={q:returningUnit.q,r:returningUnit.r};
           const to={q:attacker.q,r:attacker.r};
-          const applied=E.applyDamage(attacker,result.damage,{sourceType:"attack"});
-          if(applied.blocked)addLog(`Return Fire: Shield ป้องกัน Damage ${applied.blocked}`);
-          applyAttackerCritical(defender,weapon,result);
+          applyAttackerCritical(returningUnit,weapon,result);
+          // Rule (p.25): Critical Hit Effects (step 7) resolve before Damage (step 8) here too.
           const finishReturnFire=()=>{
-            resolveSplashDamage(defender,attacker,weapon,result);
-            defender.nextAt+=Math.max(0,weapon.timeline-1);
-            addLog(`Return Fire ที่ยืนยันแล้ว: ${defender.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
-            const defeated=E.defeatUnit(state,attacker,defender.team);
+            const applied=E.applyDamage(attacker,result.damage,{sourceType:"attack"});
+            if(applied.blocked)addLog(`Return Fire: Shield ป้องกัน Damage ${applied.blocked}`);
+            const splash=resolveSplashDamage(returningUnit,attacker,weapon,result);
+            returningUnit.nextAt+=Math.max(0,weapon.timeline-1);
+            addLog(`Return Fire ที่ยืนยันแล้ว: ${returningUnit.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
+            const defeated=attacker.zone==="reserve"||E.defeatUnit(state,attacker,returningUnit.team);
             renderAll();
             if(result.damage>0)playCombatFeedback({from,to,targetUnitId:attacker.id,destroyed:defeated});
-            const returnDefenderResponses=defeated?[]:availablePostCombat(attacker,"defender");
-            const returnAttackerResponses=availablePostCombat(defender,"attacker");
+            const returnDefenderResponders=[...(defeated?[]:[attacker]),...splash.units].filter(unit=>unit.zone==="board");
+            const returnDefenderResponses=returnDefenderResponders.length?availablePostCombat(returnDefenderResponders[0],"defender"):[];
+            const returnAttackerResponses=availablePostCombat(returningUnit,"attacker");
+            // Rule (p.25): when both sides could Respond at the same time, the attacking
+            // player's abilities resolve first. `returningUnit` is the attacker of this
+            // Return Fire counter-attack, so its Response window must be queued first.
             openPostCombatResponses([
-              {cards:returnDefenderResponses,role:"defender"},
-              {cards:returnAttackerResponses,role:"attacker"}
-            ],defender,attacker,0,()=>offerWeaponCriticalFollowUp(defender,weapon,result,done));
+              {cards:returnAttackerResponses,role:"attacker",responders:[returningUnit]},
+              {cards:returnDefenderResponses,role:"defender",responders:returnDefenderResponders}
+            ],returningUnit,attacker,0,()=>offerWeaponCriticalFollowUp(returningUnit,weapon,result,done));
           };
-          if(result.criticals>0)applyCritical(defender,attacker,weapon,result,finishReturnFire);
+          if(result.criticals>0)applyCritical(returningUnit,attacker,weapon,result,finishReturnFire);
           else finishReturnFire();
         })));
       };
-      if(isAiTeam(defender.team)){
-        const weapon=weapons.slice().sort((a,b)=>(b.strength-b.timeline*.35)-(a.strength-a.timeline*.35))[0];
-        addLog(`AI · Return Fire เลือก ${weapon.name}`);renderAll();fireReturnWeapon(weapon);return;
+      if(isAiTeam(card.team)){
+        const choice=returnOptions.slice().sort((a,b)=>(b.weapon.strength-b.weapon.timeline*.35)-(a.weapon.strength-a.weapon.timeline*.35))[0];
+        addLog(`AI · Return Fire เลือก ${choice.unit.name} · ${choice.weapon.name}`);renderAll();fireReturnWeapon(choice.unit,choice.weapon);return;
       }
       const modal=ensureModal();
-      modal.innerHTML=`<div class="modal-card"><span class="eyebrow">RETURN FIRE // CHOOSE WEAPON</span><h2>${defender.name}</h2><p>เลือกอาวุธสำหรับการโจมตีกลับ ผู้โจมตีคือ ${attacker.name}</p><div class="modal-actions">${weapons.map(weapon=>`<button class="primary-btn" data-return-weapon="${weapon.id}">${weapon.name} · Range ${weapon.range} · TL ${Math.max(0,weapon.timeline-1)}</button>`).join("")}</div></div>`;
+      modal.innerHTML=`<div class="modal-card"><span class="eyebrow">RETURN FIRE // CHOOSE UNIT & WEAPON</span><h2>เลือกผู้ยิงกลับ</h2><p>เลือกยูนิตที่ได้รับ Combat Damage trigger และอาวุธที่โจมตี ${attacker.name} ได้</p><div class="modal-actions">${returnOptions.map((choice,index)=>`<button class="primary-btn" data-return-option="${index}">${choice.unit.name} · ${choice.weapon.name} · TL ${Math.max(0,choice.weapon.timeline-1)}</button>`).join("")}</div></div>`;
       modal.classList.add("show");
-      modal.querySelectorAll("[data-return-weapon]").forEach(button=>button.addEventListener("click",()=>{
-        const weapon=weapons.find(item=>item.id===button.dataset.returnWeapon);
-        fireReturnWeapon(weapon);
+      modal.querySelectorAll("[data-return-option]").forEach(button=>button.addEventListener("click",()=>{
+        const choice=returnOptions[Number(button.dataset.returnOption)];
+        fireReturnWeapon(choice.unit,choice.weapon);
       }));
       return;
     } else if (card.id==="exploited-chaos") { attacker.energy+=1;grantUpgrade(attacker,"strength",1);addLog(`${attacker.name} รับ Energy 1 และ Strength Upgrade 1`); }
-    else if (card.id==="shattered-formation") { E.applyDamage(attacker,2);addLog(`Shattered Formation: ${attacker.name} รับ Damage 2`);E.defeatUnit(state,attacker,defender.team); }
+    else if (card.id==="shattered-formation") { const responseUnit=responders[0]||defender;E.applyDamage(attacker,2);addLog(`Shattered Formation: ${attacker.name} รับ Damage 2`);E.defeatUnit(state,attacker,responseUnit.team); }
     closeModal();renderAll();done();
   }
 
@@ -2005,6 +2089,17 @@
   function markCommand(card) { E.retireTacticCard(state,card.team,card.id);state.activation.tacticUsed[card.team]=true;addLog(`ใช้ Tactic: ${card.name}`); }
   function useResponse(card) { E.retireTacticCard(state,card.team,card.id);state.activation.tacticUsed[card.team]=true;state.responseUsed[card.team]=true;addLog(`Response: ${card.name}`); }
 
+  function continueCrimsonExecution(card,unit) {
+    if(!unit||unit.id!==state.activeUnitId||unit.zone!=="board")return false;
+    if(!isUsed(card.id))markCommand(card);
+    const heatHawk=unit.weapons.find(weapon=>weapon.id==="char-heat-hawk");
+    if(!heatHawk){addLog("Crimson Execution: ไม่พบข้อมูล Heat Hawk");renderAll();return false;}
+    addLog("Crimson Execution: Heat Hawk Attack · Timeline 0");
+    const started=beginAttack(heatHawk,{free:true});
+    if(!started){addLog("Crimson Execution: ไม่มีเป้าหมาย Heat Hawk ที่ถูกกติกาหลัง Dash");menuOpen=true;menuView="main";renderAll();}
+    return started;
+  }
+
   function useCommandTactic(card) {
     const unit=activeUnit();
     if (card.id==="built-to-last") { markCommand(card);const repair=totalUpgrades(unit);unit.hp=Math.min(unit.maxHp,unit.hp+repair);addLog(`${unit.name} ซ่อม HP ${repair}`); }
@@ -2041,7 +2136,16 @@
       enemyGarrisons.slice().forEach(target=>damageGarrison(unit,target,2,"Sudden Pressure"));
       addLog(`Sudden Pressure: เป้าหมายใน Range 3 และ Line of Sight — Unit ${enemyUnits.length}, Garrison ${enemyGarrisons.length} รับ Damage 2`);
     }
-    else if (card.id==="crimson-execution") { if(unit.id!=="chars-zaku")return showCard(card,"ใช้ได้เมื่อ Char’s Zaku II กำลังทำงาน");startMove(D.rules.dash.distance+1,0,"Crimson Dash",moved=>{markCommand(card);afterUnitMove(unit,"dash",()=>{addLog("Crimson Execution: Heat Hawk Attack · Timeline 0");beginAttack(unit.weapons[0],{free:true});},moved);}); }
+    else if (card.id==="crimson-execution") {
+      if(unit.id!=="chars-zaku")return showCard(card,"ใช้ได้เมื่อ Char’s Zaku II กำลังทำงาน");
+      const attackAfterDash=()=>continueCrimsonExecution(card,unit);
+      if(isAiTeam(unit.team)){
+        startMove(D.rules.dash.distance+1,0,"Crimson Dash",moved=>afterUnitMove(unit,"dash",attackAfterDash,moved));
+      }else{
+        const started=beginAdjustableCharDash(unit,0,"Crimson Dash",attackAfterDash,{primaryAction:false,onCancel:()=>{menuOpen=true;menuView="main";renderAll();}});
+        if(!started){menuOpen=true;menuView="main";renderAll();}
+      }
+    }
     renderAll();
   }
 
@@ -2301,6 +2405,25 @@
     button.title=soundMuted?"เปิดเสียง":"ปิดเสียง";
   }
 
+  function renderLosButton() {
+    const button=$("#los-btn");if(!button)return;
+    const unit=activeUnit();
+    const available=state?.status==="playing"&&unit&&(unit.zone==="board"||unit.zone==="deploying");
+    document.body.classList.toggle("los-inspection-active",!!available&&losInspection.enabled);
+    button.disabled=!available;
+    button.setAttribute("aria-pressed",String(!!available&&losInspection.enabled));
+    const maximumRange=unit?Math.max(0,...(unit.weapons||[]).map(weapon=>weapon.range||0)):0;
+    button.innerHTML=`<span class="los-eye" aria-hidden="true"><i></i></span><span>LINE OF SIGHT${available?` · R${maximumRange}`:""}</span>`;
+    button.setAttribute("aria-label",available&&losInspection.enabled?"ปิดการตรวจสอบ Line of Sight":`เปิดการตรวจสอบ Line of Sight ระยะ ${maximumRange}`);
+    button.title=available&&losInspection.enabled?`กำลังแสดง Unit และ Garrison ศัตรูภายในระยะอาวุธสูงสุด ${maximumRange} · กดอีกครั้งเพื่อปิด`:`แสดง Line of Sight ตามระยะอาวุธไกลที่สุด (${maximumRange})`;
+  }
+
+  function toggleLosInspection() {
+    if($("#los-btn")?.disabled)return;
+    losInspection.enabled=!losInspection.enabled;
+    renderAll();
+  }
+
   function toggleSound() {
     soundMuted=!soundMuted;
     SFX.setMuted(soundMuted);
@@ -2312,6 +2435,7 @@
 
   $("#restart-btn").addEventListener("click",()=>{if(confirm("เริ่มเกมใหม่และล้างสถานะปัจจุบัน?"))resetGame();});
   $("#sound-btn")?.addEventListener("click",toggleSound);
+  $("#los-btn")?.addEventListener("click",toggleLosInspection);
   renderSoundButton();
   $("#log-toggle").addEventListener("click",()=>{
     const feed=$("#combat-feed");

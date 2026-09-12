@@ -81,36 +81,53 @@
     return state.garrisons?.find(garrison => garrison.q === q && garrison.r === r) || null;
   }
 
-  function hasLineOfSight(state, attacker, target) {
+  function lineOfSightDetails(state, attacker, target) {
     // Adjacent targets never have an intervening hex, so LOS is automatically clear.
-    if (distance(attacker,target) <= 1) return true;
+    if (distance(attacker,target) <= 1) return {clear:true,paths:[{clear:true,path:line(attacker,target),blocker:null}]};
     const aElev = elevationAt(state, attacker.q, attacker.r);
     const tElev = elevationAt(state, target.q, target.r);
-    const pathIsClear = path => {
+    const highElev = Math.max(aElev,tElev);
+    const sameElevation = aElev === tElev;
+    const inspectPath = path => {
       for (const hex of path.slice(1,-1)) {
         const hexElevation=elevationAt(state,hex.q,hex.r);
-        // Core LOS: any intervening terrain higher than the ATTACKER blocks sight.
-        if (hexElevation > aElev) return false;
-        // If firing downhill, terrain level with the attacker also blocks sight.
-        if (aElev > tElev && hexElevation === aElev) return false;
+        // Rulebook pp.19-22: terrain higher than both endpoints blocks. When the
+        // endpoints differ in elevation, terrain level with the higher endpoint blocks too.
+        if (hexElevation > highElev || (!sameElevation && hexElevation === highElev)) {
+          return {clear:false,path,blocker:{...hex,type:"terrain",elevation:hexElevation}};
+        }
 
-        // Enemy pieces block regardless of their elevation; allied pieces do not.
+        // Enemy pieces/constructs block only at the higher endpoint's elevation.
+        // Lower pieces can be fired over; allied pieces never block Line of Sight.
         const blockingUnit=unitAt(state,hex.q,hex.r);
-        if (blockingUnit && blockingUnit.team !== attacker.team) return false;
+        if (blockingUnit && blockingUnit.team !== attacker.team && hexElevation === highElev) {
+          return {clear:false,path,blocker:{...hex,type:"unit",elevation:hexElevation,id:blockingUnit.id}};
+        }
         const blockingGarrison=garrisonAt(state,hex.q,hex.r);
-        if (blockingGarrison && blockingGarrison.team !== attacker.team) return false;
+        if (blockingGarrison && blockingGarrison.team !== attacker.team && hexElevation === highElev) {
+          return {clear:false,path,blocker:{...hex,type:"garrison",elevation:hexElevation,id:blockingGarrison.id}};
+        }
 
         // Enemy Bases and enemy-controlled Objectives are also enemy-side tokens.
         const blockingBase=DATA.map.featureCoordinates.bases.find(base=>base.q===hex.q&&base.r===hex.r);
-        if (blockingBase && blockingBase.team !== attacker.team) return false;
+        if (blockingBase && blockingBase.team !== attacker.team && hexElevation === highElev) {
+          return {clear:false,path,blocker:{...hex,type:"base",elevation:hexElevation}};
+        }
         const blockingObjective=state.objectives?.find(objective=>objective.q===hex.q&&objective.r===hex.r);
-        if (blockingObjective?.owner && blockingObjective.owner !== attacker.team) return false;
+        if (blockingObjective?.owner && blockingObjective.owner !== attacker.team && hexElevation === highElev) {
+          return {clear:false,path,blocker:{...hex,type:"objective",elevation:hexElevation,id:blockingObjective.id}};
+        }
       }
-      return true;
+      return {clear:true,path,blocker:null};
     };
     // When the center-to-center line lies exactly between two hexes, the attacker chooses
     // which of the two hex paths to use. LOS therefore succeeds if either path is clear.
-    return lineVariants(attacker,target).some(pathIsClear);
+    const paths=lineVariants(attacker,target).map(inspectPath);
+    return {clear:paths.some(result=>result.clear),paths};
+  }
+
+  function hasLineOfSight(state, attacker, target) {
+    return lineOfSightDetails(state,attacker,target).clear;
   }
 
   function engagedEnemies(state, unit) {
@@ -484,7 +501,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += 1;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
