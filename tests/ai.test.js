@@ -75,14 +75,68 @@ test("AI uses the same legal-action entry points as a player and hides its hand"
   assert.match(source, /rescueGarrison\(unit,1,true\)/);
   assert.match(source, /handleHexClick\(q,r\)/);
   assert.match(source, /class="ai-hand-hidden"/);
-  assert.match(source, /if\(isAiTurn\(\)&&!aiPerforming\)return/);
+  assert.match(source, /const controllingUnit=modeUnit\(\)/);
+  assert.match(source, /controllingUnit&&isAiTeam\(controllingUnit\.team\)&&!aiPerforming/);
+  assert.match(source, /if\(unit&&isAiTeam\(unit\.team\)\)\{menu\.innerHTML="";return;\}/);
 });
 
 test("AI response policy spends cards only when their trigger has value", () => {
   const shield = D.tactics.find(card => card.id === "federation-shield");
   const returnFire = D.tactics.find(card => card.id === "return-fire");
-  assert.equal(A.shouldUseResponse(shield, { damage: 1 }), false);
-  assert.equal(A.shouldUseResponse(shield, { damage: 2 }), true);
+  assert.equal(A.shouldUseResponse(shield, { damage: 1, hp: 2, activeShields: 0 }), false);
+  assert.equal(A.shouldUseResponse(shield, { damage: 1, hp: 1, activeShields: 0 }), true, "lethal Damage 1 must be prevented");
+  assert.equal(A.shouldUseResponse(shield, { damage: 2, hp: 4, activeShields: 0 }), true);
+  assert.equal(A.shouldUseResponse(shield, { damage: 2, hp: 1, activeShields: 2 }), false, "do not spend the card when active Shields block all damage");
+  assert.equal(A.shouldUseResponse(shield, { damage: 4, hp: 1, activeShields: 0, effectiveDamage: 0 }), false, "an explicit effective-damage calculation takes precedence");
   assert.equal(A.shouldUseResponse(returnFire, { canAttack: false }), false);
   assert.equal(A.shouldUseResponse(returnFire, { canAttack: true }), true);
+});
+
+test("Drive Them Back requires a reachable enemy Unit, not only a Garrison", () => {
+  const state = E.setupGame(() => 0.5);
+  const char = place(state.units.find(unit => unit.id === "chars-zaku"), 5, 5);
+  state.units.filter(unit => unit.team === "fed").forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [{ id: "fed-garrison", team: "fed", q: 5, r: 6, hp: 1, maxHp: 1 }];
+  const card = D.tactics.find(item => item.id === "drive-them-back");
+  assert.equal(A.commandTacticScore(state, char, card, D, E), -Infinity);
+  const gundam = place(state.units.find(unit => unit.id === "gundam"), 5, 6);
+  state.garrisons = [];
+  assert.ok(Number.isFinite(A.commandTacticScore(state, char, card, D, E)));
+  assert.equal(gundam.zone, "board");
+});
+
+test("Sudden Pressure values visible enemy Units and Garrisons but rejects blocked LOS", () => {
+  const state = E.setupGame(() => 0.5);
+  const char = place(state.units.find(unit => unit.id === "chars-zaku"), 2, 2);
+  state.units.filter(unit => unit.team === "fed").forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  const card = D.tactics.find(item => item.id === "sudden-pressure");
+  state.garrisons = [{ id: "fed-visible", team: "fed", q: 2, r: 3, hp: 1, maxHp: 1 }];
+  assert.equal(A.commandTacticScore(state, char, card, D, E), 30);
+  state.garrisons = [{ id: "fed-blocked", team: "fed", q: 2, r: 4, hp: 1, maxHp: 1 }];
+  state.board[E.key(2, 3)].elevation = 2;
+  assert.equal(E.hasLineOfSight(state, char, state.garrisons[0]), false);
+  assert.equal(A.commandTacticScore(state, char, card, D, E), -Infinity);
+});
+
+test("AI attack valuation counts only Shield upgrades that are still active", () => {
+  const state = E.setupGame(() => 0.5);
+  const char = place(state.units.find(unit => unit.id === "chars-zaku"), 4, 1);
+  const inactiveTarget = place(state.units.find(unit => unit.id === "gundam"), 4, 2);
+  const activeTarget = place(state.units.find(unit => unit.id === "guncannon"), 5, 1);
+  state.units.filter(unit => unit.team === "fed" && ![inactiveTarget, activeTarget].includes(unit)).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [];
+  for (const target of [inactiveTarget, activeTarget]) {
+    target.hp = 5;
+    target.maxHp = 5;
+    target.vp = 4;
+    target.statuses = { slow: false, fracture: false, disarm: false };
+  }
+  inactiveTarget.upgrades = { shield: 2, speed: 0, strength: 0 };
+  inactiveTarget.inactiveShields = 2;
+  activeTarget.upgrades = { shield: 1, speed: 0, strength: 0 };
+  activeTarget.inactiveShields = 0;
+  const attacks = A.attacksFrom(state, char, D, E).filter(choice => choice.weapon.id === "char-machine-gun");
+  const inactiveScore = attacks.find(choice => choice.target === inactiveTarget).score;
+  const activeScore = attacks.find(choice => choice.target === activeTarget).score;
+  assert.ok(inactiveScore > activeScore, "face-down Shields must not reduce the estimated kill chance");
 });

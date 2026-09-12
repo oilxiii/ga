@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=28">
 </head>
 <body class="title-active">
   <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
@@ -18,11 +18,11 @@
       <button id="title-one-player" class="title-hotspot title-one-player" type="button" aria-label="1 Player — เล่นกับ AI"><span class="visually-hidden">1 PLAYER</span></button>
       <button id="title-two-player" class="title-hotspot title-two-player" type="button" aria-label="2 Player — start hot-seat game"><span class="visually-hidden">2 PLAYER</span></button>
       <div id="title-notice" class="title-notice" aria-live="polite"></div>
-      <section id="faction-select" class="faction-select" role="dialog" aria-modal="true" aria-labelledby="faction-select-title">
-        <div class="faction-select-panel">
+      <section id="faction-select" class="faction-select" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="faction-select-title" aria-describedby="faction-select-description">
+        <div class="faction-select-panel" tabindex="-1">
           <span class="eyebrow">1 PLAYER // SELECT SIDE</span>
           <h2 id="faction-select-title">เลือกฝ่ายของคุณ</h2>
-          <p>AI จะควบคุมฝ่ายตรงข้ามและใช้กติกาเดียวกับผู้เล่น</p>
+          <p id="faction-select-description">AI จะควบคุมฝ่ายตรงข้าม ใช้กติกาเดียวกับผู้เล่น และไม่เห็นข้อมูลลับของคุณ</p>
           <div class="faction-options">
             <button type="button" class="faction-option fed" data-player-team="fed">
               <img src="assets/icons/gundam.png" alt="">
@@ -39,7 +39,7 @@
     </div>
   </section>
 
-  <main class="game-shell">
+  <main class="game-shell" tabindex="-1" inert aria-hidden="true">
     <header class="topbar">
       <div class="brand">
         <span class="brand-kicker">GUNDAM ASSEMBLE // ONLINE</span>
@@ -49,7 +49,10 @@
         <div class="round-state"><span id="phase-label">PHASE 1</span><strong id="round-label">ROUND 1 / 10</strong></div>
         <div class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> ZEON</span></div>
       </section>
-      <button id="restart-btn" class="icon-btn" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
+      <div class="topbar-actions">
+        <button id="sound-btn" class="icon-btn" type="button" aria-label="ปิดเสียง" title="ปิดเสียง" aria-pressed="false">🔊</button>
+        <button id="restart-btn" class="icon-btn" type="button" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
+      </div>
     </header>
 
     <section class="timeline-panel" aria-label="Timeline 1 ถึง 10">
@@ -79,7 +82,7 @@
     <section id="tactics-panel" class="tactics-panel">
       <div class="tactics-title">
         <div><span class="eyebrow">TACTICS DECK</span><strong id="hand-title">—</strong></div>
-        <small>สุ่ม 3 ใบจาก 9 ใบใหม่เมื่อเริ่มแต่ละ Phase</small>
+        <small>เริ่มเกม 3 ใบ · จั่วเพิ่ม 3 ใบทันทีเมื่อ Unit ทั้ง 3 ของฝ่ายผ่าน TL10 และจบ Activation</small>
       </div>
       <div id="tactic-hand" class="tactic-hand"></div>
     </section>
@@ -94,16 +97,9 @@
     </div>
   </div>
 
-  <div id="modal" class="overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-card">
-      <button id="modal-close" class="modal-close" aria-label="ปิด">×</button>
-      <div id="modal-body"></div>
-    </div>
-  </div>
-
-  <script src="data.js?v=25"></script>
-  <script src="engine.js?v=25"></script>
-  <script src="ai.js?v=25"></script>
-  <script src="game.js?v=25"></script>
+  <script src="data.js?v=28"></script>
+  <script src="engine.js?v=28"></script>
+  <script src="ai.js?v=28"></script>
+  <script src="game.js?v=28"></script>
 </body>
 </html>

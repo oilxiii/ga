@@ -25,6 +25,9 @@
   let aiPreferredTargetKey = null;
   let aiResponsePending = false;
   let aiEffectPending = false;
+  let movementDraft = null;
+  let soundMuted = false;
+  const AI_PACE = Object.freeze({ firstTurn: 1450, turnStart: 1200, target: 650, poll: 900, between: 620, finish: 820 });
 
   function activeUnit() { return state.units.find(unit => unit.id === state.activeUnitId); }
   function teamName(team) { return D.teams[team].name; }
@@ -36,6 +39,7 @@
   function assetPath(path) { return window.GA_ASSETS?.[path] || path; }
   function isAiTeam(team) { return matchMode === "ai" && team === aiTeam; }
   function isAiTurn() { return !!state?.activeUnitId && isAiTeam(activeUnit()?.team); }
+  function modeUnit() { return mode?.unitId ? state?.units?.find(unit=>unit.id===mode.unitId) : activeUnit(); }
 
 
   const SFX = (() => {
@@ -48,7 +52,7 @@
       if (!AudioCtx) return null;
       ctx = new AudioCtx();
       master = ctx.createGain();
-      master.gain.value = 0.28;
+      master.gain.value = soundMuted ? 0 : 0.28;
       master.connect(ctx.destination);
       return ctx;
     }
@@ -140,7 +144,11 @@
       tone({type:"square",from:220,to:150,duration:.09,gain:.035});
       tone({type:"square",from:170,to:120,duration:.11,gain:.028,delay:.07});
     }
-    return { unlock, shot, hit, explosion, capture, upgrade, debuff, dash, objectiveScore, phaseShift, menuConfirm, menuDenied };
+    function setMuted(muted) {
+      soundMuted=!!muted;
+      if(master)master.gain.value=soundMuted?0:0.28;
+    }
+    return { unlock, setMuted, shot, hit, explosion, capture, upgrade, debuff, dash, objectiveScore, phaseShift, menuConfirm, menuDenied };
   })();
 
   const BGM = (() => {
@@ -152,6 +160,7 @@
       audio.loop = true;
       audio.preload = "auto";
       audio.volume = 0.05;
+      audio.muted = soundMuted;
       audio.setAttribute("playsinline", "");
       return audio;
     }
@@ -161,7 +170,35 @@
       const promise = track.play();
       if (promise?.then) promise.then(() => { started = true; }).catch(() => {});
     }
-    return { start };
+    function setMuted(muted) { ensure().muted=!!muted; }
+    return { start, setMuted };
+  })();
+
+  const TitleBGM = (() => {
+    let audio = null;
+    function ensure() {
+      if (audio) return audio;
+      audio = new Audio("assets/audio/title-bgm.mp3");
+      audio.loop = true;
+      audio.preload = "auto";
+      audio.volume = 0.12;
+      audio.muted = soundMuted;
+      audio.setAttribute("playsinline", "");
+      return audio;
+    }
+    function start() {
+      const track=ensure();
+      if(!track.paused)return;
+      const promise=track.play();
+      if(promise?.catch)promise.catch(()=>{});
+    }
+    function stop() {
+      if(!audio)return;
+      audio.pause();
+      audio.currentTime=0;
+    }
+    function setMuted(muted) { ensure().muted=!!muted; }
+    return { start, stop, setMuted };
   })();
 
   function buildTitleStars() {
@@ -192,13 +229,26 @@
     const one=$("#title-one-player");
     const two=$("#title-two-player");
     const factionSelect=$("#faction-select");
+    const gameShell=$(".game-shell");
     const clearNotice=()=>{notice?.classList.remove("show","warning");};
+    const resumeTitleMusic=()=>{
+      if(screen.classList.contains("show")&&!screen.classList.contains("leaving"))TitleBGM.start();
+    };
+    document.addEventListener("pointerdown",resumeTitleMusic,true);
+    document.addEventListener("keydown",resumeTitleMusic,true);
+    TitleBGM.start();
     const launch=(mode,playerTeam=null)=>{
       if(screen.classList.contains("leaving"))return;
       matchMode=mode;
       humanTeam=mode==="ai"?playerTeam:null;
       aiTeam=mode==="ai"?(playerTeam==="fed"?"zeon":"fed"):null;
       factionSelect?.classList.remove("show");
+      factionSelect?.setAttribute("aria-hidden","true");
+      one.inert=false;
+      two.inert=false;
+      document.removeEventListener("pointerdown",resumeTitleMusic,true);
+      document.removeEventListener("keydown",resumeTitleMusic,true);
+      TitleBGM.stop();
       SFX.unlock();
       SFX.menuConfirm();
       BGM.start();
@@ -206,17 +256,24 @@
       document.body.classList.remove("title-active");
       setTimeout(()=>{
         screen.classList.remove("show","leaving");
+        gameShell?.removeAttribute("inert");
+        gameShell?.setAttribute("aria-hidden","false");
         resetGame();
+        if(mode==="ai")gameShell?.focus();
       },460);
     };
     one?.addEventListener("click",()=>{
       SFX.unlock();
       SFX.menuConfirm();
       clearNotice();
+      one.inert=true;
+      two.inert=true;
       factionSelect?.classList.add("show");
+      factionSelect?.setAttribute("aria-hidden","false");
+      factionSelect?.querySelector("[data-player-team]")?.focus();
     });
     factionSelect?.querySelectorAll("[data-player-team]").forEach(button=>button.addEventListener("click",()=>launch("ai",button.dataset.playerTeam)));
-    $("#faction-select-back")?.addEventListener("click",()=>{SFX.menuConfirm();factionSelect?.classList.remove("show");one?.focus();});
+    $("#faction-select-back")?.addEventListener("click",()=>{SFX.menuConfirm();factionSelect?.classList.remove("show");factionSelect?.setAttribute("aria-hidden","true");one.inert=false;two.inert=false;one?.focus();});
     two?.addEventListener("click",()=>launch("hotseat"));
   }
 
@@ -402,14 +459,21 @@
   function finishDefeatedActiveActivation(unit,source="Response") {
     if(!unit||unit.id!==state.activeUnitId||unit.zone!=="reserve")return false;
     state.resolvedThisTick.add(unit.id);
+    refreshPassedTeamTactics(unit.team);
     state.activeUnitId=null;
     unit.tempStrength=0;
     unit.critBoost=false;
     unit.lastShotBonus=false;
     mode=null;
+    movementDraft=null;
     menuOpen=false;
     menuView="main";
     pendingAttack=null;
+    aiBusy=false;
+    aiPreferredTargetKey=null;
+    aiResponsePending=false;
+    aiEffectPending=false;
+    state.justDeployedUnitId=null;
     closeModal();
     addLog(`${unit.name} ถูกทำลายระหว่าง Activation (${source}) — ยุติ Activation ทันที`);
     renderAll();
@@ -474,6 +538,7 @@
     transitionBusy=true;
     state.activeUnitId=null;
     mode=null;
+    movementDraft=null;
     menuOpen=false;
     menuView="main";
     const scoredPhase=state.phase;
@@ -505,11 +570,11 @@
     state.phase=2;
     state.currentTick=11;
     state.round=1;
-    const phaseTwoDraw=dealPhaseTwoTacticsTogether();
+    const phaseTwoDraw=dealPendingPhaseTwoTactics();
     updatePhaseTransition({
       eyebrow:"PHASE 2 READY",
       title:"PHASE 2",
-      subtitle:`Objective กลับเป็นกลาง • Tactic +${phaseTwoDraw.fed} / +${phaseTwoDraw.zeon} จั่วพร้อมกัน`
+      subtitle:`Objective กลับเป็นกลาง • เติม Tactic ที่ยังไม่ได้จั่ว +${phaseTwoDraw.fed} / +${phaseTwoDraw.zeon}`
     });
     addLog("เข้าสู่ Phase 2 — Objective ทั้งหมดกลับเป็นกลาง");
     renderAll();
@@ -579,6 +644,7 @@
     unit.nextAttackDiscount = 0;
     unit.lastShotBonus = false;
     mode = null;
+    movementDraft = null;
     menuOpen = false;
     menuView = "main";
     state.justDeployedUnitId = deployed ? unit.id : null;
@@ -588,7 +654,8 @@
       $("#pass-overlay")?.classList.remove("show");
       addLog(`AI ${D.teams[unit.team].short} กำลังประเมินสนามรบ`);
       renderAll();
-      scheduleAiTurn(unit,first?720:520);
+      focusCameraOnUnit(unit);
+      scheduleAiTurn(unit,first?AI_PACE.firstTurn:AI_PACE.turnStart);
     } else if(matchMode==="hotseat") showPassOverlay(unit, first);
     else $("#pass-overlay")?.classList.remove("show");
   }
@@ -597,12 +664,15 @@
     const overlay = $("#pass-overlay");
     overlay.innerHTML = `<div class="pass-card" style="--team:${D.teams[unit.team].color}">
       <span class="eyebrow">${first ? "MISSION START" : "HOT-SEAT // PASS CONTROL"}</span>
-      <h2>${teamName(unit.team)}</h2>
+      <h2 id="pass-team-title">${teamName(unit.team)}</h2>
       <p>ส่งเครื่องให้ผู้เล่นฝั่งนี้ แล้วกดพร้อมเมื่อผู้เล่นอีกฝ่ายมองไม่เห็นมือการ์ด</p>
       <button class="primary-btn" id="ready-btn">พร้อม — ใช้งาน ${unit.name}</button>
     </div>`;
+    overlay.setAttribute("aria-labelledby","pass-team-title");
     overlay.classList.add("show");
-    $("#ready-btn").addEventListener("click", () => overlay.classList.remove("show"));
+    const ready=$("#ready-btn");
+    ready.addEventListener("click", () => {overlay.classList.remove("show");$(".game-shell")?.focus();});
+    ready.focus();
   }
 
   function advanceTimeline() {
@@ -624,6 +694,7 @@
 
   function endActivation() {
     if (!state.activeUnitId || state.status !== "playing") return;
+    if(movementDraft){commitMovementDraft(()=>endActivation());return;}
     const unit = activeUnit();
     if (unit.zone === "deploying") { addLog("ต้อง Advance ออกจาก Base ก่อนจบ Activation"); renderAll(); return; }
     if (!state.activation.actionUsed) { addLog("ต้องเลือก Primary Action ก่อนจบ Activation"); renderAll(); return; }
@@ -641,8 +712,10 @@
     unit.critBoost = false;
     unit.lastShotBonus = false;
     state.resolvedThisTick.add(unit.id);
+    refreshPassedTeamTactics(unit.team);
     state.activeUnitId = null;
     mode = null;
+    movementDraft = null;
     menuOpen = false;
     if(capturedObjectives.length){
       renderAll();
@@ -651,7 +724,17 @@
     }else scheduleStartActivation();
   }
 
-  function dealPhaseTwoTacticsTogether() {
+  function refreshPassedTeamTactics(team) {
+    if(state.phase!==1||state.tacticCycles[team]!==1||!E.teamPassedTimeline(state,team,10))return 0;
+    const before=state.hands[team].length;
+    E.dealTacticHand(state,team);
+    state.tacticCycles[team]=2;
+    const drawn=state.hands[team].length-before;
+    addLog(`${D.teams[team].short}: Unit ทั้ง 3 ผ่าน TL10 และจบ Activation แล้ว — จั่ว Tactic +${drawn}`);
+    return drawn;
+  }
+
+  function dealPendingPhaseTwoTactics() {
     const teams=["fed","zeon"];
     const before={fed:state.hands.fed.length,zeon:state.hands.zeon.length};
     for(const team of teams){
@@ -661,7 +744,7 @@
     }
     const fedDrawn=state.hands.fed.length-before.fed;
     const zeonDrawn=state.hands.zeon.length-before.zeon;
-    addLog(`เข้าสู่ Phase 2 — ทั้งสองฝ่ายจั่ว Tactic พร้อมกัน: E.F.S.F. +${fedDrawn}, ZEON +${zeonDrawn}`);
+    if(fedDrawn||zeonDrawn)addLog(`เข้าสู่ Phase 2 — เติม Tactic ที่ยังไม่ได้จั่ว: E.F.S.F. +${fedDrawn}, ZEON +${zeonDrawn}`);
     return {fed:fedDrawn,zeon:zeonDrawn};
   }
 
@@ -770,9 +853,37 @@
     }).join("")}</g>`;
   }
 
+  function encounterMarker(cx,cy,text,kind) {
+    const width=text==="ENCOUNTER"?78:60;
+    const y=cy<78?cy+43:cy-61;
+    return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="19" rx="4"></rect><text x="${width/2}" y="12.5">${text}</text></g>`;
+  }
+
+  function focusCameraOnUnit(unit) {
+    if(!unit)return;
+    requestAnimationFrame(()=>{
+      const node=document.querySelector(`.unit-node[data-unit-id="${unit.id}"]`);
+      const wrap=$("#board-wrap");
+      if(!node||!wrap)return;
+      const nodeBox=node.getBoundingClientRect();
+      const wrapBox=wrap.getBoundingClientRect();
+      wrap.scrollTo({
+        left:Math.max(0,wrap.scrollLeft+nodeBox.left+nodeBox.width/2-wrapBox.left-wrapBox.width/2),
+        top:Math.max(0,wrap.scrollTop+nodeBox.top+nodeBox.height/2-wrapBox.top-wrapBox.height/2),
+        behavior:"smooth"
+      });
+      node.scrollIntoView?.({behavior:"smooth",block:"center",inline:"center"});
+      node.classList.add("ai-camera-focus");
+      setTimeout(()=>node.classList.remove("ai-camera-focus"),1500);
+    });
+  }
+
   function renderBoard() {
     const size = 27, x0 = 72, y0 = 32, dx = size*1.5, dy = Math.sqrt(3)*size;
     const active = activeUnit();
+    const encounterTargets=active?E.engagedTargets(state,active):[];
+    const encounterKeys=new Set(encounterTargets.map(target=>E.key(target.q,target.r)));
+    const hasEncounter=encounterTargets.length>0;
     let defs = "";
     let cells = "";
     for (let q=0;q<D.map.cols;q++) for (let r=0;r<D.map.rows;r++) {
@@ -790,6 +901,7 @@
         ${f ? f.icon
           ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
           : `<g class="objective-flag ${f.team}" aria-label="Objective ${f.team === "neutral" ? "ยังไม่มีผู้ครอบครอง" : `ครอบครองโดย ${teamName(f.team)}`}"><title>Objective · 1 VP เมื่อจบ Phase</title><path class="objective-pole" d="M ${cx-7} ${cy+13} V ${cy-12}"></path><path class="objective-cloth" d="M ${cx-6} ${cy-11} L ${cx+11} ${cy-6} L ${cx-6} ${cy+1} Z"></path><path class="objective-base" d="M ${cx-13} ${cy+13} H ${cx-1}"></path></g>` : ""}
+        ${f?.type==="garrison"&&encounterKeys.has(E.key(q,r))?encounterMarker(cx,cy,"ENCOUNTER","target"):""}
       </g>`;
     }
     let units = "";
@@ -803,6 +915,8 @@
         <image class="unit-portrait" href="${unit.icon}" x="${cx-18}" y="${cy-20}" width="36" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})"></image>
         ${unit.weaponBadge ? `<rect class="weapon-badge" x="${cx+8}" y="${cy-21}" width="23" height="11" rx="2"></rect><text class="weapon-badge-text" x="${cx+19.5}" y="${cy-15.5}">${unit.weaponBadge}</text>` : ""}
         ${renderUnitEffectBadges(unit,cx,cy)}
+        ${unit.id===active?.id&&hasEncounter?encounterMarker(cx,cy,"MOVE -1","penalty"):""}
+        ${unit.team!==active?.team&&encounterKeys.has(E.key(unit.q,unit.r))?encounterMarker(cx,cy,"ENCOUNTER","target"):""}
         <rect class="unit-hp-bg" x="${cx-20}" y="${cy+20}" width="40" height="5" rx="2"></rect>
         <rect class="unit-hp" x="${cx-19}" y="${cy+21}" width="${38*unit.hp/unit.maxHp}" height="3" rx="1"></rect>
         <text class="unit-name" x="${cx}" y="${cy+34}">${unit.name === "Zaku II" ? unit.role : unit.name}</text>
@@ -831,9 +945,9 @@
   function adjacentObjective(unit) { return state.objectives.find(o=>E.distance(unit,o)<=1); }
 
   function renderActions() {
-    const unit=mode?.unitId?state.units.find(candidate=>candidate.id===mode.unitId):activeUnit(); const menu=$("#command-menu");
+    const unit=modeUnit(); const menu=$("#command-menu");
     menu.classList.toggle("char-kick-menu",mode?.type==="char-kick");
-    if(unit&&isAiTeam(unit.team)&&!aiPerforming){menu.innerHTML="";return;}
+    if(unit&&isAiTeam(unit.team)){menu.innerHTML="";return;}
     if (!unit||!menuOpen) { menu.innerHTML=""; return; }
     if (mode) {
       const charKickAlert=mode.type==="char-kick"?`<div class="char-kick-alert"><strong>เลือกเป้าหมายสีแดง</strong><span>DAMAGE 1</span><small>UNIT หรือ GARRISON ที่ติดกัน</small></div>`:"";
@@ -848,12 +962,13 @@
     const moveDistance=D.rules.advance.distance+unit.upgrades.speed;
     const dashDistance=D.rules.dash.distance+(unit.id==="chars-zaku"?1:0);
     const item=(label,sub,action,disabled=false,cls="")=>`<button class="command-item ${cls}" data-menu-action="${action}" ${disabled?"disabled":""}><span>${label}</span><small>${sub}</small></button>`;
+    const adjustingMove=movementDraft?.unitId===unit.id;
     const main=(deploying?[
       item("Deploy Move",unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",false),
       item("Unit Card","INFO","info"),
       item("Wait","LEAVE BASE FIRST","end",true,"danger")
     ]:[
-      item("Move",unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",a.advanced),
+      item(adjustingMove?"ปรับตำแหน่ง Move":"Move",adjustingMove?"เลือกใหม่ในพื้นที่เดิม":unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",a.advanced&&!adjustingMove),
       item("Attack","WEAPON","attack-menu",a.actionUsed),
       item("Dash",`${dashDistance} HEX · TL${D.rules.dash.timeline}`,"dash",a.actionUsed),
       item("Energize","+1 ENERGY · TL2","energize",a.actionUsed),
@@ -866,10 +981,16 @@
     const weapons=unit.weapons.map((weapon,index)=>item(weapon.name,`R${weapon.range} · S${weapon.strength} · TL${weapon.timeline}`,`weapon-${index}`,a.actionUsed)).join("")+item("‹ Back","COMMAND","back");
     menu.innerHTML=`<div class="command-caption"><span>${menuView==="weapons"?"WEAPON":"COMMAND"}</span><span>${unit.weaponBadge||unit.model}</span></div><div class="command-list">${menuView==="weapons"?weapons:main}</div>`;
     menu.querySelectorAll("[data-menu-action]").forEach(btn=>btn.addEventListener("click",()=>{
+      if(isAiTeam(unit.team))return;
       const action=btn.dataset.menuAction;
       if(action==="attack-menu"){menuView="weapons";renderActions();return;}
       if(action==="back"){menuView="main";renderActions();return;}
-      if(action.startsWith("weapon-")){menuOpen=false;beginAttack(unit.weapons[Number(action.split("-")[1])]);return;}
+      if(action.startsWith("weapon-")){
+        const weapon=unit.weapons[Number(action.split("-")[1])];
+        menuOpen=false;
+        if(movementDraft)commitMovementDraft(()=>beginAttack(weapon));else beginAttack(weapon);
+        return;
+      }
       if(action==="info"){showUnitCard(unit);return;}
       if(action==="tactics"){menuOpen=false;renderActions();$("#tactics-panel")?.scrollIntoView({behavior:"smooth",block:"nearest"});return;}
       if(action==="end"){endActivation();return;}
@@ -983,14 +1104,17 @@
 
   function handleAction(action) {
     const unit=activeUnit(); if (!unit || mode) return;
+    if(movementDraft&&action!=="advance"){commitMovementDraft(()=>handleAction(action));return;}
     if (action==="advance") {
+      if(movementDraft){openMovementDraft(unit);return;}
       if (unit.statuses.slow) {
         unit.statuses.slow=false; state.activation.advanced=true; payTimeline(unit,D.rules.advance.timeline);
         addLog(`${unit.name} ใช้ Advance เพื่อลบ Slow และไม่เคลื่อนที่ (TL 0)`); renderAll(); return;
       }
-      startMove(D.rules.advance.distance+unit.upgrades.speed,D.rules.advance.timeline,"Advance",()=>afterUnitMove(unit,"advance"));
+      if(!isAiTeam(unit.team)){beginAdjustableAdvance(unit);return;}
+      startMove(D.rules.advance.distance+unit.upgrades.speed,D.rules.advance.timeline,"Advance",moved=>afterUnitMove(unit,"advance",null,moved));
     } else if (action==="dash") {
-      startMove(D.rules.dash.distance+(unit.id==="chars-zaku"?1:0),D.rules.dash.timeline,"Dash",()=>afterUnitMove(unit,"dash"),{primaryAction:true});
+      startMove(D.rules.dash.distance+(unit.id==="chars-zaku"?1:0),D.rules.dash.timeline,"Dash",moved=>afterUnitMove(unit,"dash",null,moved),{primaryAction:true});
     } else if (action==="energize") {
       unit.energy+=1; state.activation.actionUsed=true; payTimeline(unit,2);
       addLog(`${unit.name} Energize: Energy +1`); renderAll();
@@ -1003,6 +1127,59 @@
     return startMoveFor(unit,allowance,cost,label,afterMove,options);
   }
 
+  function beginAdjustableAdvance(unit) {
+    if(!unit||unit.zone==="reserve")return false;
+    if(movementDraft?.unitId===unit.id)return openMovementDraft(unit);
+    const forbidden=new Set(D.map.featureCoordinates.bases.map(base=>E.key(base.q,base.r)));
+    const allowance=D.rules.advance.distance+(unit.upgrades.speed||0);
+    const engaged=E.engagedTargets(state,unit);
+    const reachable=E.reachable(state,unit,allowance,{forbidden});
+    const wasDeploying=unit.zone==="deploying";
+    if(!wasDeploying)reachable.set(E.key(unit.q,unit.r),0);
+    if(!reachable.size&&wasDeploying){
+      unit.zone="reserve";unit.q=null;unit.r=null;unit.energy+=1;payTimeline(unit,2);state.resolvedThisTick.add(unit.id);state.activeUnitId=null;
+      refreshPassedTeamTactics(unit.team);
+      addLog(`${unit.name} ไม่มีช่อง Deploy ที่ถูกกติกา: Energize +1, Timeline +2 และกลับ Reserve`);renderAll();startActivation();return false;
+    }
+    movementDraft={
+      unitId:unit.id,
+      origin:{q:unit.q,r:unit.r,zone:unit.zone},
+      targets:new Set(reachable.keys()),
+      allowance,
+      effectiveAllowance:Math.max(0,allowance-(engaged.length?1:0)),
+      engaged:engaged.length>0,
+      placed:!wasDeploying
+    };
+    return openMovementDraft(unit);
+  }
+
+  function openMovementDraft(unit) {
+    const draft=movementDraft;
+    if(!draft||draft.unitId!==unit?.id)return false;
+    mode={
+      type:"move",unitId:unit.id,targets:new Set(draft.targets),cost:0,label:"Advance",afterMove:null,
+      primaryAction:false,allowStay:draft.placed,adjustableAdvance:true,returnMenu:"main",
+      hint:`Move: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged?` จาก ${draft.allowance} เพราะ ENCOUNTER -1`:""}) — ยืนยันเมื่อเลือก Action อื่น`
+    };
+    menuOpen=true;renderAll();return true;
+  }
+
+  function commitMovementDraft(onComplete=()=>{}) {
+    const draft=movementDraft;
+    if(!draft){onComplete();return;}
+    const unit=state.units.find(candidate=>candidate.id===draft.unitId);
+    movementDraft=null;
+    if(!unit){onComplete();return;}
+    const moved=unit.q!==draft.origin.q||unit.r!==draft.origin.r||draft.origin.zone==="deploying";
+    const pickups=E.pickupAt(state,unit);
+    playPickupFeedback(unit,pickups);
+    state.justDeployedUnitId=null;
+    addLog(`${unit.name} ยืนยัน Move ที่ Hex ${unit.q},${unit.r}`);
+    const finish=()=>{renderAll();onComplete();};
+    afterUnitMove(unit,"advance",finish,moved);
+    renderAll();
+  }
+
   function startMoveFor(unit,allowance,cost,label,afterMove,options={}) {
     if(!unit||unit.zone==="reserve")return false;
     const forbidden=new Set(D.map.featureCoordinates.bases.map(base=>E.key(base.q,base.r)));
@@ -1012,6 +1189,7 @@
     if(options.destinationFilter){for(const target of [...reachable.keys()]){const [q,r]=E.fromKey(target);if(!options.destinationFilter({q,r}))reachable.delete(target);}}
     if(!reachable.size&&unit.zone==="deploying"){
       unit.zone="reserve";unit.q=null;unit.r=null;unit.energy+=1;payTimeline(unit,2);state.resolvedThisTick.add(unit.id);state.activeUnitId=null;
+      refreshPassedTeamTactics(unit.team);
       addLog(`${unit.name} ไม่มีช่อง Deploy ที่ถูกกติกา: Energize +1, Timeline +2 และกลับ Reserve`);renderAll();startActivation();return;
     }
     const allowStay=options.allowStay??unit.zone!=="deploying";
@@ -1023,27 +1201,24 @@
   }
 
   function handleHexClick(q,r,event=null) {
-    if(isAiTurn()&&!aiPerforming)return;
+    const controllingUnit=modeUnit();
+    if(controllingUnit&&isAiTeam(controllingUnit.team)&&!aiPerforming)return;
     if (!mode) {
       const clicked=state.units.find(x=>x.zone!=="reserve"&&x.q===q&&x.r===r);
       if(clicked?.id===state.activeUnitId){
-        if(menuOpen){
-          menuPlacement=menuPlacement==="right"?"left":"right";
-        }else{
-          const boardBounds=$("#board")?.getBoundingClientRect?.();
-          const unitBounds=event?.currentTarget?.getBoundingClientRect?.();
-          const unitCenter=unitBounds?.width?unitBounds.left+unitBounds.width/2:event?.clientX;
-          if(boardBounds?.width&&Number.isFinite(unitCenter))menuPlacement=unitCenter<boardBounds.left+boardBounds.width/2?"right":"left";
-          menuOpen=true;
-          menuView="main";
-        }
+        const boardBounds=$("#board")?.getBoundingClientRect?.();
+        const unitBounds=event?.currentTarget?.getBoundingClientRect?.();
+        const unitCenter=unitBounds?.width?unitBounds.left+unitBounds.width/2:event?.clientX;
+        if(boardBounds?.width&&Number.isFinite(unitCenter))menuPlacement=unitCenter<boardBounds.left+boardBounds.width/2?"right":"left";
+        menuOpen=true;
+        menuView="main";
         renderActions();
       }
       else if(menuOpen){menuOpen=false;menuView="main";renderActions();}
       return;
     }
     const k=E.key(q,r); if (!mode.targets?.has(k)) return;
-    const unit=mode?.unitId?state.units.find(candidate=>candidate.id===mode.unitId):activeUnit();
+    const unit=modeUnit();
     if (mode.type==="move") {
       completeMove(q,r);
     } else if (mode.type==="attack") {
@@ -1083,16 +1258,24 @@
 
   function completeMove(q,r) {
     const unit=state.units.find(candidate=>candidate.id===mode?.unitId);if(!unit||mode?.type!=="move")return;
-    const primaryAction=mode.primaryAction;const wasDeploying=unit.zone==="deploying";const callback=mode.afterMove;const label=mode.label;const cost=mode.cost;
+    const adjustableAdvance=!!mode.adjustableAdvance;const primaryAction=mode.primaryAction;const wasDeploying=unit.zone==="deploying";const callback=mode.afterMove;const label=mode.label;const cost=mode.cost;
+    const moved=unit.q!==q||unit.r!==r;
+    if(adjustableAdvance){
+      unit.q=q;unit.r=r;unit.zone="board";state.activation.advanced=true;
+      if(movementDraft)movementDraft.placed=true;
+      mode=null;menuOpen=true;menuView="main";
+      addLog(`${unit.name} วางตำแหน่ง Move ที่ Hex ${q},${r} — ยังปรับใหม่ได้จนกว่าจะเลือก Action อื่น`);
+      renderAll();return;
+    }
     unit.q=q;unit.r=r;unit.zone="board";const pickups=E.pickupAt(state,unit);playPickupFeedback(unit,pickups);payTimeline(unit,cost);
     if(/dash/i.test(label)) SFX.dash();
     if(primaryAction)state.activation.actionUsed=true;
     if(label==="Advance")state.activation.advanced=true;
     if(wasDeploying)state.justDeployedUnitId=null;
-    mode=null;addLog(`${unit.name} ใช้ ${label} ที่ Hex ${q},${r}`);if(callback)callback();renderAll();
+    mode=null;addLog(`${unit.name} ใช้ ${label} ที่ Hex ${q},${r}`);if(callback)callback(moved);renderAll();
   }
 
-  function afterUnitMove(unit, movementType, afterEffects=null) {
+  function afterUnitMove(unit, movementType, afterEffects=null, movementOccurred=true) {
     if (unit.id==="chars-zaku" && movementType==="dash") {
       const enemyUnits=E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)===1);
       const enemyGarrisons=state.garrisons.filter(target=>target.team!==unit.team&&E.distance(unit,target)===1);
@@ -1104,7 +1287,7 @@
       }
     }
     const enforcer=state.units.find(x=>x.id==="zaku-enforcer"&&x.zone==="board");
-    if (unit.team==="fed"&&enforcer&&E.distance(unit,enforcer)===1&&inHand("zeon","iron-grip")&&!isUsed("iron-grip")&&!state.activation.tacticUsed.zeon) {
+    if (movementOccurred&&unit.team==="fed"&&enforcer&&E.distance(unit,enforcer)===1&&inHand("zeon","iron-grip")&&!isUsed("iron-grip")&&!state.activation.tacticUsed.zeon) {
       openResponse([getTactic("iron-grip")], card=>{
         useResponse(card);
         E.applyDamage(unit,3);
@@ -1130,13 +1313,14 @@
       (engaged.length ? engagedKeys.has(E.key(g.q,g.r)) : E.distance(unit,g)<=weapon.range) &&
       (weapon.ignoreLos||E.hasLineOfSight(state,unit,g))
     );
-    if (!targets.length&&!garrisonTargets.length) { addLog(`${weapon.name}: ไม่มีเป้าหมายที่อยู่ใน Range และ Line of Sight`); renderAll(); return; }
+    if (!targets.length&&!garrisonTargets.length) { addLog(`${weapon.name}: ไม่มีเป้าหมายที่อยู่ใน Range และ Line of Sight`); renderAll(); return false; }
     const normalHint=weapon.effect==="splash"
       ? `${weapon.name}: เลือกเป้าหมายหลัก — หลัง Combat Damage ศัตรูทุกตัวที่ติดกับเป้าหมายจะรับ Damage 0 (Critical = 1)`
       : `${weapon.name}: เลือกยูนิตหรือ Garrison สีแดง`;
-    mode={type:"attack",weapon,free:!!options.free,targets:new Set([...targets,...garrisonTargets].map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน`:normalHint};
+    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,targets:new Set([...targets,...garrisonTargets].map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน`:normalHint};
     menuOpen=true;
     renderAll();
+    return true;
   }
 
   function resolveGarrisonAttack(attacker,garrison,weapon,options={}) {
@@ -1231,7 +1415,7 @@
     const damage=Math.max(0,result.damage-reduction);
     const from={q:attacker.q,r:attacker.r};
     const to={q:defender.q,r:defender.r};
-    const applied=E.applyDamage(defender,damage);
+    const applied=E.applyDamage(defender,damage,{sourceType:"attack"});
     if (applied.blocked) addLog(`Shield ป้องกัน Damage ${applied.blocked}`);
     addLog(`${defender.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
     applyAttackerCritical(attacker,weapon,result);
@@ -1292,12 +1476,16 @@
     if(result.criticals<1||attacker.zone!=="board"){onComplete();return;}
     if(attacker.id==="chars-zaku"&&weapon.critical==="dashTimeline0"){
       addLog("Machine Gun Critical: Char’s Zaku II สามารถ Dash โดยใช้ Timeline 0");
-      startMoveFor(attacker,D.rules.dash.distance+1,0,"Machine Gun Critical Dash",()=>afterUnitMove(attacker,"dash",onComplete),{returnMenu:"main",onCancel:onComplete});
+      const started=startMoveFor(attacker,D.rules.dash.distance+1,0,"Machine Gun Critical Dash",moved=>afterUnitMove(attacker,"dash",onComplete,moved),{returnMenu:"main",onCancel:onComplete});
+      if(started&&isAiTeam(attacker.team))scheduleAiResolveMode();
+      if(!started)onComplete();
       return;
     }
     if(attacker.id==="guncannon"&&weapon.critical==="dashRescueTimeline0"){
       addLog("240mm Critical: Guncannon สามารถ Dash โดยใช้ Timeline 0 แล้ว Rescue ใน Range 1");
-      startMoveFor(attacker,D.rules.dash.distance,0,"240mm Critical Dash",()=>afterUnitMove(attacker,"dash",()=>offerGuncannonCriticalRescue(attacker,onComplete)),{returnMenu:"main",onCancel:onComplete});
+      const started=startMoveFor(attacker,D.rules.dash.distance,0,"240mm Critical Dash",moved=>afterUnitMove(attacker,"dash",()=>offerGuncannonCriticalRescue(attacker,onComplete),moved),{returnMenu:"main",onCancel:onComplete});
+      if(started&&isAiTeam(attacker.team))scheduleAiResolveMode();
+      if(!started)onComplete();
       return;
     }
     onComplete();
@@ -1360,14 +1548,22 @@
     const continueQueue=()=>openPostCombatResponses(windows,attacker,defender,actualIndex+1,onComplete);
     const respondingUnit=responseWindow.role==="defender"?defender:attacker;
     if(respondingUnit.zone!=="board")return continueQueue();
-    const canAttack=respondingUnit.weapons.some(weapon=>E.distance(respondingUnit,responseWindow.role==="defender"?attacker:defender)<=weapon.range&&(weapon.ignoreLos||E.hasLineOfSight(state,respondingUnit,responseWindow.role==="defender"?attacker:defender)));
-    openResponse(responseWindow.cards,card=>resolvePostCombat(card,attacker,defender,responseWindow.role,continueQueue),continueQueue,{canAttack});
+    const opposingUnit=responseWindow.role==="defender"?attacker:defender;
+    const canAttack=respondingUnit.weapons.some(weapon=>E.legalWeaponTargets(state,respondingUnit,weapon).some(target=>target.id===opposingUnit.id));
+    const legalCards=responseWindow.cards.filter(card=>
+      inHand(card.team,card.id)&&
+      !isUsed(card.id)&&
+      !state.activation.tacticUsed[card.team]&&
+      (card.id!=="return-fire"||canAttack)
+    );
+    if(!legalCards.length)return continueQueue();
+    openResponse(legalCards,card=>resolvePostCombat(card,attacker,defender,responseWindow.role,continueQueue),continueQueue,{canAttack});
   }
 
   function resolvePostCombat(card,attacker,defender,role,done=()=>{}) {
     useResponse(card);
     if (card.id==="return-fire") {
-      const weapons=defender.weapons.filter(w=>E.distance(defender,attacker)<=w.range&&(w.ignoreLos||E.hasLineOfSight(state,defender,attacker)));
+      const weapons=defender.weapons.filter(weapon=>E.legalWeaponTargets(state,defender,weapon).some(target=>target.id===attacker.id));
       if (!weapons.length) {
         addLog("Return Fire: ไม่มีอาวุธที่โจมตีผู้โจมตีได้");closeModal();renderAll();done();return;
       }
@@ -1377,22 +1573,27 @@
         showDiceRoll(result,`RETURN FIRE · ${weapon.name}`,()=>offerNewtypeReroll(defender,attacker,weapon,result,()=>offerWeaponAfterRollEffect(defender,attacker,weapon,()=>{
           const from={q:defender.q,r:defender.r};
           const to={q:attacker.q,r:attacker.r};
-          const applied=E.applyDamage(attacker,result.damage);
+          const applied=E.applyDamage(attacker,result.damage,{sourceType:"attack"});
+          if(applied.blocked)addLog(`Return Fire: Shield ป้องกัน Damage ${applied.blocked}`);
           applyAttackerCritical(defender,weapon,result);
           if(result.criticals>0)applyCritical(defender,attacker,weapon,result);
           resolveSplashDamage(defender,attacker,weapon,result);
           defender.nextAt+=Math.max(0,weapon.timeline-1);
-          addLog(`Return Fire ที่ยืนยันแล้ว: ${defender.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}`);
+          addLog(`Return Fire ที่ยืนยันแล้ว: ${defender.name} ยิงกลับด้วย ${weapon.name} และทำ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
           const defeated=E.defeatUnit(state,attacker,defender.team);
           renderAll();
           if(result.damage>0)playCombatFeedback({from,to,targetUnitId:attacker.id,destroyed:defeated});
-          offerWeaponCriticalFollowUp(defender,weapon,result,done);
+          const returnDefenderResponses=defeated?[]:availablePostCombat(attacker,"defender");
+          const returnAttackerResponses=availablePostCombat(defender,"attacker");
+          openPostCombatResponses([
+            {cards:returnDefenderResponses,role:"defender"},
+            {cards:returnAttackerResponses,role:"attacker"}
+          ],defender,attacker,0,()=>offerWeaponCriticalFollowUp(defender,weapon,result,done));
         })));
       };
       if(isAiTeam(defender.team)){
         const weapon=weapons.slice().sort((a,b)=>(b.strength-b.timeline*.35)-(a.strength-a.timeline*.35))[0];
-        aiEffectPending=true;
-        addLog(`AI · Return Fire เลือก ${weapon.name}`);renderAll();scheduleAiCallback(()=>{aiEffectPending=false;fireReturnWeapon(weapon);},360);return;
+        addLog(`AI · Return Fire เลือก ${weapon.name}`);renderAll();fireReturnWeapon(weapon);return;
       }
       const modal=ensureModal();
       modal.innerHTML=`<div class="modal-card"><span class="eyebrow">RETURN FIRE // CHOOSE WEAPON</span><h2>${defender.name}</h2><p>เลือกอาวุธสำหรับการโจมตีกลับ ผู้โจมตีคือ ${attacker.name}</p><div class="modal-actions">${weapons.map(weapon=>`<button class="primary-btn" data-return-weapon="${weapon.id}">${weapon.name} · Range ${weapon.range} · TL ${Math.max(0,weapon.timeline-1)}</button>`).join("")}</div></div>`;
@@ -1412,21 +1613,23 @@
     const spend=()=>{unit.energy-=1;state.activation.commandUsed=true;};
     if (unit.id==="gundam") {
       const allies=state.units.filter(x=>x.team===unit.team&&x.zone==="board"&&E.distance(unit,x)<=3&&totalUpgrades(x)<=1);
-      if (!allies.length) return addLog("White Base Unity: ไม่มีพันธมิตรในระยะ 3");
-      mode={type:"select-unit",targets:new Set(allies.map(x=>E.key(x.q,x.r))),hint:"White Base Unity: เลือกพันธมิตรที่มี Upgrade ไม่เกิน 1 ชิ้น",callback:target=>chooseWhiteBaseUpgrade(target,spend)};
+      if (!allies.length) { addLog("White Base Unity: ไม่มีพันธมิตรในระยะ 3");menuOpen=true;renderAll();return; }
+      mode={type:"select-unit",unitId:unit.id,targets:new Set(allies.map(x=>E.key(x.q,x.r))),hint:"White Base Unity: เลือกพันธมิตรที่มี Upgrade ไม่เกิน 1 ชิ้น",callback:target=>chooseWhiteBaseUpgrade(target,spend)};
     } else if (unit.id==="guncannon") {
       selectEnemy(unit,3,"Critical Shot: เลือกศัตรู",target=>{spend();applyDebuff(target,"fracture");addLog(`${target.name} ติด Fracture`);});
     } else if (unit.id==="guntank") {
       spend(); const dice=Array.from({length:5},()=>Math.floor(Math.random()*10)+1); const crit=dice.filter(x=>x>=9).length; lastDice={dice,results:dice.map(x=>x>=9?"critical":"miss"),hits:0,criticals:crit,damage:crit,accuracy:0};
       renderAll();showDiceRoll(lastDice,"SATURATED FIRE",()=>{E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=4&&E.hasLineOfSight(state,unit,x)).forEach(x=>{E.applyDamage(x,crit);E.defeatUnit(state,x,unit.team);});addLog(`Saturated Fire: ${crit} Critical — ศัตรูใน Range 4 และ Line of Sight รับ Damage ${crit}`);renderAll();});return;
-    } else if (unit.id==="chars-zaku") { spend(); beginAttack(unit.weapons[0],{free:true}); }
+    } else if (unit.id==="chars-zaku") {
+      if(beginAttack(unit.weapons[0],{free:true}))spend();
+    }
     else if (unit.id==="zaku-line") {
       const damagedEnemies=E.livingEnemies(state,unit).filter(enemy=>enemy.hp<enemy.maxHp);
-      if(!damagedEnemies.length)return addLog("Zeon Zealotry: ไม่มี Unit ศัตรูที่มี Damage");
-      startMove(5,0,"Zeon Zealotry",()=>{spend();afterUnitMove(unit,"ability");},{ignoreElevation:true,allowStay:false,destinationFilter:hex=>damagedEnemies.some(enemy=>E.distance(hex,enemy)<E.distance(unit,enemy))});
+      if(!damagedEnemies.length){addLog("Zeon Zealotry: ไม่มี Unit ศัตรูที่มี Damage");menuOpen=true;renderAll();return;}
+      startMove(5,0,"Zeon Zealotry",moved=>{spend();afterUnitMove(unit,"ability",null,moved);},{ignoreElevation:true,allowStay:false,destinationFilter:hex=>damagedEnemies.some(enemy=>E.distance(hex,enemy)<E.distance(unit,enemy))});
     }
     else if (unit.id==="zaku-enforcer") {
-      const objective=adjacentObjective(unit); if (!objective) return addLog("Domination: ไม่มี Objective ในช่องติดกัน"); spend();objective.owner=unit.team;addLog("Domination: Zeon ยึด Objective");queueObjectiveCaptureFx(objective,unit.team);
+      const objective=adjacentObjective(unit); if (!objective) {addLog("Domination: ไม่มี Objective ในช่องติดกัน");menuOpen=true;renderAll();return;} spend();objective.owner=unit.team;addLog("Domination: Zeon ยึด Objective");queueObjectiveCaptureFx(objective,unit.team);
     }
     renderAll();
   }
@@ -1434,7 +1637,7 @@
   function selectEnemy(unit,range,hint,callback,filter=()=>true,options={}) {
     const targets=E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=range&&(options.ignoreLos||E.hasLineOfSight(state,unit,x))&&filter(x));
     if (!targets.length) { addLog(`${hint}: ไม่มีเป้าหมายถูกกติกา`); renderAll(); return false; }
-    mode={type:"select-unit",targets:new Set(targets.map(x=>E.key(x.q,x.r))),returnMenu:"main",hint,callback,onCancel:options.onCancel};menuOpen=true;renderAll();return true;
+    mode={type:"select-unit",unitId:unit.id,targets:new Set(targets.map(x=>E.key(x.q,x.r))),returnMenu:"main",hint,callback,onCancel:options.onCancel};menuOpen=true;renderAll();return true;
   }
 
   function chooseWhiteBaseUpgrade(target,onChoose) {
@@ -1452,7 +1655,7 @@
   function selectAlly(unit,range,hint,callback,filter=()=>true,options={}) {
     const targets=state.units.filter(target=>target.team===unit.team&&target.zone==="board"&&E.distance(unit,target)<=range&&filter(target));
     if(!targets.length){addLog(`${hint}: ไม่มีเป้าหมายถูกกติกา`);renderAll();return false;}
-    mode={type:"select-unit",targets:new Set(targets.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint,callback,onCancel:options.onCancel};menuOpen=true;renderAll();return true;
+    mode={type:"select-unit",unitId:unit.id,targets:new Set(targets.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint,callback,onCancel:options.onCancel};menuOpen=true;renderAll();return true;
   }
 
   function offerRescueMechanics(unit,onComplete=()=>{}) {
@@ -1494,7 +1697,7 @@
       renderAll();
     };
     if(targets.length===1){commit(targets[0]);return true;}
-    mode={type:"select-garrison",targets:new Set(targets.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint:`Rescue: เลือก Garrison ฝ่ายเดียวกันภายใน Range ${range}`,callback:commit,onCancel:onComplete};menuOpen=true;renderAll();return true;
+    mode={type:"select-garrison",unitId:unit.id,targets:new Set(targets.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint:`Rescue: เลือก Garrison ฝ่ายเดียวกันภายใน Range ${range}`,callback:commit,onCancel:onComplete};menuOpen=true;renderAll();return true;
   }
 
   function handleTactic(id) {
@@ -1503,7 +1706,9 @@
     const unit=activeUnit();
     const legal=!isUsed(id)&&card.timing==="COMMAND"&&!state.activation.tacticUsed[card.team]&&!mode;
     const issue=isUsed(id)?"การ์ดใบนี้ถูกใช้แล้ว":card.timing!=="COMMAND"?"Response ใช้ได้เฉพาะเมื่อ Trigger เกิดขึ้น":state.activation.tacticUsed[card.team]?"ฝ่ายนี้ใช้ Tactic ใน Activation นี้แล้ว":mode?"ยกเลิกการเลือกเป้าหมายปัจจุบันก่อน":commandTacticIssue(card,unit);
-    showCard(card,issue||"ตรวจความสามารถแล้วกด Confirm เพื่อใช้การ์ด",legal&&!issue?()=>useCommandTactic(card):null);
+    showCard(card,issue||"ตรวจความสามารถแล้วกด Confirm เพื่อใช้การ์ด",legal&&!issue?()=>{
+      if(movementDraft)commitMovementDraft(()=>useCommandTactic(card));else useCommandTactic(card);
+    }:null);
   }
 
   function commandTacticIssue(card,unit) {
@@ -1516,6 +1721,11 @@
     if(card.id==="crimson-execution"&&unit.id!=="chars-zaku")return "ใช้ได้เมื่อ Char’s Zaku II กำลังทำงาน";
     if(card.id==="lock-down"&&!E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target)))return "ไม่มี Unit ศัตรูใน Range 3 และ Line of Sight";
     if(card.id==="breaking-line"&&!E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target)))return "ไม่มี Unit ศัตรูใน Range 3 และ Line of Sight";
+    if(card.id==="sudden-pressure"){
+      const hasUnit=E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target));
+      const hasGarrison=state.garrisons.some(target=>target.team!==unit.team&&E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target));
+      if(!hasUnit&&!hasGarrison)return "ไม่มี Unit หรือ Garrison ศัตรูใน Range 3 และ Line of Sight";
+    }
     return "";
   }
 
@@ -1534,7 +1744,13 @@
       if(!valid)return;
     }
     else if (card.id==="rescued-extraction") { if(unit.id!=="zaku-line"||!hasOwnGarrisonInRange(unit,3,true))return showCard(card,"ต้องใช้โดย Zaku II: Line Breaker ที่มี Garrison ใน Range 3 และ Line of Sight");rescueGarrison(unit,3,false,()=>{markCommand(card);unit.energy+=1;},()=>{},{requireLos:true}); }
-    else if (card.id==="drive-them-back") { startMove(2,0,"Drive Them Back",()=>{markCommand(card);selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{pushAway(unit,enemy,1);E.applyDamage(enemy,1);E.defeatUnit(state,enemy,unit.team);addLog(`${enemy.name} ถูกผลักและรับ Damage 1`);});}); }
+    else if (card.id==="drive-them-back") {
+      const canPushFrom=hex=>E.livingEnemies(state,unit).some(enemy=>E.distance(hex,enemy)===1);
+      startMove(2,0,"Drive Them Back",moved=>{
+        markCommand(card);
+        afterUnitMove(unit,"tactic",()=>selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{pushAway(unit,enemy,1);E.applyDamage(enemy,1);E.defeatUnit(state,enemy,unit.team);addLog(`${enemy.name} ถูกผลักและรับ Damage 1`);}),moved);
+      },{allowStay:canPushFrom(unit),destinationFilter:canPushFrom});
+    }
     else if (card.id==="sudden-pressure") {
       markCommand(card);
       const enemyUnits=E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target));
@@ -1543,7 +1759,7 @@
       enemyGarrisons.slice().forEach(target=>damageGarrison(unit,target,2,"Sudden Pressure"));
       addLog(`Sudden Pressure: เป้าหมายใน Range 3 และ Line of Sight — Unit ${enemyUnits.length}, Garrison ${enemyGarrisons.length} รับ Damage 2`);
     }
-    else if (card.id==="crimson-execution") { if(unit.id!=="chars-zaku")return showCard(card,"ใช้ได้เมื่อ Char’s Zaku II กำลังทำงาน");startMove(D.rules.dash.distance+1,0,"Crimson Dash",()=>{markCommand(card);afterUnitMove(unit,"dash",()=>beginAttack(unit.weapons[0],{free:true}));}); }
+    else if (card.id==="crimson-execution") { if(unit.id!=="chars-zaku")return showCard(card,"ใช้ได้เมื่อ Char’s Zaku II กำลังทำงาน");startMove(D.rules.dash.distance+1,0,"Crimson Dash",moved=>{markCommand(card);afterUnitMove(unit,"dash",()=>beginAttack(unit.weapons[0],{free:true}),moved);}); }
     renderAll();
   }
 
@@ -1560,13 +1776,16 @@
   function openResponse(cards,onPlay,onSkip=closeModal,decisionContext={}) {
     const aiCard=cards.find(card=>isAiTeam(card.team));
     if(aiCard){
-      const context={damage:pendingAttack?.result?.damage||0,attackerAlive:pendingAttack?.attacker?.zone!=="reserve",canAttack:true,...decisionContext};
-      aiResponsePending=true;
-      addLog(`AI · พิจารณา Response: ${aiCard.name}`);renderAll();
-      scheduleAiCallback(()=>{
-        try{A.shouldUseResponse(aiCard,context)?onPlay(aiCard):onSkip();}
-        finally{aiResponsePending=false;}
-      },420);
+      const responseTarget=pendingAttack?.defender;
+      const damage=Math.max(0,pendingAttack?.result?.damage||0);
+      const totalShields=Math.max(0,responseTarget?.upgrades?.shield||0);
+      const inactiveShields=Math.min(totalShields,Math.max(0,responseTarget?.inactiveShields||0));
+      const activeShields=Math.max(0,totalShields-inactiveShields);
+      const context={damage,effectiveDamage:Math.max(0,damage-activeShields),activeShields,hp:responseTarget?.hp,attackerAlive:pendingAttack?.attacker?.zone!=="reserve",canAttack:true,...decisionContext};
+      // Resolve this hidden decision immediately. Delaying only when the AI owns a
+      // matching card leaks hand information and lets a callback cross Activations.
+      if(A.shouldUseResponse(aiCard,context))onPlay(aiCard);
+      else onSkip();
       return;
     }
     const modal=ensureModal();
@@ -1586,7 +1805,7 @@
   }
   function closeModal(){const m=$("#game-modal");if(m)m.classList.remove("show");}
 
-  function scheduleAiCallback(callback,delay=360) {
+  function scheduleAiCallback(callback,delay=AI_PACE.between) {
     const epoch=gameEpoch;
     const timer=setTimeout(()=>{
       if(epoch!==gameEpoch||state?.status!=="playing")return;
@@ -1597,7 +1816,7 @@
     return timer;
   }
 
-  function scheduleAiTurn(unit,delay=520) {
+  function scheduleAiTurn(unit,delay=AI_PACE.turnStart) {
     const unitId=unit?.id;
     scheduleAiCallback(()=>{
       const current=activeUnit();
@@ -1611,9 +1830,9 @@
     try{handleHexClick(q,r);}finally{aiPerforming=false;}
   }
 
-  function scheduleAiResolveMode(delay=300) {
+  function scheduleAiResolveMode(delay=AI_PACE.target) {
     scheduleAiCallback(()=>{
-      const unit=activeUnit();
+      const unit=modeUnit();
       if(!unit||!isAiTeam(unit.team)||!mode)return;
       const preferred=aiPreferredTargetKey&&mode.targets?.has(aiPreferredTargetKey)?aiPreferredTargetKey:null;
       let choice=null;
@@ -1637,17 +1856,36 @@
 
   function aiWaitForSettled(unit,next,attempt=0) {
     if(!unit||unit.id!==state.activeUnitId||!isAiTeam(unit.team)){aiBusy=false;return;}
-    if(mode){scheduleAiResolveMode(220);scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt+1),480);return;}
-    const modal=$("#game-modal");
-    if(diceAnimationTimer||pendingAttack||transitionBusy||aiResponsePending||aiEffectPending||modal?.classList.contains("show")){
-      scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt+1),360);return;
+    if(mode){
+      const actor=modeUnit();
+      const aiOwned=!!actor&&isAiTeam(actor.team);
+      if(aiOwned&&attempt>120){
+        const onCancel=mode.onCancel;mode=null;menuOpen=false;
+        addLog("AI ยกเลิกการเลือกเป้าหมายที่ใช้เวลานานผิดปกติ");
+        renderAll();
+        if(onCancel)onCancel();else next();
+        return;
+      }
+      if(aiOwned)scheduleAiResolveMode(AI_PACE.target);
+      scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt+(aiOwned?1:0)),AI_PACE.poll);
+      return;
     }
-    if(attempt>120){addLog("AI ยุติการคิดที่ใช้เวลานานผิดปกติ");aiFinishTurn(unit);return;}
-    next();
+    const modal=$("#game-modal");
+    if(modal?.classList.contains("show")){
+      scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt),AI_PACE.poll);return;
+    }
+    if(diceAnimationTimer||pendingAttack||transitionBusy||aiResponsePending||aiEffectPending){
+      if(attempt>120){
+        addLog("AI ยุติขั้นตอนภายในที่ใช้เวลานานผิดปกติ");
+        mode=null;pendingAttack=null;aiResponsePending=false;aiEffectPending=false;closeModal();renderAll();aiFinishTurn(unit);return;
+      }
+      scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt+1),AI_PACE.poll);return;
+    }
+    scheduleAiCallback(next,AI_PACE.between);
   }
 
   function aiAdvance(unit,onComplete) {
-    if(unit.statuses.slow){handleAction("advance");scheduleAiCallback(onComplete,260);return;}
+    if(unit.statuses.slow){handleAction("advance");scheduleAiCallback(onComplete,AI_PACE.between);return;}
     const forbidden=new Set(D.map.featureCoordinates.bases.map(base=>E.key(base.q,base.r)));
     const allowance=D.rules.advance.distance+(unit.upgrades.speed||0);
     const reachable=E.reachable(state,unit,allowance,{forbidden});
@@ -1657,7 +1895,7 @@
     if(!choice||(!mustMove&&choice.q===unit.q&&choice.r===unit.r)||(!mustMove&&choice.score<currentScore+4)){
       onComplete();return;
     }
-    const started=startMove(allowance,D.rules.advance.timeline,"Advance",()=>afterUnitMove(unit,"advance",onComplete));
+    const started=startMove(allowance,D.rules.advance.timeline,"Advance",moved=>afterUnitMove(unit,"advance",onComplete,moved));
     if(!started){onComplete();return;}
     aiPreferredTargetKey=E.key(choice.q,choice.r);
     scheduleAiResolveMode();
@@ -1677,8 +1915,13 @@
     if(unit.id==="gundam")return state.units.some(target=>target.team===unit.team&&target.zone==="board"&&E.distance(unit,target)<=3&&totalUpgrades(target)<=1)?42:-Infinity;
     if(unit.id==="guncannon")return E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target))?48:-Infinity;
     if(unit.id==="guntank")return E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)<=4&&E.hasLineOfSight(state,unit,target)).length*24;
-    if(unit.id==="chars-zaku")return E.legalWeaponTargets(state,unit,unit.weapons[0]).length?58:-Infinity;
-    if(unit.id==="zaku-line")return E.livingEnemies(state,unit).some(target=>target.hp<target.maxHp)?38:-Infinity;
+    if(unit.id==="chars-zaku")return A.attacksFrom(state,unit,D,E).some(choice=>choice.weapon.id===unit.weapons[0].id)?58:-Infinity;
+    if(unit.id==="zaku-line"){
+      const damaged=E.livingEnemies(state,unit).filter(target=>target.hp<target.maxHp);
+      const forbidden=new Set(D.map.featureCoordinates.bases.map(base=>E.key(base.q,base.r)));
+      const reachable=E.reachable(state,unit,5,{ignoreElevation:true,forbidden});
+      return [...reachable.keys()].some(value=>{const [q,r]=E.fromKey(value);return damaged.some(target=>E.distance({q,r},target)<E.distance(unit,target));})?38:-Infinity;
+    }
     if(unit.id==="zaku-enforcer"){const objective=adjacentObjective(unit);return objective&&objective.owner!==unit.team?95:-Infinity;}
     return -Infinity;
   }
@@ -1711,10 +1954,10 @@
       return;
     }
     const dashAllowance=D.rules.dash.distance+(unit.id==="chars-zaku"?1:0);
-    const started=startMove(dashAllowance,D.rules.dash.timeline,"Dash",()=>afterUnitMove(unit,"dash"),{primaryAction:true});
+    const started=startMove(dashAllowance,D.rules.dash.timeline,"Dash",moved=>afterUnitMove(unit,"dash",null,moved),{primaryAction:true});
     if(started){aiWaitForSettled(unit,()=>aiFinishTurn(unit));return;}
     handleAction("energize");
-    scheduleAiCallback(()=>aiFinishTurn(unit),260);
+    scheduleAiCallback(()=>aiFinishTurn(unit),AI_PACE.between);
   }
 
   function aiFinishTurn(unit) {
@@ -1722,7 +1965,7 @@
     if(!state.activation.actionUsed){handleAction("energize");}
     aiBusy=false;
     addLog(`AI · ${unit.name} จบ Activation`);renderAll();
-    scheduleAiCallback(()=>{if(state.activeUnitId===unit.id)endActivation();},360);
+    scheduleAiCallback(()=>{if(state.activeUnitId===unit.id)endActivation();},AI_PACE.finish);
   }
 
   function runAiTurn(unit) {
@@ -1746,7 +1989,10 @@
   }
 
   function showRules() {
-    const modal=ensureModal();modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — เฉพาะ Char’s Zaku II Dash ได้เพิ่ม 1 ช่องจาก Three Times Faster</li><li>Speed เพิ่มระยะเฉพาะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วนการลงที่ต่ำไม่เพิ่มค่าใช้จ่าย</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป</li><li>แต่ละฝ่ายสุ่ม Tactic 3 จากสำรับ 9 ใบใน Phase 1 และจั่วอีก 3 ใบจากสำรับเดิมใน Phase 2; ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation</li><li>กด Tactic เพื่อดูการ์ดและข้อความก่อน แล้วจึงกด Confirm; ไม่มีการโจมตีสวนกลับอัตโนมัติ ยกเว้นยืนยันใช้ Return Fire</li><li>ช่องสีฟ้าคือช่องเดินที่ตรวจระยะและความสูงแล้ว; ช่องสีแดงคือเป้าหมายที่อยู่ใน Range และ Line of Sight</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest: ฝ่ายเราต้องมี Unit ในระยะ 1 มากกว่า; จุดกลางจะถูกยึด ส่วนจุดศัตรูจะกลับเป็นกลางก่อนและต้อง Contest ชนะอีกครั้งจึงยึดได้</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ 1 VP เมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และการทำลาย Garrison ศัตรูหรือ Rescue Garrison ฝ่ายเดียวกันได้ 2 VP</li></ul><p>พิกัด Feature และชั้นความสูงอ้างอิงภาพ Sleeping Leviathan ที่อัปโหลด; การ์ดทั้ง 24 ใบใช้ภาพจริงจาก PDF</p></div>`;modal.classList.add("show");modal.querySelector(".modal-close").addEventListener("click",closeModal);
+    const modal=ensureModal();
+    modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — เฉพาะ Char’s Zaku II Dash ได้เพิ่ม 1 ช่องจาก Three Times Faster</li><li>Speed เพิ่มระยะเฉพาะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วนการลงที่ต่ำไม่เพิ่มค่าใช้จ่าย</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป</li><li>แต่ละฝ่ายเริ่ม Phase 1 ด้วย Tactic สุ่ม 3 จากสำรับ 9 ใบ; เมื่อ Unit ทั้ง 3 ของฝ่ายนั้นผ่าน TL10 และจบ Activation แล้ว ฝ่ายนั้นจั่วเพิ่ม 3 ใบทันทีโดยไม่ต้องรออีกฝ่าย</li><li>ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation; กดการ์ดเพื่ออ่านก่อน แล้วจึงกด Confirm</li><li>ไม่มีการโจมตีสวนกลับอัตโนมัติ ยกเว้นยืนยันใช้ Return Fire</li><li>ช่องสีฟ้าคือช่องเดินที่ตรวจระยะและความสูงแล้ว; ช่องสีแดงคือเป้าหมายที่อยู่ใน Range และ Line of Sight</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest: ฝ่ายเราต้องมี Unit ในระยะ 1 มากกว่า; จุดกลางจะถูกยึด ส่วนจุดศัตรูจะกลับเป็นกลางก่อนและต้อง Contest ชนะอีกครั้งจึงยึดได้</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ 1 VP เมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และการทำลาย Garrison ศัตรูหรือ Rescue Garrison ฝ่ายเดียวกันได้ 2 VP</li></ul><p>พิกัด Feature และชั้นความสูงอ้างอิงภาพ Sleeping Leviathan ที่อัปโหลด; การ์ดทั้ง 24 ใบใช้ภาพจริงจาก PDF</p></div>`;
+    modal.classList.add("show");
+    modal.querySelector(".modal-close").addEventListener("click",closeModal);
   }
 
   function showResult() {
@@ -1754,8 +2000,26 @@
     modal.innerHTML=`<div class="modal-card"><span class="eyebrow">MISSION COMPLETE</span><h2>${title}</h2><div class="result-grid"><div>E.F.S.F.<b>${state.vp.fed}</b>VP</div><div>ZEON<b>${state.vp.zeon}</b>VP</div></div><button class="primary-btn" id="play-again">เล่นใหม่</button></div>`;modal.classList.add("show");modal.querySelector("#play-again").addEventListener("click",()=>{closeModal();resetGame();});
   }
 
+  function renderSoundButton() {
+    const button=$("#sound-btn");if(!button)return;
+    button.textContent=soundMuted?"🔇":"🔊";
+    button.setAttribute("aria-pressed",String(soundMuted));
+    button.setAttribute("aria-label",soundMuted?"เปิดเสียง":"ปิดเสียง");
+    button.title=soundMuted?"เปิดเสียง":"ปิดเสียง";
+  }
+
+  function toggleSound() {
+    soundMuted=!soundMuted;
+    SFX.setMuted(soundMuted);
+    BGM.setMuted(soundMuted);
+    TitleBGM.setMuted(soundMuted);
+    if(!soundMuted&&document.body.classList.contains("title-active"))TitleBGM.start();
+    renderSoundButton();
+  }
+
   $("#restart-btn").addEventListener("click",()=>{if(confirm("เริ่มเกมใหม่และล้างสถานะปัจจุบัน?"))resetGame();});
-  $("#rules-btn")?.addEventListener("click",showRules);
+  $("#sound-btn")?.addEventListener("click",toggleSound);
+  renderSoundButton();
   $("#log-toggle").addEventListener("click",()=>{
     const feed=$("#combat-feed");
     const button=$("#log-toggle");
@@ -1773,8 +2037,20 @@
   });
   document.addEventListener("keydown",event=>{
     if(event.key!=="Escape"||!state)return;
-    if(isAiTurn()&&$("#game-modal")?.classList.contains("show"))return;
-    closeModal();mode=null;menuOpen=false;menuView="main";renderAll();
+    // Resolution dialogs have explicit Confirm/Skip controls. Closing one without running
+    // its continuation would strand pending combat, so Escape deliberately leaves it open.
+    if($("#game-modal")?.classList.contains("show"))return;
+    if(mode){
+      const actor=modeUnit();
+      if(actor&&isAiTeam(actor.team))return;
+      const currentMode=mode;
+      const back=currentMode.returnMenu||"main";
+      mode=null;menuOpen=true;menuView=back;
+      if(currentMode.onCancel)currentMode.onCancel();
+      renderAll();
+      return;
+    }
+    menuOpen=false;menuView="main";renderAll();
   });
   initTitle();
 })();

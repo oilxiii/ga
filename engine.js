@@ -371,7 +371,11 @@
     return reactivated;
   }
 
-  function applyDamage(target, amount) {
+  function applyDamage(target, amount, options = {}) {
+    // Damage is direct by default. Attack resolution must opt in so status effects such
+    // as Fracture cannot be triggered by Tactics, abilities, Push collisions, or hazards.
+    // `true` remains available as a concise compatibility shorthand for attack callers.
+    const isAttack = options === true || options?.attack === true || options?.sourceType === "attack";
     const incoming = Math.max(0, amount);
     const totalShields = Math.max(0, target.upgrades?.shield || 0);
     const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
@@ -380,7 +384,7 @@
     if (blocked) target.inactiveShields = inactiveShields + blocked;
     const taken = incoming - blocked;
     target.hp = Math.max(0, target.hp - taken);
-    if (target.statuses?.fracture && taken >= 3) {
+    if (target.statuses?.fracture && isAttack && taken >= 3) {
       target.hp = Math.max(0, target.hp - 3);
       target.statuses.fracture = false;
       return { incoming, blocked, taken: taken + 3, fractured: true };

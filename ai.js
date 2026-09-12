@@ -38,8 +38,10 @@
   function attackScore(state, unit, target, weapon, engine, isGarrison = false) {
     const expected = expectedAttackDamage(state, unit, target, weapon, engine);
     const hp = Math.max(1, target.hp || 1);
-    const shield = target.upgrades?.shield || 0;
-    const killChance = Math.min(1, expected / (hp + shield));
+    const totalShields = Math.max(0, target.upgrades?.shield || 0);
+    const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
+    const activeShields = totalShields - inactiveShields;
+    const killChance = Math.min(1, expected / (hp + activeShields));
     const vp = isGarrison ? 2 : (target.vp || 0);
     let score = expected * 8 + killChance * vp * 22 - weapon.timeline * 2.5;
     if (isGarrison) score += 24;
@@ -74,6 +76,12 @@
 
   function positionScore(state, unit, q, r, data, engine) {
     const probe = { ...unit, q, r, zone: "board" };
+    // Evaluate the hypothetical board, not a board that still contains this Unit at
+    // its old hex. Otherwise the old position can falsely block an enemy sight-line.
+    const simulatedState = {
+      ...state,
+      units: state.units.map(candidate => candidate.id === unit.id ? probe : candidate)
+    };
     let score = 0;
     for (const objective of state.objectives) {
       const distance = engine.distance(probe, objective);
@@ -88,10 +96,10 @@
     if (state.energy.some(item => item.q === q && item.r === r)) score += 22;
     // Mystery tokens are deliberately scored identically: the AI never reads their hidden type.
     if (state.upgrades.some(item => item.q === q && item.r === r)) score += 24;
-    const attack = chooseAttack(state, probe, data, engine);
+    const attack = chooseAttack(simulatedState, probe, data, engine);
     if (attack) score += Math.min(85, attack.score * 0.72);
-    const threats = state.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board").filter(enemy =>
-      enemy.weapons.some(weapon => engine.distance(enemy, probe) <= weapon.range && (weapon.ignoreLos || engine.hasLineOfSight(state, enemy, probe)))
+    const threats = simulatedState.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board").filter(enemy =>
+      enemy.weapons.some(weapon => engine.distance(enemy, probe) <= weapon.range && (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe)))
     );
     score -= threats.length * (unit.hp <= unit.maxHp * 0.4 ? 9 : 3);
     return score;
@@ -106,14 +114,12 @@
     return candidates.sort((a, b) => b.score - a.score || a.q - b.q || a.r - b.r)[0] || null;
   }
 
-  function canReachEnemy(state, unit, distance, data, engine) {
+  function canReachEnemy(state, unit, distance, data, engine, includeGarrisons = true) {
     const forbidden = new Set(data.map.featureCoordinates.bases.map(base => engine.key(base.q, base.r)));
     const reachable = engine.reachable(state, unit, distance, { forbidden });
     reachable.set(engine.key(unit.q, unit.r), 0);
-    const enemies = [
-      ...state.units.filter(target => target.team !== unit.team && target.zone === "board"),
-      ...state.garrisons.filter(target => target.team !== unit.team)
-    ];
+    const enemies = state.units.filter(target => target.team !== unit.team && target.zone === "board");
+    if (includeGarrisons) enemies.push(...state.garrisons.filter(target => target.team !== unit.team));
     return [...reachable.keys()].some(value => {
       const [q, r] = engine.fromKey(value);
       return enemies.some(target => engine.distance({ q, r }, target) === 1);
@@ -125,7 +131,9 @@
     const attacks = attacksFrom(state, unit, data, engine);
     const damaged = unit.maxHp - unit.hp;
     const adjacentObjective = state.objectives.find(objective => engine.distance(unit, objective) <= 1 && objective.owner !== unit.team);
-    const visibleEnemies = state.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board" && engine.distance(unit, enemy) <= 3 && engine.hasLineOfSight(state, unit, enemy));
+    const visibleEnemyUnits = state.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board" && engine.distance(unit, enemy) <= 3 && engine.hasLineOfSight(state, unit, enemy));
+    const visibleEnemyGarrisons = state.garrisons.filter(enemy => enemy.team !== unit.team && engine.distance(unit, enemy) <= 3 && engine.hasLineOfSight(state, unit, enemy));
+    const suddenPressureTargets = visibleEnemyUnits.length + visibleEnemyGarrisons.length;
     const ownGarrisons = state.garrisons.filter(garrison => garrison.team === unit.team && engine.distance(unit, garrison) <= 3 && engine.hasLineOfSight(state, unit, garrison));
     const scores = {
       "built-to-last": damaged > 0 ? Math.min(damaged, sumUpgrades(unit)) * 18 : -Infinity,
@@ -133,11 +141,11 @@
       "forward-artillery": unit.id === "guncannon" ? 25 + (state.rescuedGarrisons?.fed || 0) * 14 : -Infinity,
       "last-shot-counts": unit.id === "gundam" && attacks.length ? 72 : -Infinity,
       "rookies-momentum": attacks.length ? 58 : -Infinity,
-      "lock-down": visibleEnemies.length ? 42 + Math.max(...visibleEnemies.map(sumUpgrades)) * 4 : -Infinity,
+      "lock-down": visibleEnemyUnits.length ? 42 + Math.max(...visibleEnemyUnits.map(sumUpgrades)) * 4 : -Infinity,
       "rescued-extraction": unit.id === "zaku-line" && ownGarrisons.length ? 96 : -Infinity,
-      "drive-them-back": canReachEnemy(state, unit, 2, data, engine) ? 46 : -Infinity,
-      "sudden-pressure": visibleEnemies.length ? visibleEnemies.length * 30 : -Infinity,
-      "breaking-line": visibleEnemies.length ? 44 + Math.max(...visibleEnemies.map(sumUpgrades)) * 4 : -Infinity,
+      "drive-them-back": canReachEnemy(state, unit, 2, data, engine, false) ? 46 : -Infinity,
+      "sudden-pressure": suddenPressureTargets ? suddenPressureTargets * 30 : -Infinity,
+      "breaking-line": visibleEnemyUnits.length ? 44 + Math.max(...visibleEnemyUnits.map(sumUpgrades)) * 4 : -Infinity,
       "crimson-execution": unit.id === "chars-zaku" && canReachEnemy(state, unit, data.rules.dash.distance + 1, data, engine) ? 76 : -Infinity
     };
     return scores[card.id] ?? -Infinity;
@@ -179,7 +187,14 @@
 
   function shouldUseResponse(card, context = {}) {
     if (!card) return false;
-    if (card.id === "federation-shield") return (context.damage || 0) >= 2;
+    if (card.id === "federation-shield") {
+      const damage = Math.max(0, context.damage || 0);
+      const activeShields = Math.max(0, context.activeShields || 0);
+      const effectiveDamage = Math.max(0, context.effectiveDamage ?? (damage - activeShields));
+      const hp = Number.isFinite(context.hp) ? Math.max(0, context.hp) : Infinity;
+      if (effectiveDamage === 0) return false;
+      return effectiveDamage >= 2 || effectiveDamage >= hp;
+    }
     if (card.id === "return-fire") return context.canAttack !== false;
     if (card.id === "shattered-formation") return context.attackerAlive !== false;
     if (["iron-grip", "shield-recovery", "logistics-relay", "exploited-chaos"].includes(card.id)) return true;
