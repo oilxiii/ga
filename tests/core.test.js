@@ -147,18 +147,16 @@ test("each team draws its three extra Tactics independently after all three unit
   assert.equal(s.tacticDecks.zeon.length,6);
 });
 
-test("the game draws Phase 2 Tactics independently after that team's completed activation", () => {
+test("the game draws both factions' Phase 2 Tactics together after scoring Phase 1", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function refreshPassedTeamTactics\(team\)/);
-  assert.match(source,/state\.phase!==1\|\|state\.tacticCycles\[team\]!==1\|\|!E\.teamPassedTimeline\(state,team,10\)/);
+  assert.doesNotMatch(source,/function refreshPassedTeamTactics/);
   const ending=source.match(/function endActivation\(\) \{[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(ending,/state\.resolvedThisTick\.add\(unit\.id\);[\s\S]{0,80}refreshPassedTeamTactics\(unit\.team\)/);
-  assert.doesNotMatch(source,/dealPhaseTwoTacticsTogether/);
+  assert.doesNotMatch(ending,/dealTacticHand|refreshPassedTeamTactics/);
   const transition=source.match(/async function runPhaseTransition\(finalPhase=false\) \{[\s\S]*?\n  \}/)?.[0]||"";
   const scorePos=transition.indexOf("await scoreClaimedObjectives(claimed,epoch)");
-  const drawPos=transition.indexOf("dealPendingPhaseTwoTactics()");
   const phasePos=transition.indexOf("state.phase=2");
-  assert.ok(scorePos>=0 && phasePos>scorePos && drawPos>phasePos,"Phase 1 scores first, then the transition only fills any team's still-pending draw");
+  const drawPos=transition.indexOf("dealPendingPhaseTwoTactics()");
+  assert.ok(scorePos>=0 && phasePos>scorePos && drawPos>phasePos,"Phase 1 scores first, then both factions draw during the shared Phase 2 transition");
   assert.match(transition,/PHASE 2 READY/);
 });
 
@@ -330,7 +328,7 @@ test("enemy units and enemy Garrisons block Line of Sight at the shared elevatio
   assert.equal(E.hasLineOfSight(s,attacker,target),false);
 });
 
-test("a higher attacker can fire over lower enemy pieces", () => {
+test("enemy pieces block Line of Sight even when lower than a higher attacker", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(x=>x.id==="gundam");
   const blocker=s.units.find(x=>x.id==="chars-zaku");
@@ -339,12 +337,12 @@ test("a higher attacker can fire over lower enemy pieces", () => {
   const target={q:4,r:3,team:"zeon"};
   const middle=E.line(attacker,target)[1];
   s.board[E.key(attacker.q,attacker.r)].elevation=2;
-  s.board[E.key(middle.q,middle.r)].elevation=1;
+  s.board[E.key(middle.q,middle.r)].elevation=0;
   blocker.zone="board";blocker.q=middle.q;blocker.r=middle.r;
-  assert.equal(E.hasLineOfSight(s,attacker,target),true);
+  assert.equal(E.hasLineOfSight(s,attacker,target),false);
 });
 
-test("terrain below the higher endpoint does not block an uphill shot", () => {
+test("uphill LOS is blocked by terrain above the attacker's elevation", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(x=>x.id==="gundam");
   s.units.forEach(unit=>{unit.zone="reserve";});
@@ -354,9 +352,9 @@ test("terrain below the higher endpoint does not block an uphill shot", () => {
   const middle=E.line(attacker,target)[1];
   s.board[E.key(target.q,target.r)].elevation=2;
   s.board[E.key(middle.q,middle.r)].elevation=1;
-  assert.equal(E.hasLineOfSight(s,attacker,target),true);
-  s.board[E.key(middle.q,middle.r)].elevation=2;
   assert.equal(E.hasLineOfSight(s,attacker,target),false);
+  s.board[E.key(middle.q,middle.r)].elevation=0;
+  assert.equal(E.hasLineOfSight(s,attacker,target),true);
 });
 
 test("Line of Sight inspection reports both edge-path choices and their blockers", () => {
@@ -449,7 +447,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="ปิดเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v48<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v49<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -553,13 +551,14 @@ test("all twelve weapons preserve the Unit Card critical effects", () => {
   for(const weapon of weapons)assert.equal(weapon.critical,expected[weapon.id],weapon.id);
 });
 
-test("Beam Saber Critical grants Gundam Strength against units and Garrisons", () => {
+test("Beam Saber Critical grants Gundam Strength after Combat Damage against units and Garrisons", () => {
+  const beamSaber=D.units.find(unit=>unit.id==="gundam").weapons.find(weapon=>weapon.id==="beam-saber");
+  assert.equal(beamSaber.critical,"gainStrength");
+  assert.equal(beamSaber.criticalTiming,"afterCombatDamage");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function applyAttackerCritical\(attacker,weapon,result\)/);
-  assert.match(source,/result\.criticals<1\|\|weapon\.critical!=="gainStrength"/);
-  assert.match(source,/grantUpgrade\(attacker,"strength",1\)/);
-  assert.match(source,/Beam Saber Critical:.*Strength Upgrade 1/);
-  assert.ok((source.match(/applyAttackerCritical\(attacker,weapon,result\)/g)||[]).length>=3);
+  assert.match(source,/function resolveAfterCombatCritical/);
+  assert.match(source,/weapon\.critical==="gainStrength"\)\{applyAttackerCritical/);
+  assert.match(source,/resolveAfterCombatCritical\(attacker,surrogate,weapon,result/);
 });
 
 test("critical bonus damage applies only to the card's intended target", () => {
@@ -625,9 +624,13 @@ test("Unit Card ongoing attack modifiers are active", () => {
   const guncannon=s.units.find(unit=>unit.id==="guncannon");guncannon.zone="board";guncannon.q=4;guncannon.r=5;guncannon.upgrades.shield=1;guncannon.upgrades.speed=1;
   const courage=E.rollAttack(s,guncannon,target,guncannon.weapons[0],()=>0.69);
   assert.ok(courage.results.every(result=>result==="critical"));
-  const enforcer=s.units.find(unit=>unit.id==="zaku-enforcer");enforcer.zone="board";enforcer.q=6;enforcer.r=5;target.statuses.slow=true;
-  const suppressing=E.rollAttack(s,enforcer,target,enforcer.weapons[0],()=>0);
-  assert.equal(suppressing.dice.length,enforcer.weapons[0].strength+1);
+  const enforcer=s.units.find(unit=>unit.id==="zaku-enforcer");enforcer.zone="board";enforcer.q=6;enforcer.r=5;
+  target.statuses.slow=true;
+  let suppressing=E.rollAttack(s,enforcer,target,enforcer.weapons[0],()=>0);
+  assert.equal(suppressing.dice.length,enforcer.weapons[0].strength,"a Status alone is not Damage");
+  target.hp=target.maxHp-1;
+  suppressing=E.rollAttack(s,enforcer,target,enforcer.weapons[0],()=>0);
+  assert.equal(suppressing.dice.length,enforcer.weapons[0].strength+1,"Suppressing Presence keys off existing Damage");
 });
 
 test("Guntank objective bonus adds one damage around an Objective", () => {
@@ -678,16 +681,15 @@ test("Rescue the Mechanics opens an optional response and repairs a damaged ally
   assert.match(zaku.response.text,/ซ่อมแซม Damage 2/);
 });
 
-test("Char Machine Gun Critical gives the human player the same adjustable Timeline 0 Dash flow", () => {
-  const char=D.units.find(unit=>unit.id==="chars-zaku");
-  const machineGun=char.weapons.find(weapon=>weapon.id==="char-machine-gun");
-  assert.equal(machineGun.critical,"dashTimeline0");
+test("After-Combat-Damage Critical follow-ups resolve before post-combat Responses", () => {
+  const char=D.units.find(unit=>unit.id==="chars-zaku").weapons.find(weapon=>weapon.id==="char-machine-gun");
+  const cannon=D.units.find(unit=>unit.id==="guncannon").weapons.find(weapon=>weapon.id==="low-recoil-240");
+  assert.equal(char.criticalTiming,"afterCombatDamage");
+  assert.equal(cannon.criticalTiming,"afterCombatDamage");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function beginAdjustableCharDash\(unit,cost,label,onComplete=null,options=\{\}\)/);
-  assert.match(source,/beginAdjustableCharDash\(attacker,0,"Machine Gun Critical Dash",onComplete/);
-  assert.match(source,/movementDraft\.cost===0/);
-  assert.match(source,/Timeline \+\$\{draft\.cost\}/);
-  assert.match(source,/openPostCombatResponses\([\s\S]*offerWeaponCriticalFollowUp\(attacker,weapon,result\)/);
+  const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.ok(finish.indexOf("resolveAfterCombatCritical")<finish.indexOf("openPostCombatResponses"));
+  assert.match(source,/beginAdjustableCharDash\(attacker,0,"Machine Gun Critical Dash"/);
 });
 
 test("Guncannon Cannon Critical performs a Timeline 0 Dash then optional Rescue", () => {
@@ -698,10 +700,9 @@ test("Guncannon Cannon Critical performs a Timeline 0 Dash then optional Rescue"
   assert.match(source,/id="confirm-critical-rescue"/);
 });
 
-test("Cracker Grenade uses one center target and splash is 0 normally / 1 on Critical", () => {
+test("Cracker Grenade uses one center target and splash is 0 normally / 1 on active Critical", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function resolveSplashDamage/);
-  assert.match(source,/const amount=weapon\.critical==="splashDamage1"&&result\.criticals>0\?1:0/);
+  assert.match(source,/const amount=weapon\.critical==="splashDamage1"&&criticalEffectsActive\(result\)\?1:0/);
   assert.match(source,/adjacentUnits=splashUnitTargets\(attacker,target,weapon\)/);
   assert.match(source,/adjacentGarrisons=state\.garrisons\.filter/);
   assert.match(source,/Cracker Grenade AOE/);
@@ -902,11 +903,11 @@ test("a Response that destroys the active unit ends its Activation and advances 
   assert.match(source,/finishDefeatedActiveActivation\(attacker,"Combat Response"\)/);
 });
 
-test("Return Fire applies attacker-side Critical effects such as Beam Saber Strength", () => {
+test("Return Fire uses the same pre/post Critical timing as a normal attack", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const body=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(body,/applyAttackerCritical\(returningUnit,weapon,result\)/);
-  assert.match(body,/if\(result\.criticals>0\)applyCritical\(returningUnit,attacker,weapon,result,finishReturnFire\)/);
+  assert.match(body,/resolveAfterCombatCritical\(returningUnit,attacker,weapon,result/);
+  assert.match(body,/criticalEffectsActive\(result\)&&weapon\.criticalTiming!=="afterCombatDamage"/);
 });
 
 test("Lock Down and Breaking the Line require Line of Sight", () => {
@@ -1170,12 +1171,13 @@ test("the sound button mutes SFX and both music tracks", () => {
   assert.match(source,/button\.textContent=soundMuted\?"🔇":"🔊"/);
 });
 
-test("all completed-activation exits can trigger that team's independent phase draw", () => {
+test("completed-activation exits never draw Phase 2 Tactics early", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.doesNotMatch(source,/refreshPassedTeamTactics/);
   const defeated=source.match(/function finishDefeatedActiveActivation[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(defeated,/state\.resolvedThisTick\.add\(unit\.id\);[\s\S]{0,80}refreshPassedTeamTactics\(unit\.team\)/);
+  assert.match(defeated,/state\.lastActivatedTeam=unit\.team/);
   const movement=source.match(/function startMoveFor[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(movement,/zone==="deploying"[\s\S]{0,260}refreshPassedTeamTactics\(unit\.team\)/);
+  assert.match(movement,/zone==="deploying"[\s\S]{0,260}state\.lastActivatedTeam=unit\.team/);
 });
 
 test("Return Fire obeys Engagement and revalidates nested Response windows", () => {
@@ -1252,38 +1254,29 @@ test("Return Fire also resolves its own counter-attacker's Response before the d
   assert.ok(resolvePostCombat.indexOf("{cards:returnAttackerResponses")<resolvePostCombat.indexOf("{cards:returnDefenderResponses"));
 });
 
-test("finishAttack resolves Critical Hit Effects before dealing Damage", () => {
-  // Rule (p.25): step 7 (Critical Hit Effects - Slow/Fracture/Push2) must resolve before
-  // step 8 (Damage). Damage must therefore live inside the continuation handed to
-  // applyCritical, not run unconditionally ahead of it.
+test("finishAttack separates pre-damage and After Combat Damage Critical effects", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
-  const continuation=finish.match(/const dealDamageAndFinish=\(\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
-  assert.ok(continuation.includes('E.applyDamage(defender,damage,{sourceType:"attack"})'),
-    "Damage application must be nested inside the post-critical continuation");
-  assert.match(finish,/if \(result\.criticals>0\) applyCritical\(attacker,defender,weapon,result,dealDamageAndFinish\);/);
-  assert.match(finish,/else dealDamageAndFinish\(\);/);
-  const damageCalls=(finish.match(/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/g)||[]).length;
-  assert.equal(damageCalls,1);
-  assert.ok(!finish.slice(0,finish.indexOf("const dealDamageAndFinish")).includes("E.applyDamage(defender,damage"),
-    "Damage must not be applied before the critical-effect continuation is defined/dispatched");
+  assert.match(finish,/weapon\.criticalTiming!=="afterCombatDamage"\) applyCritical/);
+  assert.match(finish,/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/);
+  assert.match(finish,/resolveAfterCombatCritical\(attacker,defender,weapon,result/);
+  assert.ok(finish.indexOf('E.applyDamage(defender,damage,{sourceType:"attack"})')<finish.indexOf('resolveAfterCombatCritical(attacker,defender,weapon,result'));
 });
 
-test("Return Fire also resolves its own Critical Hit Effects before dealing Damage", () => {
+test("Return Fire separates pre-damage and After Combat Damage Critical effects", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  const resolvePostCombat=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
-  const continuation=resolvePostCombat.match(/const finishReturnFire=\(\)=>\{[\s\S]*?\n          \};/)?.[0]||"";
-  assert.ok(continuation.includes('E.applyDamage(attacker,result.damage,{sourceType:"attack"})'),
-    "Return Fire damage must be nested inside its own post-critical continuation");
-  assert.match(resolvePostCombat,/if\(result\.criticals>0\)applyCritical\(returningUnit,attacker,weapon,result,finishReturnFire\);/);
-  assert.match(resolvePostCombat,/else finishReturnFire\(\);/);
+  const body=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(body,/criticalEffectsActive\(result\)&&weapon\.criticalTiming!=="afterCombatDamage"\)applyCritical/);
+  assert.match(body,/resolveAfterCombatCritical\(returningUnit,attacker,weapon,result/);
 });
 
-test("AOE offers Federation Shield and post-combat Responses to secondary units", () => {
+test("AOE can shield secondary units but only the main defender gets defender post-combat Responses", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/function offerFederationShield/);
   assert.match(source,/splashUnitTargets\(attacker,target,weapon\).*filter\(unit=>unit\.team==="fed"\)/s);
-  assert.match(source,/const defenderResponders=\[\.\.\.\(defeated\?\[\]:\[defender\]\),\.\.\.splash\.units\]/);
+  const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(finish,/const defenderResponders=defeated\?\[\]:\[defender\]/);
+  assert.doesNotMatch(finish,/defenderResponders=.*splash\.units/);
   assert.match(source,/data-shield-target/);
 });
 
@@ -1292,4 +1285,60 @@ test("forced Push creates movement triggers such as Iron Grip", () => {
   const push=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(push,/movedAny=true/);
   assert.match(push,/afterUnitMove\(target,"push",onComplete,true\)/);
+});
+
+
+test("Disarm rerolls ordinary Hits once and disables all Critical effects for that attack", () => {
+  const s=E.setupGame(()=>0.5);
+  const attacker=s.units.find(unit=>unit.id==="gundam");
+  const defender=s.units.find(unit=>unit.id==="chars-zaku");
+  attacker.zone="board";attacker.q=2;attacker.r=2;attacker.statuses.disarm=true;
+  defender.zone="board";defender.q=3;defender.r=2;
+  const weapon=attacker.weapons.find(item=>item.id==="beam-rifle");
+  const values=[0.39,0.89,0.0,0.0,0.0, 0.89]; let i=0;
+  const result=E.rollAttack(s,attacker,defender,weapon,()=>values[i++]??0);
+  assert.equal(result.disarmed,true);
+  assert.equal(result.criticalEffectsDisabled,true);
+  assert.equal(attacker.statuses.disarm,false);
+  assert.ok(result.disarmRerolled.length>=1,"ordinary Hits are rerolled once");
+  assert.equal(result.damage,result.hits+result.criticals,"Beam Rifle Critical Damage +2 is suppressed by Disarm");
+});
+
+test("timeline ties alternate factions and preserve same-faction stack arrival order", () => {
+  const s=E.setupGame(()=>0.5);
+  s.currentTick=5;s.resolvedThisTick.clear();
+  const gundam=s.units.find(u=>u.id==="gundam");
+  const guncannon=s.units.find(u=>u.id==="guncannon");
+  const char=s.units.find(u=>u.id==="chars-zaku");
+  [gundam,guncannon,char].forEach(u=>u.nextAt=5);
+  gundam.timelineSeq=10;guncannon.timelineSeq=12;char.timelineSeq=11;
+  s.lastActivatedTeam="zeon";
+  assert.equal(E.chooseNextUnit(s).id,"gundam","after Zeon, Federation gets priority in a cross-faction tie");
+  s.resolvedThisTick.add(gundam.id);s.lastActivatedTeam="fed";
+  assert.equal(E.chooseNextUnit(s).id,"chars-zaku","priority alternates to the faction that did not activate last");
+  s.resolvedThisTick.add(char.id);s.lastActivatedTeam="zeon";
+  assert.equal(E.chooseNextUnit(s).id,"guncannon","remaining same-faction stack keeps arrival order");
+});
+
+test("Response Tactics used out of turn lock that faction's next Activation", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/state\.responseTacticLock\[card\.team\]=true/);
+  const start=source.match(/function startActivation[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(start,/carriedResponseLock/);
+  assert.match(start,/state\.activation\.tacticUsed\[unit\.team\]=true/);
+  assert.match(start,/state\.responseTacticLock\[unit\.team\]=false/);
+});
+
+test("White Base Unity requires Range 3 and Line of Sight", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ability=source.match(/function useUnitAbility[\s\S]*?else if \(unit\.id==="guncannon"\)/)?.[0]||"";
+  assert.match(ability,/E\.distance\(unit,x\)<=3&&E\.hasLineOfSight\(state,unit,x\)&&totalUpgrades\(x\)<=1/);
+});
+
+test("Push collision defeats the pushed Unit immediately when Damage 2 is lethal", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const push=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(push,/const pushedDefeated=E\.defeatUnit\(state,target,source\.team\)/);
+  const choose=source.match(/function beginPushDirection[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(choose,/const defeated=E\.defeatUnit\(state,target,source\.team\)/);
 });
