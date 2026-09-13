@@ -1029,6 +1029,9 @@
       units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""} ${losInspectable?"los-inspectable":""} ${losBlocked?"los-blocked-target":""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
         <circle class="unit-base ${teamClass}" cx="${cx}" cy="${cy}" r="20"></circle>
         <image class="unit-portrait" href="${unit.icon}" x="${cx-18}" y="${cy-20}" width="36" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})"></image>
+        ${unit.id===state.activeUnitId ? `<g class="active-turn-marker" aria-hidden="true">
+          <path class="active-turn-triangle" d="M ${cx-7} ${cy-31} L ${cx+7} ${cy-31} L ${cx} ${cy-22} Z"></path>
+        </g>` : ""}
         ${unit.weaponBadge ? `<rect class="weapon-badge" x="${cx+8}" y="${cy-21}" width="23" height="11" rx="2"></rect><text class="weapon-badge-text" x="${cx+19.5}" y="${cy-15.5}">${unit.weaponBadge}</text>` : ""}
         ${renderUnitEffectBadges(unit,cx,cy)}
         <rect class="unit-hp-bg" x="${cx-20}" y="${cy+20}" width="40" height="5" rx="2"></rect>
