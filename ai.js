@@ -9,7 +9,7 @@
       weapon.strength +
       (unit.upgrades?.strength || 0) +
       (unit.tempStrength || 0) +
-      (unit.id === "zaku-enforcer" && Object.values(target.statuses || {}).some(Boolean) ? 1 : 0)
+      (unit.id === "zaku-enforcer" && Number.isFinite(target?.hp) && Number.isFinite(target?.maxHp) && target.hp < target.maxHp ? 1 : 0)
     );
   }
 
@@ -108,8 +108,7 @@
   }
 
   function canReachEnemy(state, unit, distance, data, engine, includeGarrisons = true) {
-    const forbidden = new Set(data.map.featureCoordinates.bases.map(base => engine.key(base.q, base.r)));
-    const reachable = engine.reachable(state, unit, distance, { forbidden });
+    const reachable = engine.reachable(state, unit, distance);
     reachable.set(engine.key(unit.q, unit.r), 0);
     const enemies = state.units.filter(target => target.team !== unit.team && target.zone === "board");
     if (includeGarrisons) enemies.push(...state.garrisons.filter(target => target.team !== unit.team));
@@ -158,12 +157,14 @@
       const [q, r] = engine.fromKey(value);
       const targetUnit = state.units.find(candidate => candidate.zone !== "reserve" && candidate.q === q && candidate.r === r);
       const garrison = state.garrisons.find(candidate => candidate.q === q && candidate.r === r);
+      const objective = state.objectives.find(candidate => candidate.q === q && candidate.r === r);
       let score = positionScore(state, unit, q, r, data, engine);
       if (targetUnit) {
         if (targetUnit.team === unit.team) score = (targetUnit.maxHp - targetUnit.hp) * 18 + (targetUnit.vp || 0);
         else score = (targetUnit.vp || 0) * 18 + (targetUnit.maxHp - targetUnit.hp) * 5 + sumUpgrades(targetUnit) * 4;
       }
       if (garrison) score = garrison.team === unit.team ? 80 : 70;
+      if (objective) score = objective.owner === unit.team ? 12 : objective.owner ? 125 : 105;
       return { q, r, score };
     });
     return targets.sort((a, b) => b.score - a.score)[0] || null;
@@ -180,7 +181,7 @@
         score+=22;
         if(step.unit)score+=step.unit.team===source.team?-70:90+(step.unit.vp||0)*8;
         else if(step.garrison)score+=step.garrison.team===source.team?-60:80;
-        else if(step.reason==="terrain"||step.reason==="edge")score+=28;
+        else if(step.base||step.reason==="terrain")score+=28;
         break;
       }
       return {...option,score};

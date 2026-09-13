@@ -1,0 +1,93 @@
+GUNDAM ASSEMBLE // ONLINE — LAUNCH AUDIT v51
+วันที่ตรวจ: 13 กันยายน 2026
+ต้นทาง: gundam-assemble-final-v49
+ผลลัพธ์: ไม่พบบั๊กระดับ Blocker/Critical ที่ยังทราบอยู่หลังการแก้และรันทดสอบรอบสุดท้าย
+อัปเดต v51: Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามประกาศ Scenario ล่าสุด
+
+แหล่งอ้างอิง
+- GA Official Core Rulebook v1.0 (Updated August 28, 2026)
+- Unit Card จริง 6 ใบ และ Tactic Card ภาษาไทยจริง 18 ใบที่อยู่ในโฟลเดอร์ assets/cards
+- แผนที่ Sleeping Leviathan และภาพ Token ที่ผู้ใช้อัปโหลด
+
+ขอบเขตที่ตรวจ
+- Timeline, Phase, Deployment, Activation และการตัดสินกรณีคะแนนเสมอ
+- Advance, Dash, Speed, Engagement, Elevation, Jump และการผ่านสิ่งกีดขวาง
+- Line of Sight ทุกระดับความสูง รวมกรณีเส้นพาดขอบ Hex
+- Attack Timing, Accuracy, Critical, Shield, Disarm, Fracture, Slow, Push และ Defeat
+- Objective, Garrison, Rescue และ Victory Point
+- ความสามารถของ Unit ทั้ง 6 ตัวและอาวุธทั้ง 12 แบบ
+- Tactic Card ทั้ง 18 ใบ รวม Response ซ้อนจาก Return Fire
+- AI, ข้อมูลลับ, การเลือกเป้าหมาย, การเคลื่อนที่ และทางออกจากสถานะรอ
+- UI สำคัญ, เสียง, เพลง, ภาพการ์ด, Unit icon, Token icon และไฟล์ asset
+
+บั๊กที่แก้ใน v50
+1. Line of Sight
+   - เปลี่ยนการตัดสินระดับจากอ้างเฉพาะผู้โจมตี เป็นอ้างระดับสูงสุดของปลายทั้งสองตามกฎ
+   - Terrain ระดับเดียวกับปลายที่สูงกว่าจะบังเฉพาะเมื่อปลายสองฝั่งอยู่ต่างระดับ
+   - Enemy Unit/Garrison/Base จะบังเมื่ออยู่ในระดับที่กฎกำหนด; ฝ่ายเดียวกันไม่บัง
+   - Objective marker ไม่ถือเป็น Structure และไม่บัง Line of Sight
+   - หากเส้นผ่านขอบระหว่าง Hex ผู้โจมตีเลือกเส้นที่มองเห็นได้
+   - ปุ่ม Line of Sight แสดงผล Garrison และเคารพ Range/Ignore Line of Sight ของอาวุธจริง
+
+2. Movement และ Deployment
+   - Base เป็น Structure: เดินผ่าน Base ฝ่ายเดียวกันได้ แต่จบการเดินบน Base ไม่ได้; Base ศัตรูขวางการเดิน
+   - การ Ignore terrain cost ไม่ทำให้ Jump หายไป
+   - Move/Dash ที่เลือกใช้แล้วไม่สามารถจบที่ช่องเริ่มต้น; ยังเปลี่ยนปลายทางซ้ำในพื้นที่เดิมหรือ Back เพื่อยกเลิกได้
+   - เฉพาะ Critical Dash ที่เป็นตัวเลือกเท่านั้นที่สามารถข้ามโดยไม่เคลื่อนที่
+   - หากไม่มีทั้งช่อง Deploy และช่อง Advance ที่ถูกกติกา Unit จะ Energize, TL +2 และอยู่ Reserve ตามกฎ
+   - แก้ AI ค้างเทิร์นถาวรในกรณี Deployment ถูกปิดทั้งหมด
+
+3. Attack Timing และ Status
+   - จ่าย Timeline หลังประกาศ Action และก่อนทอย/Resolve
+   - ลำดับเป็น Attack Roll → เอฟเฟกต์ฝ่ายโจมตี After Attack Roll → Disarm → เอฟเฟกต์ฝ่ายป้องกัน → Critical → Damage → After Combat Damage
+   - Disarm ทอย Hit ธรรมดาใหม่, ไม่ทอย Critical ใหม่, ปิด Critical Effect แต่ยังนับ Critical เป็น Damage
+   - Critical ที่พิมพ์ว่า After Combat Damage ยังคงเกิดหลัง Damage ตามข้อความเฉพาะบน Unit Card
+   - Fracture ตรวจเฉพาะ Attack Damage ที่ผ่านการป้องกันแล้วอย่างน้อย 3; Direct/Collision/Tactic Damage ไม่กิน Fracture
+   - Damage ทางอ้อมทุกชนิดใช้ Shield, Defeat และ VP ผ่านทางเดียวกัน
+   - โบนัสชั่วคราว Last Shot ถูกล้างเมื่อจบ Activation หรือ Unit ถูกทำลายระหว่าง Activation
+
+4. Push และ Collision
+   - Push เลือกทีละ Hex โดย Hex ถัดไปต้องไกลจากต้นทางขึ้น และหยุดก่อนครบระยะได้
+   - ชนพื้นที่สูง, Unit, Garrison หรือ Base แล้วจบ Push และสร้าง Collision Damage 2 ตามกฎ
+   - Shield ป้องกัน Collision Damage ได้ และตรวจ Defeat/VP ทันที
+   - Forced movement ไม่เก็บ Energy/Mystery Upgrade ระหว่างทาง แต่เรียก Response การเคลื่อนที่ที่ถูกต้อง
+
+5. Objective, Phase และ Tactic
+   - Contest ทำตอนจบ Activation ด้วยจำนวน Unit ในระยะ 1; เสมอถือว่ายึดไม่สำเร็จ
+   - การชนะ Contest ต่อ Objective ศัตรูทำให้กลับเป็นกลางก่อน แล้วต้องชนะอีกครั้งจึงยึดได้
+   - Domination และ Entrenched Position เลือก Objective ได้ครบทุกจุดที่ติดกัน
+   - จบ Phase 1 จะคิดคะแนน Objective ก่อน จากนั้น Objective กลับเป็นกลางและทั้งสองฝ่ายจั่ว Tactic เพิ่มฝ่ายละ 3 ใบ
+   - คะแนนจบเกมเสมอใช้ฝ่ายของผู้เล่นที่ทำ Activation ล่าสุดเป็นผู้ชนะตามกฎ
+   - Response ใช้สิทธิ์ Tactic 1 ใบของผู้เล่นคนนั้นเฉพาะ Activation ปัจจุบัน ไม่ล็อก Activation ถัดไป
+   - Return Fire และการโจมตีสวนมีลำดับ Response ฝ่ายโจมตีก่อนฝ่ายรับ และตรวจเป้าหมาย/Engagement ใหม่ทุกครั้ง
+   - Crimson Execution ทำ Dash ต่อเข้า Heat Hawk TL0 ได้ และห้ามยกเลิกช่วงโจมตีที่ต้อง Resolve
+
+6. AI และความยุติธรรม
+   - AI ใช้ legal action และระบบทอยเดียวกับผู้เล่น ไม่มีการกำหนดผลลูกเต๋าเอง
+   - AI ไม่อ่านชนิด Mystery Upgrade ก่อนเปิด และไม่เปิดเผย/อ่านมือ Tactic ของผู้เล่นเพื่อเลือก Action
+   - ประเมิน Line of Sight, Engagement, Shield ที่ยัง Active, Objective, Garrison, VP และความเสียหายจริง
+   - Suppressing Presence ได้ Strength เฉพาะเมื่อโจมตี Unit ที่มี Damage ไม่ใช่เพียงติด Status
+   - AI เลือก Objective ที่เป็นกลาง/ของศัตรูก่อน Objective ที่ตนเองครอบครอง
+
+ข้อสรุปจากการ์ดจริงที่มักสับสน
+- Char's Zaku II — Machine Gun: TL 3, Range 2, Strength 5 (เลข 3 คือ Timeline ไม่ใช่ Range)
+- Newtype Instincts: ทอยใหม่ได้ 1 ลูกที่เป็น Miss เท่านั้น ตามข้อความบน Unit Card; ถ้าทุกลูกเป็น Hit/Critical จะไม่มีหน้าต่างทอยใหม่
+- Char's Zaku II Dash ปกติได้ 3 Hex เพราะ Dash 2 + Three Times Faster 1; Advance ปกติยังเป็น 3 Hex
+- Garrison ทุกอันมี HP 1; ทำลายหรือ Rescue ให้ 2 VP
+- ไม่มี Counterattack อัตโนมัติ การยิงกลับเกิดจาก Return Fire เท่านั้น
+
+ผลการตรวจอัตโนมัติรอบสุดท้าย
+- JavaScript syntax: ผ่าน data.js, engine.js, ai.js และ game.js
+- Core/rules checks: 121 ผ่าน
+- AI/fairness checks: 11 ผ่าน
+- รวม: 132/132 ผ่าน
+- Unit data: 6 ตัว / อาวุธ 12 แบบ ตรงกับภาพการ์ด
+- Tactic data และ implementation: 18/18 ใบตรวจครบ
+- Asset อ้างอิง: ไม่พบไฟล์หาย; MP3, GIF และ PNG ที่ใช้ตรวจชนิดไฟล์ผ่าน
+
+เช็กลิสต์สั้นก่อนเผยแพร่จริง
+- เปิด index.html จากโฟลเดอร์ทั้งชุด ห้ามอัปโหลดเฉพาะ index.html
+- ทดสอบ 1 PLAYER อย่างน้อยหนึ่งเกมต่อการเลือก E.F.S.F. และ ZEON
+- ทดสอบ 2 PLAYER หนึ่งรอบเพื่อดูหน้าส่งเครื่องและมือการ์ดลับ
+- ตรวจเสียง Title/Battle, ปุ่ม Mute, การย่อ Battle Log และ Line of Sight บนเบราว์เซอร์ที่จะใช้เผยแพร่
+- เมื่ออัปขึ้น GitHub ให้อัปเดตไฟล์ root ทั้งหมด พร้อมโฟลเดอร์ assets และ tests เพื่อไม่ให้ cache/เวอร์ชันต่างกัน

@@ -128,7 +128,8 @@
       dash: { distance: 2, timeline: 2 },
       rescue: { timeline: 2, vp: 2 },
       movement: { garrisonsBlock: true },
-      garrison: { defeatVp: 2 }
+      garrison: { defeatVp: 2 },
+      objective: { phaseVp: 5 }
     },
     units,
     tactics,

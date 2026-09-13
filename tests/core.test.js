@@ -131,22 +131,6 @@ test("used Tactics leave the hand, so Phase 2 hand size reflects cards actually 
   assert.equal(s.tacticDecks.zeon.length,3);
 });
 
-test("each team draws its three extra Tactics independently after all three units pass TL 10", () => {
-  const s=E.setupGame(()=>0.2718);
-  const firstFed=s.hands.fed.slice();
-  const firstZeon=s.hands.zeon.slice();
-  s.units.filter(unit=>unit.team==="fed").forEach(unit=>unit.nextAt=11);
-  s.units.filter(unit=>unit.team==="zeon").forEach(unit=>unit.nextAt=10);
-  assert.equal(E.teamPassedTimeline(s,"fed",10),true);
-  assert.equal(E.teamPassedTimeline(s,"zeon",10),false);
-  E.dealTacticHand(s,"fed",()=>0.618);
-  assert.equal(s.hands.fed.length,6);
-  assert.ok(firstFed.every(id=>s.hands.fed.includes(id)));
-  assert.deepEqual(s.hands.zeon,firstZeon);
-  assert.equal(s.tacticDecks.fed.length,3);
-  assert.equal(s.tacticDecks.zeon.length,6);
-});
-
 test("the game draws both factions' Phase 2 Tactics together after scoring Phase 1", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.doesNotMatch(source,/function refreshPassedTeamTactics/);
@@ -166,8 +150,7 @@ test("destruction can still push a Zeon unit beyond TL 10 without triggering an 
   zeon[0].nextAt=11;zeon[1].nextAt=12;zeon[2].nextAt=9;zeon[2].hp=0;
   E.defeatUnit(state,zeon[2],"fed");
   assert.equal(zeon[2].nextAt,11,"destruction can push the last Zeon unit over TL 10");
-  assert.equal(E.teamPassedTimeline(state,"zeon",10),true);
-  assert.equal(state.hands.zeon.length,3,"destruction alone does not draw; the team must finish an Activation or reach the transition fallback");
+  assert.equal(state.hands.zeon.length,3,"destruction alone does not draw; both players draw only during the Phase transition");
 });
 
 test("a reserve unit deploys on its own Base, never around it", () => {
@@ -283,6 +266,17 @@ test("a jumping unit may move over an enemy Garrison at a lower elevation", () =
   assert.equal(reach.has(E.key(7,5)),true, "Jumping lets it bypass an enemy Garrison at a lower elevation");
 });
 
+test("terrain-ignoring movement preserves Jump over lower enemies", () => {
+  const s=E.setupGame(()=>0.5);
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  const mover=s.units.find(unit=>unit.id==="zaku-line");
+  const blocker=s.units.find(unit=>unit.id==="gundam");
+  mover.zone="board";mover.q=5;mover.r=5;s.board[E.key(5,5)].elevation=1;
+  blocker.zone="board";blocker.q=6;blocker.r=5;
+  const reachable=E.reachable(s,mover,2,{ignoreElevation:true});
+  assert.ok([...reachable.keys()].some(value=>{const [q,r]=E.fromKey(value);return E.distance({q,r},blocker)===1&&q!==mover.q;}));
+});
+
 test("a unit may move through an allied unit but never end its movement there", () => {
   const s=E.setupGame(()=>0.5);
   const unit=s.units.find(x=>x.id==="gundam"); // fed
@@ -293,6 +287,18 @@ test("a unit may move through an allied unit but never end its movement there", 
   const reach=E.reachable(s,unit,3);
   assert.equal(reach.has(E.key(6,5)),false, "cannot end on top of an ally");
   assert.equal(reach.has(E.key(7,5)),true, "must still be able to pass through the ally");
+});
+
+test("Bases are never legal movement endpoints and enemy Bases remain impassable", () => {
+  const s=E.setupGame(()=>0.5);
+  const unit=s.units.find(x=>x.id==="gundam");
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  unit.zone="board";unit.q=7;unit.r=11;
+  let reach=E.reachable(s,unit,3);
+  assert.equal(reach.has(E.key(7,12)),false,"the allied Base cannot be an ending hex");
+  unit.team="zeon";
+  reach=E.reachable(s,unit,3);
+  assert.equal(reach.has(E.key(7,12)),false);
 });
 
 test("allied units and allied Garrisons never block Line of Sight", () => {
@@ -328,7 +334,7 @@ test("enemy units and enemy Garrisons block Line of Sight at the shared elevatio
   assert.equal(E.hasLineOfSight(s,attacker,target),false);
 });
 
-test("enemy pieces block Line of Sight even when lower than a higher attacker", () => {
+test("a higher attacker can see over enemy pieces below the higher endpoint elevation", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(x=>x.id==="gundam");
   const blocker=s.units.find(x=>x.id==="chars-zaku");
@@ -339,10 +345,10 @@ test("enemy pieces block Line of Sight even when lower than a higher attacker", 
   s.board[E.key(attacker.q,attacker.r)].elevation=2;
   s.board[E.key(middle.q,middle.r)].elevation=0;
   blocker.zone="board";blocker.q=middle.q;blocker.r=middle.r;
-  assert.equal(E.hasLineOfSight(s,attacker,target),false);
+  assert.equal(E.hasLineOfSight(s,attacker,target),true);
 });
 
-test("uphill LOS is blocked by terrain above the attacker's elevation", () => {
+test("uphill LOS is blocked only by terrain at the higher endpoint elevation or above", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(x=>x.id==="gundam");
   s.units.forEach(unit=>{unit.zone="reserve";});
@@ -352,8 +358,21 @@ test("uphill LOS is blocked by terrain above the attacker's elevation", () => {
   const middle=E.line(attacker,target)[1];
   s.board[E.key(target.q,target.r)].elevation=2;
   s.board[E.key(middle.q,middle.r)].elevation=1;
+  assert.equal(E.hasLineOfSight(s,attacker,target),true);
+  s.board[E.key(middle.q,middle.r)].elevation=2;
   assert.equal(E.hasLineOfSight(s,attacker,target),false);
-  s.board[E.key(middle.q,middle.r)].elevation=0;
+});
+
+test("Objective control markers never block Line of Sight", () => {
+  const s=E.setupGame(()=>0.5);
+  const attacker=s.units.find(unit=>unit.id==="gundam");
+  const target=s.units.find(unit=>unit.id==="chars-zaku");
+  s.units.forEach(unit=>{unit.zone="reserve";});
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  attacker.zone="board";attacker.q=2;attacker.r=2;
+  target.zone="board";target.q=4;target.r=3;
+  const middle=E.line(attacker,target)[1];
+  s.objectives=[{id:"los-objective",q:middle.q,r:middle.r,owner:"zeon"}];
   assert.equal(E.hasLineOfSight(s,attacker,target),true);
 });
 
@@ -447,7 +466,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="ปิดเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v49<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v51<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -774,7 +793,19 @@ test("objectives score only at phase scoring", () => {
   s.objectives[1].owner="zeon";
   s.objectives[2].owner="zeon";
   E.scoreObjectives(s);
-  assert.deepEqual(s.vp,{fed:1,zeon:2});
+  assert.equal(D.rules.objective.phaseVp,5);
+  assert.deepEqual(s.vp,{fed:5,zeon:10});
+});
+
+test("Objective score UI and phase transition use the shared 5 VP rule", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const scoreFx=source.match(/function spawnObjectiveScoreFx[\s\S]*?\n  \}/)?.[0]||"";
+  const phaseScore=source.match(/async function scoreClaimedObjectives[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(scoreFx,/D\.rules\.objective\?\.phaseVp \?\? 5/);
+  assert.match(scoreFx,/\+\$\{points\} VP/);
+  assert.match(phaseScore,/state\.vp\[entry\.team\]\+=points/);
+  assert.match(phaseScore,/ควบคุม Objective — \+\$\{points\} VP/);
+  assert.match(source,/Objective · \$\{D\.rules\.objective\?\.phaseVp \?\? 5\} VP เมื่อจบ Phase/);
 });
 
 test("objective control is resolved by majority contest at the end of activation", () => {
@@ -818,13 +849,13 @@ test("objectives render as faction flags instead of numbered circles", () => {
   assert.match(source,/E\.contestObjectives\(state,unit\)/);
 });
 
-test("phase transition scores visible Objectives, resets control for Phase 2, and reveals the final winner", () => {
+test("phase transition scores Objectives and uses the last player to act as the tie-break winner", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/showPhaseTransition\(\{eyebrow:"PHASE 1 COMPLETE",title:"PHASE 2"/);
   assert.match(source,/state\.objectives\.forEach\(objective=>\{objective\.owner=null;\}\)/);
   assert.match(source,/state\.currentTick=11;/);
   assert.match(source,/showPhaseTransition\(\{eyebrow:"FINAL OBJECTIVE SCORE",title:"GAME END"/);
-  assert.match(source,/state\.winner=state\.vp\.fed===state\.vp\.zeon\?"draw"/);
+  assert.match(source,/state\.winner=state\.vp\.fed===state\.vp\.zeon\?\(state\.lastActivatedTeam\|\|"zeon"\)/);
   assert.match(source,/spawnObjectiveScoreFx\(objective,entry\.team\)/);
 });
 
@@ -993,9 +1024,19 @@ test("Push direction is chosen from hexes farther from the source and collision 
   step=E.forcedPushStep(s,target,chosen.direction);
   assert.equal(step.type,"collision");
   assert.equal(step.garrison?.id,"push-garrison");
+
+  s.garrisons=[];
+  const base=D.map.featureCoordinates.bases[0];
+  target.q=base.q;target.r=base.r+1;
+  const baseOption=E.pushDirectionOptions(s,{q:target.q,r:target.r+1},target).find(option=>option.q===base.q&&option.r===base.r);
+  if(baseOption){
+    step=E.forcedPushStep(s,target,baseOption.direction);
+    assert.equal(step.type,"collision");
+    assert.equal(step.base?.team,base.team);
+  }
 });
 
-test("Push continues in the chosen straight direction and uphill terrain causes a collision", () => {
+test("each Push step can continue outward and uphill terrain causes a collision", () => {
   const s=E.setupGame(()=>0.5);
   Object.values(s.board).forEach(hex=>{hex.elevation=0;});
   const source=s.units.find(unit=>unit.id==="gundam");
@@ -1016,16 +1057,19 @@ test("Push continues in the chosen straight direction and uphill terrain causes 
 
 test("forced Push never invokes pickupAt and collision damage is 2 for both objects", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  const body=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
+  const body=source.match(/function beginPushDirection[\s\S]*?\n  \}/)?.[0]||"";
   assert.doesNotMatch(body,/pickupAt/);
   assert.match(body,/E\.applyDamage\(target,2,\{sourceType:"collision"\}\)/);
   assert.match(body,/E\.applyDamage\(collidedUnit,2,\{sourceType:"collision"\}\)/);
-  assert.match(body,/damageGarrison\(source,collidedGarrison,2,"Push Collision"\)/);
+  assert.match(body,/damageGarrison\(source,step\.garrison,2,"Push Collision"\)/);
 });
 
-test("player Push requires direction selection and Drive Them Back uses the same Push flow", () => {
+test("player Push is selected one farther hex at a time, can stop early, and Drive Them Back uses the same flow", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/type:"push-direction"/);
+  assert.match(source,/canStop:true/);
+  assert.match(source,/stopCallback:finish/);
+  assert.match(source,/E\.pushDirectionOptions\(state,source,target\)/);
   assert.match(source,/beginPushDirection\(attacker,defender,2,onComplete,"Shoulder Bash Critical"\)/);
   assert.match(source,/beginPushDirection\(unit,enemy,1,[\s\S]{0,900}"Drive Them Back"\)/);
 });
@@ -1093,13 +1137,13 @@ test("attack Damage opts into Fracture while direct effects remain direct", () =
   assert.match(source,/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/);
   assert.match(source,/E\.applyDamage\(attacker,result\.damage,\{sourceType:"attack"\}\)/);
   const movementResponse=source.match(/function afterUnitMove\([\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(movementResponse,/E\.applyDamage\(unit,3\)/);
+  assert.match(movementResponse,/damageUnit\(enforcer,unit,3,"Iron Grip"\)/);
   assert.doesNotMatch(movementResponse,/E\.applyDamage\(unit,3,\{sourceType:"attack"\}\)/);
 });
 
 test("Burst Attack validates a target before spending Energy and Iron Grip requires displacement", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/if\(beginAttack\(unit\.weapons\[0\],\{free:true\}\)\)spend\(\)/);
+  assert.match(source,/beginAttack\(unit\.weapons\[0\],\{free:true,onDeclare:spend\}\)/);
   assert.match(source,/const moved=unit\.q!==q\|\|unit\.r!==r/);
   assert.match(source,/movementOccurred&&unit\.team==="fed"/);
 });
@@ -1160,6 +1204,24 @@ test("human movement keeps a draft, while Char Dash commits through Char Kick or
   assert.match(commit,/payTimeline\(unit,draft\.cost\)/);
   assert.match(commit,/skipCharKick/);
   assert.match(source,/if\(unit\.id==="chars-zaku"\)beginAdjustableCharDash\(unit,D\.rules\.dash\.timeline,"Dash",null,\{primaryAction:true\}\)/);
+  const adjustable=source.match(/function beginAdjustableMovement\(unit,allowance,cost,label,movementType,primaryAction\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.doesNotMatch(adjustable,/reachable\.set\(E\.key\(unit\.q,unit\.r\),0\)/,"a Move or Dash cannot legally finish in its starting hex");
+});
+
+test("temporary Last Shot modifiers expire when the active Unit's Activation ends", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const defeated=source.match(/function finishDefeatedActiveActivation[\s\S]*?\n  \}/)?.[0]||"";
+  const ended=source.match(/function endActivation\(\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(defeated,/unit\.nextAttackDiscount=0/);
+  assert.match(ended,/unit\.nextAttackDiscount = 0/);
+});
+
+test("ordinary Move and Dash cannot stay in place, while optional Critical Dashes may be declined", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const movement=source.match(/function startMoveFor\(unit,allowance,cost,label,afterMove,options=\{\}\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(movement,/const allowStay=options\.allowStay\?\?false/);
+  assert.match(source,/"Machine Gun Critical Dash"[\s\S]{0,220}\{allowStay:true,returnMenu:"main"/);
+  assert.match(source,/"240mm Critical Dash"[\s\S]{0,240}\{allowStay:true,returnMenu:"main"/);
 });
 
 test("the sound button mutes SFX and both music tracks", () => {
@@ -1177,7 +1239,10 @@ test("completed-activation exits never draw Phase 2 Tactics early", () => {
   const defeated=source.match(/function finishDefeatedActiveActivation[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(defeated,/state\.lastActivatedTeam=unit\.team/);
   const movement=source.match(/function startMoveFor[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(movement,/zone==="deploying"[\s\S]{0,260}state\.lastActivatedTeam=unit\.team/);
+  assert.match(movement,/zone==="deploying"[\s\S]{0,180}resolveBlockedDeployment\(unit\)/);
+  const blockedDeploy=source.match(/function resolveBlockedDeployment\(unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(blockedDeploy,/state\.lastActivatedTeam=unit\.team/);
+  assert.doesNotMatch(blockedDeploy,/drawTactics|refreshPassedTeamTactics/);
 });
 
 test("Return Fire obeys Engagement and revalidates nested Response windows", () => {
@@ -1229,7 +1294,7 @@ test("Crimson Execution continues from Char Kick into the free Heat Hawk attack"
   assert.match(source,/Crimson Execution: Heat Hawk Attack · Timeline 0/);
   const continuation=source.match(/function continueCrimsonExecution\(card,unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(continuation,/weapon=>weapon\.id==="char-heat-hawk"/);
-  assert.match(continuation,/beginAttack\(heatHawk,\{free:true\}\)/);
+  assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
   assert.match(continuation,/if\(!isUsed\(card\.id\)\)markCommand\(card\)/);
   assert.match(source,/resolveCharKickTarget\(unit,target,continuation\)/);
   assert.match(source,/resolveCharKickGarrisonTarget\(unit,(?:garrison|target),continuation\)/);
@@ -1270,37 +1335,42 @@ test("Return Fire separates pre-damage and After Combat Damage Critical effects"
   assert.match(body,/resolveAfterCombatCritical\(returningUnit,attacker,weapon,result/);
 });
 
-test("AOE can shield secondary units but only the main defender gets defender post-combat Responses", () => {
+test("Earth Federation Shield protects only the defending Unit, not Cracker Grenade's direct splash", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function offerFederationShield/);
-  assert.match(source,/splashUnitTargets\(attacker,target,weapon\).*filter\(unit=>unit\.team==="fed"\)/s);
+  const shield=source.match(/function offerFederationShield[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(shield,/target\?\.weapons/);
+  assert.doesNotMatch(shield,/splashUnitTargets|splashDamage/);
   const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
   assert.match(finish,/const defenderResponders=defeated\?\[\]:\[defender\]/);
   assert.doesNotMatch(finish,/defenderResponders=.*splash\.units/);
-  assert.match(source,/data-shield-target/);
 });
 
 test("forced Push creates movement triggers such as Iron Grip", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  const push=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
+  const push=source.match(/function beginPushDirection[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(push,/movedAny=true/);
   assert.match(push,/afterUnitMove\(target,"push",onComplete,true\)/);
 });
 
 
-test("Disarm rerolls ordinary Hits once and disables all Critical effects for that attack", () => {
+test("Disarm waits until attacker After Attack Roll abilities, then rerolls Hits and disables Critical effects", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(unit=>unit.id==="gundam");
   const defender=s.units.find(unit=>unit.id==="chars-zaku");
   attacker.zone="board";attacker.q=2;attacker.r=2;attacker.statuses.disarm=true;
   defender.zone="board";defender.q=3;defender.r=2;
   const weapon=attacker.weapons.find(item=>item.id==="beam-rifle");
-  const values=[0.39,0.89,0.0,0.0,0.0, 0.89]; let i=0;
+  const values=[0.0,0.39,0.89,0.0,0.0]; let i=0;
   const result=E.rollAttack(s,attacker,defender,weapon,()=>values[i++]??0);
+  assert.equal(result.disarmedPending,true);
+  assert.equal(result.disarmed,false);
+  assert.equal(attacker.statuses.disarm,true,"rolling alone must not consume Disarm before attacker abilities");
+  assert.equal(E.rerollAttackDie(s,attacker,defender,weapon,result,0,()=>0.89),true,"Newtype resolves before Disarm");
+  E.resolveDisarmAttack(s,attacker,defender,weapon,result,()=>0);
   assert.equal(result.disarmed,true);
   assert.equal(result.criticalEffectsDisabled,true);
   assert.equal(attacker.statuses.disarm,false);
-  assert.ok(result.disarmRerolled.length>=1,"ordinary Hits are rerolled once");
+  assert.deepEqual(result.disarmRerolled,[1],"only the ordinary Hit is rerolled; Criticals remain");
   assert.equal(result.damage,result.hits+result.criticals,"Beam Rifle Critical Damage +2 is suppressed by Disarm");
 });
 
@@ -1320,13 +1390,13 @@ test("timeline ties alternate factions and preserve same-faction stack arrival o
   assert.equal(E.chooseNextUnit(s).id,"guncannon","remaining same-faction stack keeps arrival order");
 });
 
-test("Response Tactics used out of turn lock that faction's next Activation", () => {
+test("a Response uses that player's one Tactic for the current activation only", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/state\.responseTacticLock\[card\.team\]=true/);
+  assert.doesNotMatch(source,/responseTacticLock|carriedResponseLock/);
   const start=source.match(/function startActivation[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(start,/carriedResponseLock/);
-  assert.match(start,/state\.activation\.tacticUsed\[unit\.team\]=true/);
-  assert.match(start,/state\.responseTacticLock\[unit\.team\]=false/);
+  assert.match(start,/tacticUsed: \{ fed: false, zeon: false \}/);
+  const response=source.match(/function useResponse\(card\)[^\n]*/)?.[0]||"";
+  assert.match(response,/state\.activation\.tacticUsed\[card\.team\]=true/);
 });
 
 test("White Base Unity requires Range 3 and Line of Sight", () => {
@@ -1337,8 +1407,81 @@ test("White Base Unity requires Range 3 and Line of Sight", () => {
 
 test("Push collision defeats the pushed Unit immediately when Damage 2 is lethal", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  const push=source.match(/function pushAway[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(push,/const pushedDefeated=E\.defeatUnit\(state,target,source\.team\)/);
   const choose=source.match(/function beginPushDirection[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(choose,/const defeated=E\.defeatUnit\(state,target,source\.team\)/);
+  assert.match(choose,/const pushedDefeated=E\.defeatUnit\(state,target,source\.team\)/);
+});
+
+test("all attack paths pay Timeline before rolling and keep card-specific after-damage Critical timing", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const normal=source.match(/function resolveAttack\([\s\S]*?\n  \}/)?.[0]||"";
+  const garrison=source.match(/function resolveGarrisonAttack\([\s\S]*?\n  \}/)?.[0]||"";
+  const response=source.match(/function resolvePostCombat\([\s\S]*?\n  \}/)?.[0]||"";
+  assert.ok(normal.indexOf("payTimeline(attacker")>=0&&normal.indexOf("payTimeline(attacker")<normal.indexOf("E.rollAttack"));
+  assert.ok(garrison.indexOf("payTimeline(attacker")>=0&&garrison.indexOf("payTimeline(attacker")<garrison.indexOf("E.rollAttack"));
+  assert.ok(response.indexOf("E.advanceUnitTimeline(state,returningUnit")>=0&&response.indexOf("E.advanceUnitTimeline(state,returningUnit")<response.indexOf("E.rollAttack"));
+  for(const id of ["beam-saber","low-recoil-240","bop-missile","char-heat-hawk"]){
+    const weapon=D.units.flatMap(unit=>unit.weapons).find(item=>item.id===id);
+    assert.equal(weapon.criticalTiming,"afterCombatDamage",`${id} follows the timing printed on its Unit Card`);
+  }
+});
+
+test("Unit Card weapon ranges and Timeline costs match the supplied six cards", () => {
+  const actual=Object.fromEntries(D.units.flatMap(unit=>unit.weapons.map(weapon=>[weapon.id,[weapon.timeline,weapon.range,weapon.strength]])));
+  assert.deepEqual(actual,{
+    "beam-saber":[2,1,2],"beam-rifle":[4,4,5],
+    "gc-rifle":[2,3,2],"low-recoil-240":[3,3,4],
+    "bop-missile":[2,3,2],"low-recoil-120":[4,4,4],
+    "char-heat-hawk":[2,1,3],"char-machine-gun":[3,2,5],
+    "cracker-grenade":[2,3,2],"bazooka":[3,3,4],
+    "shoulder-bash":[2,1,3],"enforcer-heat-hawk":[4,1,5]
+  });
+});
+
+test("direct-damage abilities use the shared Shield-aware defeat path", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/damageUnit\(unit,target,1,"Char Kick"\)/);
+  assert.match(source,/damageUnit\(enforcer,unit,3,"Iron Grip"\)/);
+  assert.match(source,/damageUnit\(responseUnit,attacker,2,"Shattered Formation"\)/);
+  assert.match(source,/damageUnit\(unit,enemy,1,"Drive Them Back","tactic"\)/);
+  assert.match(source,/enemyUnits\.forEach\(target=>damageUnit\(unit,target,2,"Sudden Pressure"\)\)/);
+  assert.match(source,/damageUnit\(attacker,unit,reducedAmount,"Cracker Grenade AOE"\)/);
+});
+
+test("capture effects offer every adjacent Objective and AI prefers one it does not own", () => {
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ai=fs.readFileSync(path.join(__dirname,"..","ai.js"),"utf8");
+  assert.match(game,/function adjacentObjectives\(unit\)/);
+  assert.match(game,/selectObjective\(unit,"Domination"/);
+  assert.match(game,/selectObjective\(unit,"Entrenched Position"/);
+  assert.equal((game.match(/mode\.type==="select-objective"/g)||[]).length,1,"the Objective click branch must not be duplicated");
+  assert.match(ai,/objective\.owner === unit\.team \? 12 : objective\.owner \? 125 : 105/);
+});
+
+test("rules copy describes Phase 2 draw and current-activation Response limits", () => {
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(html,/หลังจบ Phase 1 และคิดคะแนน Objective แล้ว จั่วเพิ่มฝ่ายละ 3 ใบ/);
+  assert.doesNotMatch(html,/ทันทีเมื่อ Unit ทั้ง 3 ของฝ่ายผ่าน TL10/);
+  assert.match(source,/การใช้ Response ใน Activation ของคู่ต่อสู้ไม่ล็อก Tactic ใน Activation ถัดไป/);
+});
+
+test("Escape cannot cancel a mandatory Critical, capture, or Crimson resolution", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const keyboard=source.match(/document\.addEventListener\("keydown",event=>\{[\s\S]*?\n  \}\);/)?.[0]||"";
+  assert.match(keyboard,/if\(currentMode\.required\)return/);
+  assert.match(source,/type:"push-direction"[\s\S]{0,180}required:true/);
+  assert.match(source,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
+  assert.match(source,/selectObjective\(unit,"Entrenched Position",[\s\S]{0,180},true\)/);
+});
+
+test("a blocked AI deployment takes the official Energize fallback without deadlocking the next turn", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const fallback=source.match(/function resolveBlockedDeployment\(unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(fallback,/unit\.energy\+=1/);
+  assert.match(fallback,/payTimeline\(unit,2\)/);
+  assert.match(fallback,/unit\.zone="reserve"/);
+  assert.match(fallback,/aiBusy=false/);
+  assert.match(fallback,/scheduleStartActivation\(\)/);
+  const aiAdvance=source.match(/function aiAdvance\(unit,onComplete\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(aiAdvance,/if\(!choice&&mustMove\)\{resolveBlockedDeployment\(unit\);return;\}/);
 });

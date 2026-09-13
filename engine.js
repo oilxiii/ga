@@ -81,40 +81,42 @@
     return state.garrisons?.find(garrison => garrison.q === q && garrison.r === r) || null;
   }
 
+  function baseAt(q, r) {
+    return DATA.map.featureCoordinates.bases.find(base => base.q === q && base.r === r) || null;
+  }
+
   function lineOfSightDetails(state, attacker, target) {
     // Adjacent targets never have an intervening hex, so LOS is automatically clear.
     if (distance(attacker,target) <= 1) return {clear:true,paths:[{clear:true,path:line(attacker,target),blocker:null}]};
     const aElev = elevationAt(state, attacker.q, attacker.r);
     const tElev = elevationAt(state, target.q, target.r);
+    const highElev = Math.max(aElev,tElev);
+    const sameElevation = aElev === tElev;
     const inspectPath = path => {
       for (const hex of path.slice(1,-1)) {
         const hexElevation=elevationAt(state,hex.q,hex.r);
-        // LOS is judged from the attacker's elevation. Any intervening terrain above the
-        // attacker blocks. When firing downhill, terrain level with the attacker also blocks
-        // because the attacker cannot see through the crest of its own level.
-        const terrainBlocks = aElev > tElev ? hexElevation >= aElev : hexElevation > aElev;
+        // p.20: terrain above both endpoints always blocks. If the endpoints are at
+        // different elevations, terrain level with the higher endpoint also blocks.
+        const terrainBlocks = hexElevation > highElev || (!sameElevation && hexElevation === highElev);
         if (terrainBlocks) {
           return {clear:false,path,blocker:{...hex,type:"terrain",elevation:hexElevation}};
         }
 
-        // Allied pieces never block LOS. Any intervening enemy Unit/Garrison/Base or
-        // enemy-controlled Objective blocks regardless of its elevation.
+        // Allied pieces never block LOS. Enemy Units, Garrisons, and structures only
+        // block at the shared elevation, or at the higher endpoint's elevation when
+        // the acting unit and target are on different levels. Objectives are not structures.
         const blockingUnit=unitAt(state,hex.q,hex.r);
-        if (blockingUnit && blockingUnit.team !== attacker.team) {
+        if (blockingUnit && blockingUnit.team !== attacker.team && hexElevation === highElev) {
           return {clear:false,path,blocker:{...hex,type:"unit",elevation:hexElevation,id:blockingUnit.id}};
         }
         const blockingGarrison=garrisonAt(state,hex.q,hex.r);
-        if (blockingGarrison && blockingGarrison.team !== attacker.team) {
+        if (blockingGarrison && blockingGarrison.team !== attacker.team && hexElevation === highElev) {
           return {clear:false,path,blocker:{...hex,type:"garrison",elevation:hexElevation,id:blockingGarrison.id}};
         }
 
-        const blockingBase=DATA.map.featureCoordinates.bases.find(base=>base.q===hex.q&&base.r===hex.r);
-        if (blockingBase && blockingBase.team !== attacker.team) {
+        const blockingBase=baseAt(hex.q,hex.r);
+        if (blockingBase && blockingBase.team !== attacker.team && hexElevation === highElev) {
           return {clear:false,path,blocker:{...hex,type:"base",elevation:hexElevation}};
-        }
-        const blockingObjective=state.objectives?.find(objective=>objective.q===hex.q&&objective.r===hex.r);
-        if (blockingObjective?.owner && blockingObjective.owner !== attacker.team) {
-          return {clear:false,path,blocker:{...hex,type:"objective",elevation:hexElevation,id:blockingObjective.id}};
         }
       }
       return {clear:true,path,blocker:null};
@@ -156,7 +158,10 @@
     const effectiveAllowance = Math.max(0, allowance - engagementPenalty);
     const start = key(unit.q, unit.r);
     const startElevation = elevationAt(state, unit.q, unit.r);
-    const jumping = !options.ignoreElevation && startElevation > 0;
+    // Ignoring terrain costs does not switch off the unit's normal Jump state.
+    // A movement ability such as Zeon Zealotry can ignore elevation costs while a
+    // unit that started elevated still bypasses enemies below its starting level.
+    const jumping = startElevation > 0;
     const queue = [[unit.q, unit.r, 0]];
     const visited = new Map([[start, 0]]);
     const costs = new Map();
@@ -171,13 +176,15 @@
         const isEnemyUnit = !!occupant && occupant.team !== unit.team;
         const garrison = garrisonAt(state, nq, nr);
         const isEnemyGarrison = !!garrison && garrison.team !== unit.team;
+        const base = baseAt(nq,nr);
+        const isEnemyBase = !!base && base.team !== unit.team;
 
         const nextElevation = elevationAt(state, nq, nr);
         // Rule (p.17, Jumping): a unit jumping from elevated terrain may bypass enemy units
         // or enemy Garrisons at a lower elevation than its own starting elevation.
         const jumpsOverEnemy = jumping && nextElevation < startElevation;
-        // Enemy units and enemy Garrisons are otherwise fully impassable (p.14).
-        if ((isEnemyUnit || isEnemyGarrison) && !jumpsOverEnemy) continue;
+        // Enemy pieces and structures are otherwise fully impassable (p.14).
+        if ((isEnemyUnit || isEnemyGarrison || isEnemyBase) && !jumpsOverEnemy) continue;
 
         const currentElevation = elevationAt(state, q, r);
         const elevationBaseline = jumping ? Math.max(startElevation, currentElevation) : currentElevation;
@@ -188,10 +195,9 @@
         visited.set(nk, next);
         queue.push([nq, nr, next]);
 
-        // Rule (p.14): a unit may move THROUGH allied units/Garrisons, but may never END
-        // its movement on a hex occupied by any unit (ally or enemy) or containing any
-        // Garrison (ally or enemy).
-        const blocksEnding = !!occupant || !!garrison;
+        // A unit may pass through allied Units, Garrisons, and structures, but it may
+        // never end movement in any occupied hex or on a Base.
+        const blocksEnding = !!occupant || !!garrison || !!base;
         if (blocksEnding) costs.delete(nk);
         else costs.set(nk, next);
       }
@@ -231,8 +237,9 @@
     if(destinationElevation>currentElevation)return {type:"collision",reason:"terrain",q,r};
     const occupiedUnit=unitAt(state,q,r);
     const occupiedGarrison=garrisonAt(state,q,r);
-    if(occupiedUnit||occupiedGarrison){
-      return {type:"collision",reason:"occupied",q,r,unit:occupiedUnit,garrison:occupiedGarrison};
+    const occupiedBase=baseAt(q,r);
+    if(occupiedUnit||occupiedGarrison||occupiedBase){
+      return {type:"collision",reason:"occupied",q,r,unit:occupiedUnit,garrison:occupiedGarrison,base:occupiedBase};
     }
     return {type:"move",q,r};
   }
@@ -290,7 +297,7 @@
       phase: 1, round: 1, status: "playing", board: boardData(), units, garrisons, upgrades, energy, objectives,
       vp: { fed: 0, zeon: 0 }, rescuedGarrisons: { fed: 0, zeon: 0 }, usedTactics: new Set(), hands: { fed: [], zeon: [] }, tacticDecks: { fed: [], zeon: [] }, retiredTactics: { fed: [], zeon: [] }, tacticCycles: { fed: 1, zeon: 1 },
       currentTick: 1, resolvedThisTick: new Set(), log: [], activeUnitId: null,
-      timelineSeqCounter: units.length, lastActivatedTeam: null, responseTacticLock: { fed: false, zeon: false },
+      timelineSeqCounter: units.length, lastActivatedTeam: null,
       activation: { advanced: false, actionUsed: false, commandUsed: false, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 }, winner: null
     };
     dealTacticHands(state, rng);
@@ -320,11 +327,6 @@
     if(!state.retiredTactics[team].includes(id)) state.retiredTactics[team].push(id);
     state.usedTactics.add(id);
     return true;
-  }
-
-  function teamPassedTimeline(state, team, limit = 10) {
-    const units=state.units.filter(unit=>unit.team===team);
-    return units.length===3&&units.every(unit=>unit.nextAt>limit);
   }
 
   function advanceUnitTimeline(state, unit, amount) {
@@ -403,25 +405,31 @@
     const accuracy = elevationMod + targeted;
     const dice = Array.from({ length: count }, () => Math.floor(rng() * 10) + 1);
     const critFloor = attacker.critBoost || (attacker.id === "guncannon" && Object.values(attacker.upgrades).reduce((a,b)=>a+b,0) >= 2) ? 7 : 9;
-    let results = dice.map(die=>classifyAttackDie(die,accuracy,critFloor));
-    const wasDisarmed=!!attacker.statuses.disarm;
-    const disarmRerolled=[];
-    if (wasDisarmed) {
-      // Disarm: reroll every ordinary Hit once. Criticals remain damage, but all Critical
-      // effects are disabled for this attack. The Disarm token is then consumed.
-      results.forEach((classification,index)=>{
-        if(classification!=="hit")return;
-        disarmRerolled.push(index);
-        dice[index]=Math.floor(rng()*10)+1;
-        results[index]=classifyAttackDie(dice[index],accuracy,critFloor);
-      });
-      attacker.statuses.disarm = false;
-    }
+    const results = dice.map(die=>classifyAttackDie(die,accuracy,critFloor));
+    const disarmedPending=!!attacker.statuses.disarm;
     return summarizeAttackResult(state,attacker,defender,weapon,{
       dice, results, accuracy, critFloor,
       rerollEligible:attacker.id==="gundam",
-      disarmed:wasDisarmed, disarmRerolled, criticalEffectsDisabled:wasDisarmed
+      disarmed:false, disarmedPending, disarmRerolled:[], criticalEffectsDisabled:false
     });
+  }
+
+  function resolveDisarmAttack(state, attacker, defender, weapon, result, rng = Math.random) {
+    if(!result?.disarmedPending||!attacker?.statuses?.disarm)return result;
+    const rerolled=[];
+    result.results.forEach((classification,index)=>{
+      if(classification!=="hit")return;
+      rerolled.push({index,from:result.dice[index]});
+      result.dice[index]=Math.floor(rng()*10)+1;
+      result.results[index]=classifyAttackDie(result.dice[index],result.accuracy,result.critFloor);
+    });
+    attacker.statuses.disarm=false;
+    result.disarmedPending=false;
+    result.disarmed=true;
+    result.disarmRerolled=rerolled.map(entry=>entry.index);
+    result.disarmRerollDetails=rerolled;
+    result.criticalEffectsDisabled=true;
+    return summarizeAttackResult(state,attacker,defender,weapon,result);
   }
 
   function rerollAttackDie(state, attacker, defender, weapon, result, index, rng = Math.random) {
@@ -533,10 +541,11 @@
   function redeploy(state, unit) { return beginDeploy(state, unit); }
 
   function scoreObjectives(state) {
-    for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += 1;
+    const points=DATA.rules.objective?.phaseVp ?? 5;
+    for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, teamPassedTimeline, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, resolveDisarmAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
