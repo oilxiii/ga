@@ -1197,17 +1197,16 @@
 
   function renderHand() {
     const unit=activeUnit(); if (!unit) return;
-    if(isAiTeam(unit.team)){
-      $("#hand-title").textContent=`${teamName(unit.team)} · AI HAND ${state.hands[unit.team].length} / 9`;
-      $("#tactic-hand").innerHTML=`<div class="ai-hand-hidden" aria-label="มือการ์ดของ AI ถูกซ่อน">${state.hands[unit.team].map(()=>`<span class="ai-card-back">TACTIC</span>`).join("")}</div>`;
-      return;
-    }
-    $("#hand-title").textContent=`${teamName(unit.team)} · HAND ${state.hands[unit.team].length} / 9`;
-    const hand=state.hands[unit.team].map(getTactic);
+    const handTeam=matchMode==="ai"?humanTeam:unit.team;
+    if(!handTeam)return;
+    $("#hand-title").textContent=`${teamName(handTeam)} · ${matchMode==="ai"?"YOUR ":""}HAND ${state.hands[handTeam].length} / 9`;
+    const hand=state.hands[handTeam].map(getTactic);
     $("#tactic-hand").innerHTML=hand.map(card=>{
       const used=isUsed(card.id);
-      const legal=!used && card.timing==="COMMAND" && !state.activation.tacticUsed[card.team] && !mode && !attackTargetingBusy;
-      return `<button class="tactic-card ${used?"used":legal?"legal":""}" data-card="${card.id}" aria-label="${card.name}"><img src="${card.card}" alt="การ์ดจริง ${card.name}"><span class="card-state">${used?"USED · VIEW":legal?"VIEW · CONFIRM":"VIEW · "+card.timing}</span></button>`;
+      const humanCommandTurn=unit.team===handTeam&&!isAiTeam(unit.team);
+      const legal=!used && humanCommandTurn && card.timing==="COMMAND" && !state.activation.tacticUsed[card.team] && !mode && !attackTargetingBusy;
+      const stateLabel=used?"USED · VIEW":legal?"VIEW · CONFIRM":card.timing==="RESPONSE"?"VIEW · RESPONSE":"VIEW · "+card.timing;
+      return `<button class="tactic-card ${used?"used":legal?"legal":""}" data-card="${card.id}" aria-label="${card.name}"><img src="${card.card}" alt="การ์ดจริง ${card.name}"><span class="card-state">${stateLabel}</span></button>`;
     }).join("");
     $("#tactic-hand").querySelectorAll("[data-card]").forEach(card=>card.addEventListener("click",()=>handleTactic(card.dataset.card)));
   }
@@ -1601,29 +1600,35 @@
     return true;
   }
 
-  function afterUnitMove(unit, movementType, afterEffects=null, movementOccurred=true, options={}) {
-    if (!options.skipCharKick && unit.id==="chars-zaku" && movementType==="dash") {
-      const targets=adjacentCharKickTargets(unit);
-      if (targets.all.length) {
-        addLog(`Char Kick พร้อมใช้งานหลัง Dash — เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1`);
-        mode={type:"char-kick",unitId:unit.id,targets:new Set(targets.all.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint:"Char Kick: เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1",callback:afterEffects,onCancel:afterEffects};
-        menuOpen=true;
-        return;
-      }
-    }
+  function resolveMovementResponses(unit, movementType, afterEffects=null, movementOccurred=true) {
+    const continueMovement=()=>{if(afterEffects)afterEffects();};
+    if(!unit||!movementOccurred){continueMovement();return;}
     const enforcer=state.units.find(x=>x.id==="zaku-enforcer"&&x.zone==="board");
-    if (movementOccurred&&unit.team==="fed"&&enforcer&&E.distance(unit,enforcer)===1&&inHand("zeon","iron-grip")&&!isUsed("iron-grip")&&!state.activation.tacticUsed.zeon) {
+    if (unit.team==="fed"&&enforcer&&E.distance(unit,enforcer)===1&&inHand("zeon","iron-grip")&&!isUsed("iron-grip")&&!state.activation.tacticUsed.zeon) {
       openResponse([getTactic("iron-grip")], card=>{
         useResponse(card);
         const {defeated}=damageUnit(enforcer,unit,3,"Iron Grip");
         closeModal();
         renderAll();
         if(defeated&&finishDefeatedActiveActivation(unit,"Iron Grip"))return;
-        if(afterEffects)afterEffects();
-      },()=>{if(afterEffects)afterEffects();});
+        continueMovement();
+      },continueMovement,{movementType});
       return;
     }
-    if(afterEffects)afterEffects();
+    continueMovement();
+  }
+
+  function afterUnitMove(unit, movementType, afterEffects=null, movementOccurred=true, options={}) {
+    if (!options.skipCharKick && unit.id==="chars-zaku" && movementType==="dash") {
+      const targets=adjacentCharKickTargets(unit);
+      if (targets.all.length) {
+        addLog(`Char Kick พร้อมใช้งานหลัง Dash — เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1`);
+        mode={type:"char-kick",unitId:unit.id,targets:new Set(targets.all.map(target=>E.key(target.q,target.r))),returnMenu:"main",hint:"Char Kick: เลือก Unit หรือ Garrison ศัตรูที่ติดกันเพื่อสร้าง Damage 1",callback:()=>resolveMovementResponses(unit,movementType,afterEffects,movementOccurred),onCancel:()=>resolveMovementResponses(unit,movementType,afterEffects,movementOccurred)};
+        menuOpen=true;
+        return;
+      }
+    }
+    resolveMovementResponses(unit,movementType,afterEffects,movementOccurred);
   }
 
   function beginAttack(weapon, options={}) {
