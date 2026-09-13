@@ -1,4 +1,4 @@
-GUNDAM ASSEMBLE // ONLINE — Launch Candidate v51
+GUNDAM ASSEMBLE // ONLINE — Launch Candidate v54
 
 วิธีเปิดเกม
 1. เก็บไฟล์และโฟลเดอร์ทั้งหมดไว้ด้วยกัน
@@ -21,8 +21,8 @@ GUNDAM ASSEMBLE // ONLINE — Launch Candidate v51
 - ห้ามย้าย index.html ออกจากโฟลเดอร์นี้เพียงไฟล์เดียว เพราะเกมเรียกใช้ assets ภายในโฟลเดอร์
 - AI ใช้ข้อมูลและกติกาเดียวกับผู้เล่น ไม่อ่านชนิด Mystery Upgrade ก่อนเปิด และไม่เห็นมือ Tactic ของผู้เล่น
 - Newtype Instincts ทอยใหม่ได้เฉพาะลูกที่เป็น Miss ตามข้อความบน Unit Card
-- เพลง Gundam 8-bit จะลูปเฉพาะหน้า Title; เมื่อเริ่มเกมเพลงนี้จะหยุดและเปลี่ยนเป็นเพลงต่อสู้เดิม
-- ปุ่มลำโพงมุมขวาบนใช้เปิด/ปิดทั้งเพลงและเสียงเอฟเฟกต์
+- หน้า Title ใช้เพลง Title ตามเดิม; เมื่อเริ่มเกมจะใช้เพลงที่เลือกจากปุ่มลำโพง (เพลง 1 = Battle BGM, เพลง 2 = Alternate/Title BGM)
+- ปุ่มลำโพงมุมขวาบนเปิดเมนูเลือก เพลง 1 / เพลง 2 / ปิดเสียง; ตัวเลือกปิดเสียงจะปิดทั้ง BGM และ Sound Effects
 - AI เว้นจังหวะก่อนเลือกคำสั่งและกล้องจะติดตาม Unit ของ AI เมื่อเริ่ม Activation
 - ENCOUNTER จะแสดงเหนือเป้าหมายที่ต้องโจมตีก่อน และ MOVE -1 จะแสดงเหนือ Unit ที่ถูกลดระยะเดิน
 - กล้องติดตาม Unit ที่กำลังเล่นทุกฝ่าย; ใน Hot-seat จะเลื่อนหลังผู้เล่นกดพร้อม
@@ -31,6 +31,7 @@ GUNDAM ASSEMBLE // ONLINE — Launch Candidate v51
 - คลิก Unit ตัวอื่นบนแผนที่ได้ทั้งฝ่ายเดียวกันและศัตรูเพื่อเปิดดู Unit Card แบบเต็มแผ่น; Unit ที่กำลังทำงานยังเปิด Command Menu ตามเดิม
 - Dash ของผู้เล่นปรับตำแหน่งซ้ำได้ภายในพื้นที่เดิมเหมือน Move; หัก Timeline, เก็บ Token และตรวจ Char Kick เมื่อยืนยัน Action อื่นเท่านั้น
 - แสดงหมายเลข Build ขนาดเล็กที่มุมขวาบนของหน้าการเล่น
+- กติกาการออกเวอร์ชัน: ทุกครั้งที่เปลี่ยนเลข Build/Version ต้องอัปเดตข้อความเวอร์ชันที่แสดงในเกม (มุมขวาบนใน index.html) ให้ตรงกับเวอร์ชันไฟล์และ cache tag เสมอ
 - Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามอัปเดต Scenario ล่าสุด
 
 การตรวจสอบสำหรับผู้พัฒนา (ต้องมี Node.js)
@@ -39,3 +40,5 @@ GUNDAM ASSEMBLE // ONLINE — Launch Candidate v51
 
 - v51 objective scoring update: Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase พร้อมอัปเดตเอฟเฟกต์, Battle Log, tooltip, กติกาย่อ และชุดทดสอบ
 - v50 launch audit: แก้ Line of Sight ตามระดับของปลายทั้งสองฝั่งและเส้นตามขอบ Hex, จ่าย Timeline ก่อนทอย/Resolve, จัดลำดับ After Attack Roll → Disarm → Critical → Damage → Response, ให้ Critical Push เลือกได้ทีละช่องและหยุดก่อนครบระยะได้, แก้การชน Unit/Garrison/Base, แก้ Objective capture/contest และ tie-break, ให้ Response ใช้สิทธิ์ Tactic เฉพาะ Activation ปัจจุบัน, และตรวจความสามารถ Unit/Tactic ครบทุกใบจากภาพการ์ดจริง
+
+- v54 audio selector: ปุ่มลำโพงเปิดตัวเลือก เพลง 1 / เพลง 2 / ปิดเสียง และซิงก์เลข Build ในเกมกับ cache tag เป็น v54

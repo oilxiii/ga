@@ -465,8 +465,8 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="log-toggle"[^>]+aria-expanded="false"/);
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
-  assert.match(html,/id="sound-btn"[^>]+aria-label="ปิดเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v51<\/span>/);
+  assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
+  assert.match(html,/<span class="build-version"[^>]*>v54<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1224,13 +1224,17 @@ test("ordinary Move and Dash cannot stay in place, while optional Critical Dashe
   assert.match(source,/"240mm Critical Dash"[\s\S]{0,240}\{allowStay:true,returnMenu:"main"/);
 });
 
-test("the sound button mutes SFX and both music tracks", () => {
+test("the sound button opens Song 1 / Song 2 / Off audio choices", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function toggleSound\(\)/);
-  assert.match(source,/SFX\.setMuted\(soundMuted\)/);
-  assert.match(source,/BGM\.setMuted\(soundMuted\)/);
-  assert.match(source,/TitleBGM\.setMuted\(soundMuted\)/);
-  assert.match(source,/button\.textContent=soundMuted\?"🔇":"🔊"/);
+  assert.match(source,/function showSoundMenu\(\)/);
+  assert.match(source,/data-sound-choice="song1"/);
+  assert.match(source,/data-sound-choice="song2"/);
+  assert.match(source,/data-sound-choice="off"/);
+  assert.match(source,/song1: "assets\/audio\/battle-bgm\.mp3"/);
+  assert.match(source,/song2: "assets\/audio\/title-bgm\.mp3"/);
+  assert.match(source,/SFX\.setMuted\(true\)/);
+  assert.match(source,/BGM\.select\("off"\)/);
+  assert.match(source,/\$\("#sound-btn"\)\?\.addEventListener\("click",showSoundMenu\)/);
 });
 
 test("completed-activation exits never draw Phase 2 Tactics early", () => {
@@ -1273,7 +1277,7 @@ test("AI movement evaluation removes the unit's old-position LOS blocker", () =>
   assert.match(score,/hasLineOfSight\(simulatedState, enemy, probe\)/);
 });
 
-test("Title music loops only on the Title screen and hands off to the battle track", () => {
+test("Title music hands off to the selected in-game BGM controller", () => {
   const titleTrack=path.join(__dirname,"..","assets","audio","title-bgm.mp3");
   const battleTrack=path.join(__dirname,"..","assets","audio","battle-bgm.mp3");
   assert.ok(fs.existsSync(titleTrack)&&fs.statSync(titleTrack).size>100_000);

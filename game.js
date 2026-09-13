@@ -157,26 +157,53 @@
   })();
 
   const BGM = (() => {
-    let audio = null;
-    let started = false;
-    function ensure() {
-      if (audio) return audio;
-      audio = new Audio("assets/audio/battle-bgm.mp3");
+    const sources = {
+      song1: "assets/audio/battle-bgm.mp3",
+      song2: "assets/audio/title-bgm.mp3"
+    };
+    const tracks = new Map();
+    let selection = "song1";
+
+    function ensure(key=selection) {
+      if (!sources[key]) return null;
+      if (tracks.has(key)) return tracks.get(key);
+      const audio = new Audio(sources[key]);
       audio.loop = true;
       audio.preload = "auto";
       audio.volume = 0.05;
       audio.muted = soundMuted;
       audio.setAttribute("playsinline", "");
+      tracks.set(key,audio);
       return audio;
     }
-    function start() {
-      const track = ensure();
-      if (started && !track.paused) return;
-      const promise = track.play();
-      if (promise?.then) promise.then(() => { started = true; }).catch(() => {});
+    function pauseOthers(except=null) {
+      tracks.forEach((track,key)=>{
+        if(key===except)return;
+        track.pause();
+      });
     }
-    function setMuted(muted) { ensure().muted=!!muted; }
-    return { start, setMuted };
+    function start() {
+      if(selection==="off" || soundMuted)return;
+      const track=ensure(selection);
+      if(!track)return;
+      pauseOthers(selection);
+      const promise=track.play();
+      if(promise?.catch)promise.catch(()=>{});
+    }
+    function select(next) {
+      selection=sources[next]?next:"off";
+      pauseOthers(selection);
+      if(selection==="off")return;
+      const track=ensure(selection);
+      if(track)track.muted=soundMuted;
+      start();
+    }
+    function setMuted(muted) {
+      tracks.forEach(track=>{track.muted=!!muted;});
+      if(!muted)start();
+    }
+    function getSelection(){ return selection; }
+    return { start, select, setMuted, getSelection };
   })();
 
   const TitleBGM = (() => {
@@ -2466,10 +2493,42 @@
 
   function renderSoundButton() {
     const button=$("#sound-btn");if(!button)return;
-    button.textContent=soundMuted?"🔇":"🔊";
-    button.setAttribute("aria-pressed",String(soundMuted));
-    button.setAttribute("aria-label",soundMuted?"เปิดเสียง":"ปิดเสียง");
-    button.title=soundMuted?"เปิดเสียง":"ปิดเสียง";
+    const off=soundMuted||BGM.getSelection()==="off";
+    button.textContent=off?"🔇":"🔊";
+    button.setAttribute("aria-pressed",String(off));
+    button.setAttribute("aria-label","เลือกเพลงและเสียง");
+    button.title="เลือกเพลงและเสียง";
+  }
+
+  function showSoundMenu() {
+    const modal=ensureModal();
+    const current=soundMuted?"off":BGM.getSelection();
+    modal.innerHTML=`<div class="modal-card sound-menu-modal"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">AUDIO</span><h2>เพลงในเกม</h2><p>เลือกเพลงที่จะเล่นระหว่างการต่อสู้ หรือปิดเสียงทั้งหมด</p><div class="sound-choice-list"><button class="action-btn sound-choice ${current==="song1"?"selected":""}" data-sound-choice="song1"><strong>เพลง 1</strong><small>Battle BGM</small></button><button class="action-btn sound-choice ${current==="song2"?"selected":""}" data-sound-choice="song2"><strong>เพลง 2</strong><small>Alternate BGM</small></button><button class="action-btn sound-choice danger ${current==="off"?"selected":""}" data-sound-choice="off"><strong>ปิดเสียง</strong><small>ปิดทั้ง BGM และ Sound Effects</small></button></div></div>`;
+    modal.classList.add("show");
+    modal.querySelector(".modal-close").addEventListener("click",closeModal);
+    modal.querySelectorAll("[data-sound-choice]").forEach(button=>button.addEventListener("click",()=>{
+      const choice=button.dataset.soundChoice;
+      if(choice==="off"){
+        soundMuted=true;
+        SFX.setMuted(true);
+        BGM.select("off");
+        BGM.setMuted(true);
+        TitleBGM.setMuted(true);
+      }else{
+        soundMuted=false;
+        SFX.setMuted(false);
+        TitleBGM.setMuted(false);
+        if(document.body.classList.contains("title-active")){
+          BGM.select(choice);
+          TitleBGM.start();
+        }else{
+          TitleBGM.stop();
+          BGM.select(choice);
+        }
+      }
+      renderSoundButton();
+      closeModal();
+    }));
   }
 
   function renderLosButton() {
@@ -2491,17 +2550,8 @@
     renderAll();
   }
 
-  function toggleSound() {
-    soundMuted=!soundMuted;
-    SFX.setMuted(soundMuted);
-    BGM.setMuted(soundMuted);
-    TitleBGM.setMuted(soundMuted);
-    if(!soundMuted&&document.body.classList.contains("title-active"))TitleBGM.start();
-    renderSoundButton();
-  }
-
   $("#restart-btn").addEventListener("click",()=>{if(confirm("เริ่มเกมใหม่และล้างสถานะปัจจุบัน?"))resetGame();});
-  $("#sound-btn")?.addEventListener("click",toggleSound);
+  $("#sound-btn")?.addEventListener("click",showSoundMenu);
   $("#los-btn")?.addEventListener("click",toggleLosInspection);
   renderSoundButton();
   $("#log-toggle").addEventListener("click",()=>{
