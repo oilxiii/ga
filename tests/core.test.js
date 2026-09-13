@@ -1465,6 +1465,12 @@ test("rules copy describes Phase 2 draw and current-activation Response limits",
   assert.match(source,/การใช้ Response ใน Activation ของคู่ต่อสู้ไม่ล็อก Tactic ใน Activation ถัดไป/);
 });
 
+test("Drive Them Back target selection is mandatory after the Tactic is committed", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน[\s\S]{0,420}\{required:true\}/);
+  assert.match(source,/function selectEnemy[\s\S]{0,650}required:!!options\.required/);
+});
+
 test("Escape cannot cancel a mandatory Critical, capture, or Crimson resolution", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const keyboard=source.match(/document\.addEventListener\("keydown",event=>\{[\s\S]*?\n  \}\);/)?.[0]||"";
@@ -1484,4 +1490,21 @@ test("a blocked AI deployment takes the official Energize fallback without deadl
   assert.match(fallback,/scheduleStartActivation\(\)/);
   const aiAdvance=source.match(/function aiAdvance\(unit,onComplete\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(aiAdvance,/if\(!choice&&mustMove\)\{resolveBlockedDeployment\(unit\);return;\}/);
+});
+
+
+test("required Drive Them Back resolves safely when no legal target remains", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const drive=source.match(/else if \(card\.id==="drive-them-back"\) \{[\s\S]*?\n    \}/)?.[0]||"";
+  assert.match(drive,/const started=selectEnemy\([\s\S]*?\{required:true\}\)/);
+  assert.match(drive,/if\(!started\)[\s\S]*?ไม่มี Unit ศัตรูที่ถูกกติกาให้ผลัก/);
+  assert.match(drive,/mode=null;menuOpen=true;menuView="main"/);
+});
+
+test("committed Crimson Execution skips its required Attack safely when there is no legal Heat Hawk target", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const continuation=source.match(/function continueCrimsonExecution\(card,unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
+  assert.match(continuation,/if\(!started\)[\s\S]*?ข้ามส่วน Attack และจบเอฟเฟกต์/);
+  assert.match(continuation,/mode=null;menuOpen=true;menuView="main"/);
 });

@@ -2048,7 +2048,7 @@
   function selectEnemy(unit,range,hint,callback,filter=()=>true,options={}) {
     const targets=E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=range&&(options.ignoreLos||E.hasLineOfSight(state,unit,x))&&filter(x));
     if (!targets.length) { addLog(`${hint}: ไม่มีเป้าหมายถูกกติกา`); renderAll(); return false; }
-    mode={type:"select-unit",unitId:unit.id,targets:new Set(targets.map(x=>E.key(x.q,x.r))),returnMenu:"main",hint,callback,onCancel:options.onCancel};menuOpen=true;renderAll();return true;
+    mode={type:"select-unit",unitId:unit.id,targets:new Set(targets.map(x=>E.key(x.q,x.r))),returnMenu:"main",hint,callback,onCancel:options.onCancel,required:!!options.required};menuOpen=true;renderAll();return true;
   }
 
   function chooseWhiteBaseUpgrade(target,onChoose) {
@@ -2150,8 +2150,14 @@
     if(!heatHawk){addLog("Crimson Execution: ไม่พบข้อมูล Heat Hawk");renderAll();return false;}
     addLog("Crimson Execution: Heat Hawk Attack · Timeline 0");
     const started=beginAttack(heatHawk,{free:true,required:true});
-    if(!started){addLog("Crimson Execution: ไม่มีเป้าหมาย Heat Hawk ที่ถูกกติกาหลัง Dash");menuOpen=true;menuView="main";renderAll();}
-    return started;
+    if(!started){
+      // The Attack is mandatory only when a legal target exists. If the Dash ends
+      // with no legal Heat Hawk target, the committed Tactic resolves safely here.
+      addLog("Crimson Execution: ไม่มีเป้าหมาย Heat Hawk ที่ถูกกติกาหลัง Dash — ข้ามส่วน Attack และจบเอฟเฟกต์");
+      mode=null;menuOpen=true;menuView="main";renderAll();
+      return true;
+    }
+    return true;
   }
 
   function useCommandTactic(card) {
@@ -2174,12 +2180,20 @@
       const canPushFrom=hex=>E.livingEnemies(state,unit).some(enemy=>E.distance(hex,enemy)===1);
       startMove(2,0,"Drive Them Back",moved=>{
         markCommand(card);
-        afterUnitMove(unit,"tactic",()=>selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{
-          beginPushDirection(unit,enemy,1,()=>{
-            damageUnit(unit,enemy,1,"Drive Them Back","tactic");
-            renderAll();
-          },"Drive Them Back");
-        }),moved);
+        afterUnitMove(unit,"tactic",()=>{
+          const started=selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{
+            beginPushDirection(unit,enemy,1,()=>{
+              damageUnit(unit,enemy,1,"Drive Them Back","tactic");
+              renderAll();
+            },"Drive Them Back");
+          },()=>true,{required:true});
+          // Required resolution applies only when a legal target exists. A target can
+          // disappear during an intervening Response, so never leave an empty required mode.
+          if(!started){
+            addLog("Drive Them Back: ไม่มี Unit ศัตรูที่ถูกกติกาให้ผลัก — ข้ามส่วน Push/Damage และจบเอฟเฟกต์");
+            mode=null;menuOpen=true;menuView="main";renderAll();
+          }
+        },moved);
       },{allowStay:canPushFrom(unit),destinationFilter:canPushFrom});
     }
     else if (card.id==="sudden-pressure") {
