@@ -1633,8 +1633,8 @@
           targets:canFire?new Set(preview.visible.map(hex=>E.key(hex.q,hex.r))):new Set(),
           blockedTargets:new Set(preview.blocked.map(hex=>E.key(hex.q,hex.r))),
           hint:canFire
-            ?`Twin Buster Rifle: แดง = ยิงถึง · เทา = ถูก Terrain บัง · เป้าหมาย ${choice.targets.length} จุด — คลิกช่องสีแดงเพื่อยืนยัน`
-            :`Twin Buster Rifle: แดง = แนวยิง · เทา = ถูก Terrain บัง · ทิศนี้ไม่มีเป้าหมายที่ยิงได้ — Back เพื่อเปลี่ยนทิศ`,
+            ?`Twin Buster Rifle: แดง = ยิงถึง · เทา = อยู่หลังพื้นที่สูงที่บัง · เป้าหมาย ${choice.targets.length} จุด — คลิกช่องสีแดงเพื่อยืนยัน`
+            :`Twin Buster Rifle: แดง = แนวยิง · เทา = อยู่หลังพื้นที่สูงที่บัง · ทิศนี้ไม่มีเป้าหมายที่ยิงได้ — Back เพื่อเปลี่ยนทิศ`,
           callback:canFire?()=>callback(choice.rotation):null,required:false,returnMenu:directionMode.returnMenu||"weapons",
           onCancel:()=>{mode=directionMode;menuOpen=true;}
         };
@@ -1817,7 +1817,7 @@
   function twinBusterPreview(attacker,rotation) {
     const visible=[],blocked=[];
     twinBusterPattern(attacker,rotation).forEach(hex=>{
-      (E.hasLineOfSight(state,attacker,hex,{ignorePieces:true})?visible:blocked).push(hex);
+      (E.hasTwinBusterLine(state,attacker,hex)?visible:blocked).push(hex);
     });
     return {visible,blocked};
   }
@@ -1855,14 +1855,14 @@
       ?"Twin Buster Rifle: เลือกทิศทางจาก Hex สีแดงรอบ Wing Zero"
       :engaged.length
         ?"Twin Buster Rifle: ยังไม่มีแนวที่โจมตีเป้าหมาย Engaged ได้ — เลือกทิศเพื่อดูแนวยิง/สิ่งกีดขวาง"
-        :"Twin Buster Rifle: ยังไม่มีเป้าหมายที่ยิงถึง — เลือกทิศเพื่อดูแนวยิงและช่องที่ Terrain บัง";
+        :"Twin Buster Rifle: ยังไม่มีเป้าหมายที่ยิงถึง — เลือกทิศเพื่อดูแนวยิงและพื้นที่สูงที่บัง";
     mode={type:"aoe-direction",unitId:attacker.id,weapon,required:!!options.required,directionChoices:choices,targets:new Set(choices.map(choice=>E.key(choice.q,choice.r))),hint,callback:fire};
     menuOpen=true;renderAll();return true;
   }
 
   function resolveTwinBusterAttack(attacker,weapon,rotation,options={}) {
     const targets=twinBusterTargets(attacker,rotation);
-    if(!targets.length){addLog("Twin Buster Rifle: ทิศทางนี้ไม่มีเป้าหมายที่มองเห็น");beginTwinBusterAttack(attacker,weapon,options);return;}
+    if(!targets.length){addLog("Twin Buster Rifle: ทิศทางนี้ไม่มีเป้าหมายที่โดนลำแสง");beginTwinBusterAttack(attacker,weapon,options);return;}
     if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
     attacker.nextAttackDiscount=0;
     const first=targets[0];

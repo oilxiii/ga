@@ -1,5 +1,6 @@
-GUNDAM ASSEMBLE // ONLINE — Hologram Team Select v72
+GUNDAM ASSEMBLE // ONLINE — Twin Buster Terrain Rule v73
 
+- v73 Twin Buster Terrain Rule: Twin Buster ไม่ใช้ LOS ปกติ; Unit/Garrison/Base และ Terrain ที่สูงไม่เกินระดับของ Wing Zero ไม่บังลำแสง; เป้าหมายที่ยืนบนพื้นที่สูงยังโดน แต่เป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับยิงของ Wing จะถูกบังและแสดง Preview สีเทา.
 - v72 Hologram Team Select: เพิ่ม scanline/sweep/glow ให้หน้าต่างเลือกทีมดูเป็นโฮโลแกรมมากขึ้น; ลูกศร Secret Team ใช้ accent เดียวกับหน้าต่าง (ฟ้าในขั้นเลือกทีมตัวเอง และแดงในขั้นเลือกคู่แข่ง) โดยไม่ใช้สีเขียว; หลังเลือกทีมตัวเอง ขั้นเลือกคู่แข่งเปลี่ยนกรอบ/แสง/ข้อความ accent เป็นสีแดงทั้งใน 1 Player และ 2 Player.
 - v71 Faction Visual Fix: Base และ Garrison เลือกสีจาก faction ที่ผู้เล่นเลือกจริง ไม่อิง logical board side; ZEON เป็นสีแดงแม้ถูกกำหนดเป็นฝั่ง fed/Player 1, E.F.S.F. เป็นสีน้ำเงินแม้อยู่ฝั่ง zeon/Player 2, Secret Team คง Garrison สีเขียวและ Base แบบเดิม.
 - v70 Secret Team Reveal: เปลี่ยนชื่อที่ผู้เล่นเห็นจาก Ultimate Team เป็น Secret Team; หน้าเลือกทีมของทั้ง 1 Player และ 2 Player ซ่อนทีมนี้ไว้ใน drawer ที่เปิดด้วยลูกศรเล็ก ๆ และการ์ดทีมลับแสดงเฉพาะ ? / SECRET TEAM / CLASSIFIED โดยไม่เปิดเผยชื่อ Unit; internal faction id ยังคงเป็น ultimate เพื่อรักษาความเข้ากันได้ของกฎและ AI.
@@ -46,7 +47,7 @@ GUNDAM ASSEMBLE // ONLINE — Hologram Team Select v72
 - กติกาการออกเวอร์ชัน: ทุกครั้งที่เปลี่ยนเลข Build/Version ต้องอัปเดตข้อความเวอร์ชันที่แสดงในเกม (มุมขวาบนใน index.html) ให้ตรงกับเวอร์ชันไฟล์และ cache tag เสมอ
 - Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามอัปเดต Scenario ล่าสุด
 - Secret Team ใช้สีเขียว ประกอบด้วย Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex
-- Twin Buster Rifle ใช้ AoE ตามรูปบน Unit Card, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison และไม่โจมตี Base หรือพวกเดียวกัน
+- Twin Buster Rifle ใช้ AoE ตามรูปบน Unit Card, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison/Base และ Terrain ปกติ; จะถูกบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับที่ Wing Zero ยืน และไม่โจมตี Base หรือพวกเดียวกัน
 - Secret Team มี Tactic เพียง 3 ใบตลอดเกม: Renewed Power, Sacrificial Overload และ Built to Last โดยไม่จั่วเพิ่มหลัง Phase 1
 - Base และ Garrison ของฝั่งที่เลือก Secret Team ใช้กรอบสีเหลืองทองแยกจาก E.F.S.F. และ ZEON
 

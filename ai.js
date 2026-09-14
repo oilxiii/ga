@@ -140,7 +140,7 @@
     for (const weapon of unit.weapons) {
       if(weapon.aoe==="twinBuster"){
         const targets=[...state.units.filter(target=>target.zone==="board"&&target.team!==unit.team),...(state.garrisons||[]).filter(target=>target.team!==unit.team)]
-          .filter(target=>engine.distance(unit,target)<=3&&engine.hasLineOfSight(state,unit,target,{ignorePieces:true}));
+          .filter(target=>engine.distance(unit,target)<=3&&engine.hasTwinBusterLine(state,unit,target));
         if(targets.length){
           const evaluations=targets.map(target=>({target,isGarrison:!target.weapons,...attackScore(state,unit,target,weapon,engine,!target.weapons)}));
           const target=evaluations.slice().sort((a,b)=>b.score-a.score)[0]?.target;
@@ -211,7 +211,7 @@
     const threats = simulatedState.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board").filter(enemy =>
       enemy.weapons.some(weapon => {
         const range=Number.isFinite(weapon.range)?weapon.range:weapon.aoe==="twinBuster"?3:0;
-        return engine.distance(enemy, probe) <= range && (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe,{ignorePieces:weapon.aoe==="twinBuster"}));
+        return engine.distance(enemy, probe) <= range && (weapon.aoe==="twinBuster" ? engine.hasTwinBusterLine(simulatedState,enemy,probe) : (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe)));
       })
     );
     score -= threats.length * (unit.hp <= unit.maxHp * 0.4 ? 9 : 3);

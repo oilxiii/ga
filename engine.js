@@ -131,6 +131,21 @@
     return lineOfSightDetails(state,attacker,target,options).clear;
   }
 
+  // Twin Buster Rifle does not use normal LOS. Units, Garrisons, Bases and
+  // terrain at or below Wing Zero's firing elevation never block it. The beam
+  // is stopped only when the target is BEHIND an intervening terrain hex that
+  // is strictly higher than Wing Zero. A target standing on that higher hex is
+  // still hit because the endpoint itself is never treated as a blocker.
+  function hasTwinBusterLine(state, attacker, target) {
+    if (!attacker || !target) return false;
+    if (distance(attacker,target) <= 1) return true;
+    const firingElevation = elevationAt(state, attacker.q, attacker.r);
+    const inspectPath = path => !path.slice(1,-1).some(hex =>
+      elevationAt(state,hex.q,hex.r) > firingElevation
+    );
+    return lineVariants(attacker,target).some(inspectPath);
+  }
+
   function engagedEnemies(state, unit) {
     if (!unit || unit.zone !== "board") return [];
     const elevation = elevationAt(state, unit.q, unit.r);
@@ -569,7 +584,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, resolveDisarmAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, resolveDisarmAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
