@@ -22,12 +22,20 @@ test("AI policy is deterministic and never performs its own random rolls", () =>
   assert.doesNotMatch(source, /Math\.random|rollAttack|rerollAttackDie/);
 });
 
-test("1 Player asks for a faction and assigns the opposite faction to AI", () => {
+test("1 Player asks for the human team and then a different AI opponent", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   const game = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
-  assert.match(html, /data-player-team="fed"/);
-  assert.match(html, /data-player-team="zeon"/);
-  assert.match(game, /aiTeam=mode==="ai"\?\(playerTeam==="fed"\?"zeon":"fed"\):null/);
+  for(const faction of ["fed","zeon","ultimate"])assert.match(html,new RegExp(`data-faction="${faction}"`));
+  assert.match(html,/id="secret-team-toggle"/);
+  assert.match(html,/id="secret-team-drawer"[^>]*aria-hidden="true"/);
+  assert.match(html,/<strong>SECRET TEAM<\/strong><span>CLASSIFIED<\/span>/);
+  assert.match(html,/class="secret-team-question"[^>]*>\?<\/span>/);
+  assert.doesNotMatch(html,/WING ZERO · VIDAR · BARBATOS/);
+  assert.match(game,/setSecretRevealed\(false\)/);
+  assert.match(game, /button\.disabled=step===2&&button\.dataset\.faction===firstFaction/);
+  assert.match(game, /launch\(selectingMode,\{fed:firstFaction,zeon:faction\}\)/);
+  assert.match(game, /humanTeam=nextMode==="ai"\?"fed":null/);
+  assert.match(game, /aiTeam=nextMode==="ai"\?"zeon":null/);
   assert.match(game, /else if\(matchMode==="hotseat"\) showPassOverlay/);
 });
 
@@ -68,13 +76,14 @@ test("AI cannot inspect a Mystery Upgrade before it is revealed", () => {
   assert.deepEqual(second, first);
 });
 
-test("AI uses the same legal-action entry points as a player and hides its hand", () => {
+test("AI uses the same legal-action entry points while 1 Player keeps only the human hand visible", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
   assert.match(source, /E\.reachable\(state,unit,allowance/);
   assert.match(source, /beginAttack\(attack\.weapon\)/);
   assert.match(source, /rescueGarrison\(unit,1,true\)/);
   assert.match(source, /handleHexClick\(q,r\)/);
-  assert.match(source, /class="ai-hand-hidden"/);
+  assert.match(source, /const handTeam=matchMode==="ai"\?humanTeam:unit\.team/);
+  assert.doesNotMatch(source, /state\.hands\[aiTeam\].*ai-hand-hidden/);
   assert.match(source, /const controllingUnit=modeUnit\(\)/);
   assert.match(source, /controllingUnit&&isAiTeam\(controllingUnit\.team\)&&!aiPerforming/);
   assert.match(source, /if\(unit&&isAiTeam\(unit\.team\)\)\{menu\.innerHTML="";return;\}/);
@@ -149,4 +158,74 @@ test("AI commits an allowed stay instead of clicking an invalid current hex", ()
   assert.match(resolver, /completeMove\(unit\.q,unit\.r\)/);
   assert.match(game, /const AI_WATCHDOG_ATTEMPTS = 12/);
   assert.match(game, /attempt>AI_WATCHDOG_ATTEMPTS/);
+});
+
+test("AI uses the cheapest Timeline weapon once it has at least a coin-flip finishing chance", () => {
+  const state = E.setupGame(() => 0.5);
+  const guncannon = place(state.units.find(unit => unit.id === "guncannon"), 2, 2);
+  const target = place(state.units.find(unit => unit.id === "chars-zaku"), 2, 3);
+  state.units.filter(unit => ![guncannon, target].includes(unit)).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [];
+  state.objectives = [];
+  target.hp = 2;
+  target.maxHp = 8;
+  // Elevation advantage puts the TL2 rifle comfortably above a 50/50 kill chance,
+  // while the TL3 cannon is much safer. The policy should deliberately take the risk.
+  state.board[E.key(2, 2)].elevation = 1;
+  state.board[E.key(2, 3)].elevation = 0;
+  const attacks = A.attacksFrom(state, guncannon, D, E).filter(choice => choice.target === target);
+  const rifle = attacks.find(choice => choice.weapon.id === "gc-rifle");
+  const cannon = attacks.find(choice => choice.weapon.id === "low-recoil-240");
+  assert.ok(rifle.killChance >= 0.5);
+  assert.ok(cannon.killChance > rifle.killChance);
+  assert.ok(rifle.score > cannon.score, "AI should accept the cheaper 50%+ finishing line instead of buying certainty");
+  assert.equal(A.chooseAttack(state, guncannon, D, E)?.weapon.id, "gc-rifle");
+});
+
+test("AI does not spend extra Timeline to overkill a 1 HP Garrison", () => {
+  const state = E.setupGame(() => 0.5);
+  const guncannon = place(state.units.find(unit => unit.id === "guncannon"), 2, 2);
+  state.units.filter(unit => unit.id !== guncannon.id).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [{ id: "zeon-test", team: "zeon", q: 2, r: 3, hp: 1, maxHp: 1 }];
+  state.objectives = [];
+  const choice = A.chooseAttack(state, guncannon, D, E);
+  assert.equal(choice?.target.id, "zeon-test");
+  assert.equal(choice?.weapon.id, "gc-rifle");
+  assert.equal(choice?.weapon.timeline, 2);
+});
+
+test("AI values scarce Energy and Mystery pickups more than stockpiled resources", () => {
+  const state = E.setupGame(() => 0.5);
+  const gundam = place(state.units.find(unit => unit.id === "gundam"), 5, 5);
+  state.units.filter(unit => unit.id !== gundam.id).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [];
+  state.objectives = [];
+  state.upgrades = [];
+  state.energy = [{ id: "energy-test", q: 5, r: 6 }];
+  gundam.energy = 0;
+  const scarceEnergy = A.positionScore(state, gundam, 5, 6, D, E);
+  gundam.energy = 4;
+  const stockpiledEnergy = A.positionScore(state, gundam, 5, 6, D, E);
+  assert.ok(scarceEnergy > stockpiledEnergy);
+
+  state.energy = [];
+  state.upgrades = [{ id: "upgrade-test", q: 5, r: 6, type: "strength", revealed: false }];
+  gundam.upgrades = { shield: 0, speed: 0, strength: 0 };
+  const scarceUpgrade = A.positionScore(state, gundam, 5, 6, D, E);
+  gundam.upgrades = { shield: 1, speed: 1, strength: 1 };
+  const stockedUpgrade = A.positionScore(state, gundam, 5, 6, D, E);
+  assert.ok(scarceUpgrade > stockedUpgrade);
+});
+
+test("AI takes a reachable item when it is close to the best positional choice", () => {
+  const state = E.setupGame(() => 0.5);
+  const gundam = place(state.units.find(unit => unit.id === "gundam"), 5, 5);
+  state.units.filter(unit => unit.id !== gundam.id).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.objectives = [];
+  state.energy = [{ id: "energy-test", q: 1, r: 1 }];
+  state.upgrades = [];
+  state.garrisons = [{ id: "fed-test", team: "fed", q: 10, r: 11, hp: 1, maxHp: 1 }];
+  gundam.energy = 0;
+  const choice = A.chooseMove(state, gundam, [E.key(1, 1), E.key(10, 10)], D, E, false);
+  assert.deepEqual([choice.q, choice.r], [1, 1], "a near-best free pickup should beat a small positional edge");
 });

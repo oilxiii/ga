@@ -9,29 +9,79 @@ function test(name, fn) {
   catch (error) { console.error(`✗ ${name}\n  ${error.message}`); process.exitCode = 1; }
 }
 
-test("data pack contains 6 units and 18 unique tactics", () => {
-  assert.equal(D.units.length, 6);
-  assert.equal(D.tactics.length, 18);
-  assert.equal(new Set(D.tactics.map(x => x.id)).size, 18);
+test("data pack contains 9 units and 20 unique tactics", () => {
+  assert.equal(D.units.length, 9);
+  assert.equal(D.tactics.length, 20);
+  assert.equal(new Set(D.tactics.map(x => x.id)).size, 20);
 });
 
-test("all 24 real card images are present", () => {
+test("all 29 real card images are present", () => {
   for (const item of [...D.units, ...D.tactics]) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", item.card)), item.card);
   }
 });
 
-test("all 18 tactics use the newly supplied high-resolution PNG cards", () => {
+test("all 20 tactics use high-resolution PNG cards", () => {
   assert.ok(D.tactics.every(card=>card.card.startsWith("assets/cards/tactic-")&&card.card.endsWith(".png")));
   assert.ok(D.tactics.every(card=>fs.statSync(path.join(__dirname,"..",card.card)).size>500000));
 });
 
-test("all six units use separate crops from the supplied icon sheet", () => {
-  assert.equal(new Set(D.units.map(unit => unit.icon)).size, 6);
+test("all nine units use separate map icons", () => {
+  assert.equal(new Set(D.units.map(unit => unit.icon)).size, 9);
   for (const unit of D.units) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", unit.icon)), unit.icon);
     assert.ok(unit.icon.startsWith("assets/icons/"), unit.icon);
   }
+});
+
+test("Ultimate Team can occupy either match side and receives exactly three fixed Tactics", () => {
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  assert.deepEqual(state.units.filter(unit=>unit.team==="fed").map(unit=>unit.id).sort(),["barbatos-lupus-rex","gundam-vidar","wing-zero-ew"]);
+  assert.deepEqual(state.units.filter(unit=>unit.team==="zeon").map(unit=>unit.id).sort(),["guncannon","gundam","guntank"]);
+  assert.ok(state.units.filter(unit=>unit.team==="fed").every(unit=>unit.originalTeam==="ultimate"));
+  assert.deepEqual(D.tacticDecks.ultimate,["renewed-power","sacrificial-overload","built-to-last"]);
+  assert.deepEqual(new Set([...state.hands.fed,...state.tacticDecks.fed]),new Set(D.tacticDecks.ultimate));
+  assert.equal(state.hands.fed.length,3);
+  state.phase=2;
+  E.dealTacticHand(state,"fed",()=>0.1);
+  assert.equal(state.hands.fed.length,3,"Ultimate Team never draws additional Phase 2 Tactics");
+  state.hands={fed:["built-to-last"],zeon:["built-to-last"]};
+  E.retireTacticCard(state,"fed","built-to-last");
+  assert.ok(state.usedTactics.has("fed:built-to-last"));
+  assert.ok(!state.usedTactics.has("zeon:built-to-last"),"shared Tactics are consumed only for their owning side");
+});
+
+test("Ultimate Team core combat rules match Zero System and Fight to the End", () => {
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  const barbatos=state.units.find(unit=>unit.id==="barbatos-lupus-rex");
+  const target=state.units.find(unit=>unit.id==="gundam");
+  for(const [unit,q,r] of [[wing,4,4],[barbatos,5,5],[target,4,5]]){unit.zone="board";unit.q=q;unit.r=r;}
+  const twin=wing.weapons.find(weapon=>weapon.id==="twin-buster-rifle");
+  const aoe=E.attackResultFromDice(state,wing,target,twin,[4,5,7,8,9,10]);
+  assert.equal(aoe.criticals,4);
+  assert.equal(aoe.damage,10,"one shared roll gives every AoE target +1 per Critical, capped at +4");
+  const rex=barbatos.weapons.find(weapon=>weapon.id==="rex-claws");
+  barbatos.hp=11;
+  assert.equal(E.rollAttack(state,barbatos,target,rex,()=>0.5).dice.length,4);
+  barbatos.hp=5;
+  assert.equal(E.rollAttack(state,barbatos,target,rex,()=>0.5).dice.length,5);
+});
+
+test("AoE Line of Sight ignores Units and Garrisons but Twin Buster never targets a Base", () => {
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  const target=state.units.find(unit=>unit.id==="gundam");
+  const blocker=state.units.find(unit=>unit.id==="guncannon");
+  for(const [unit,q,r] of [[wing,0,0],[blocker,0,1],[target,0,2]]){unit.zone="board";unit.q=q;unit.r=r;}
+  assert.equal(E.hasLineOfSight(state,wing,target),false);
+  assert.equal(E.hasLineOfSight(state,wing,target,{ignorePieces:true}),true);
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const preview=source.match(/function twinBusterPreview[\s\S]*?\n  \}/)?.[0]||"";
+  const targets=source.match(/function twinBusterTargets[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(targets,/\.\.\.state\.garrisons\.filter/);
+  assert.doesNotMatch(targets,/state\.bases|featureCoordinates\.bases/);
+  assert.match(preview,/ignorePieces:true/);
 });
 
 test("all supplied token types have separate transparent game assets", () => {
@@ -211,15 +261,30 @@ test("movement charges one extra point per elevation climbed", () => {
   assert.equal(E.reachable(s,unit,3).has(E.key(6,5)),true);
 });
 
-test("downhill is free and jumping keeps the starting elevation baseline", () => {
+test("downhill is free but climbing back up still costs elevation movement", () => {
   const s=E.setupGame(()=>0.5);
   const unit=s.units.find(x=>x.id==="gundam");
   unit.zone="board";unit.q=5;unit.r=5;
   Object.values(s.board).forEach(hex=>{hex.elevation=0;});
   s.board[E.key(5,5)].elevation=1;
-  s.board[E.key(7,4)].elevation=1;
-  assert.equal(E.reachable(s,unit,1).has(E.key(6,5)),true);
-  assert.equal(E.reachable(s,unit,2).has(E.key(7,4)),true);
+  s.board[E.key(7,5)].elevation=1;
+  assert.equal(E.reachable(s,unit,1).has(E.key(6,5)),true,"moving downhill costs only the hex entered");
+  assert.equal(E.reachable(s,unit,2).has(E.key(7,5)),false,"Jump must not make a later climb back to the starting elevation free");
+  assert.equal(E.reachable(s,unit,3).has(E.key(7,5)),true,"the later climb pays +1 elevation movement normally");
+});
+
+test("Hover ignores elevation cost only for Wing Zero, not Barbatos", () => {
+  const s=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  const wing=s.units.find(unit=>unit.id==="wing-zero-ew");
+  const barbatos=s.units.find(unit=>unit.id==="barbatos-lupus-rex");
+  wing.zone="board";wing.q=5;wing.r=5;
+  barbatos.zone="board";barbatos.q=5;barbatos.r=6;
+  s.board[E.key(6,5)].elevation=2;
+  s.board[E.key(6,6)].elevation=2;
+  assert.equal(E.reachable(s,wing,1).has(E.key(6,5)),true,"Wing Hover ignores the climb cost");
+  assert.equal(E.reachable(s,barbatos,1).has(E.key(6,6)),false,"Barbatos must still pay elevation cost");
+  assert.equal(E.reachable(s,barbatos,3).has(E.key(6,6)),true);
 });
 
 test("movement still excludes occupied hexes", () => {
@@ -453,6 +518,19 @@ test("Char Kick uses a damage-or-back decision before committing the Dash", () =
   assert.match(css,/\.char-kick-damage/);
 });
 
+
+
+test("base and Garrison palettes follow the selected faction rather than board side", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/function factionPalette\(faction,\{garrison=false\}=\{\}\)/);
+  assert.match(source,/if\(faction==="zeon"\)return "red"/);
+  assert.match(source,/if\(faction==="ultimate"\)return garrison\?"green":"blue"/);
+  assert.match(source,/const faction=factionForSide\(base\.team\);[\s\S]*?const palette=factionPalette\(faction\)/);
+  assert.match(source,/const faction=factionForSide\(garrison\.team\);[\s\S]*?const palette=factionPalette\(faction,\{garrison:true\}\)/);
+  assert.doesNotMatch(source,/base\.team==="fed"\?"blue":"red"/);
+  assert.doesNotMatch(source,/garrison\.team==="fed"\?"blue":"red"/);
+});
+
 test("battlefield UI uses the compact online title, switchable command placement, and collapsible log", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
@@ -466,7 +544,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v54<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v72<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -491,8 +569,8 @@ test("persistent LOS inspection stays independent from Command and movement prev
   assert.ok(html.indexOf('id="los-btn"')<html.indexOf('id="board-wrap"'),"LOS control remains independent from the contextual Command menu");
   assert.match(source,/let losInspection = \{ enabled:false \}/);
   assert.match(source,/function renderLosInspection/);
-  assert.match(source,/E\.lineOfSightDetails\(state,source,target\)/);
-  assert.match(source,/const maximumRange=Math\.max\(0,\.\.\.\(source\.weapons\|\|\[\]\)\.map\(weapon=>weapon\.range\|\|0\)\)/);
+  assert.match(source,/E\.lineOfSightDetails\(state,source,target/);
+  assert.match(source,/const maximumRange=Math\.max\(0,\.\.\.\(source\.weapons\|\|\[\]\)\.map\(weaponRange\)\)/);
   assert.match(source,/\.\.\.E\.livingEnemies\(state,source\),[\s\S]{0,100}\.\.\.state\.garrisons\.filter\(garrison=>garrison\.team!==source\.team\)/);
   assert.match(source,/E\.distance\(source,target\)<=maximumRange/);
   assert.match(source,/details\.paths\.find\(candidate=>candidate\.clear\)\|\|details\.paths\[0\]/);
@@ -556,17 +634,20 @@ test("attack roll classifies hit and critical dice", () => {
   assert.equal(result.damage,6);
 });
 
-test("all twelve weapons preserve the Unit Card critical effects", () => {
+test("all eighteen weapons preserve the Unit Card critical effects", () => {
   const expected={
     "beam-saber":"gainStrength","beam-rifle":"damage2",
     "gc-rifle":"slow","low-recoil-240":"dashRescueTimeline0",
     "bop-missile":"fracture","low-recoil-120":"slow",
     "char-heat-hawk":"fracture","char-machine-gun":"dashTimeline0",
     "cracker-grenade":"splashDamage1","bazooka":"rescuedGarrisonDamage",
-    "shoulder-bash":"push2","enforcer-heat-hawk":"slow"
+    "shoulder-bash":"push2","enforcer-heat-hawk":"slow",
+    "wing-beam-saber":"move2IgnoreEngagement","twin-buster-rifle":"criticalDamageUpTo4",
+    "vidar-handgun":"repeatAtTimeline0","buret-saber":"damage2",
+    "rex-claws":"slow","tail-blade":"damage1"
   };
   const weapons=D.units.flatMap(unit=>unit.weapons);
-  assert.equal(weapons.length,12);
+  assert.equal(weapons.length,18);
   for(const weapon of weapons)assert.equal(weapon.critical,expected[weapon.id],weapon.id);
 });
 
@@ -844,9 +925,11 @@ test("an objective contest fails on equal nearby unit counts", () => {
 
 test("objectives render as faction flags instead of numbered circles", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   assert.match(source,/class="objective-flag \$\{f\.team\}"/);
   assert.doesNotMatch(source,/class="feature-ring/);
   assert.match(source,/E\.contestObjectives\(state,unit\)/);
+  assert.match(css,/\.objective-flag\.neutral \.objective-cloth \{[\s\S]*fill: #e6b91d;/);
 });
 
 test("phase transition scores Objectives and uses the last player to act as the tie-break winner", () => {
@@ -1108,7 +1191,7 @@ test("out-of-turn selections keep their owning Unit and AI controller", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const assignments=[...source.matchAll(/mode=\{type:"[^"]+"[^\n]*/g)].map(match=>match[0]);
   assert.ok(assignments.length>=7);
-  assert.ok(assignments.every(assignment=>assignment.includes("unitId:unit.id")),"every selection mode must identify its acting Unit");
+  assert.ok(assignments.every(assignment=>assignment.includes("unitId:")),"every selection mode must identify its acting Unit");
   assert.match(source,/function modeUnit\(\)/);
   const resolver=source.match(/function scheduleAiResolveMode[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(resolver,/const unit=modeUnit\(\)/);
@@ -1136,7 +1219,7 @@ test("attack Damage opts into Fracture while direct effects remain direct", () =
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/);
   assert.match(source,/E\.applyDamage\(attacker,result\.damage,\{sourceType:"attack"\}\)/);
-  const movementResponse=source.match(/function afterUnitMove\([\s\S]*?\n  \}/)?.[0]||"";
+  const movementResponse=source.match(/function resolveMovementResponses\([\s\S]*?\n  \}/)?.[0]||"";
   assert.match(movementResponse,/damageUnit\(enforcer,unit,3,"Iron Grip"\)/);
   assert.doesNotMatch(movementResponse,/E\.applyDamage\(unit,3,\{sourceType:"attack"\}\)/);
 });
@@ -1145,7 +1228,8 @@ test("Burst Attack validates a target before spending Energy and Iron Grip requi
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/beginAttack\(unit\.weapons\[0\],\{free:true,onDeclare:spend\}\)/);
   assert.match(source,/const moved=unit\.q!==q\|\|unit\.r!==r/);
-  assert.match(source,/movementOccurred&&unit\.team==="fed"/);
+  assert.match(source,/if\(!unit\|\|!movementOccurred\)/);
+  assert.match(source,/enforcer&&unit\.team!==enforcer\.team/);
 });
 
 test("AI waits for human choices and resolves hidden AI declines without a tell", () => {
@@ -1253,7 +1337,7 @@ test("Return Fire obeys Engagement and revalidates nested Response windows", () 
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const queue=source.match(/function openPostCombatResponses[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(queue,/E\.legalWeaponTargets\(state,respondingUnit,weapon\)/);
-  assert.match(queue,/!state\.activation\.tacticUsed\[card\.team\]/);
+  assert.match(queue,/!state\.activation\.tacticUsed\[tacticOwner\(card\)\]/);
   assert.match(queue,/card\.id!=="return-fire"\|\|canAttack/);
   const response=source.match(/function resolvePostCombat[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(response,/E\.legalWeaponTargets\(state,unit,weapon\)/);
@@ -1274,7 +1358,7 @@ test("AI movement evaluation removes the unit's old-position LOS blocker", () =>
   const score=source.match(/function positionScore[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(score,/simulatedState/);
   assert.match(score,/candidate\.id === unit\.id \? probe : candidate/);
-  assert.match(score,/hasLineOfSight\(simulatedState, enemy, probe\)/);
+  assert.match(score,/hasLineOfSight\(simulatedState, enemy, probe(?:,|\))/);
 });
 
 test("Title music hands off to the selected in-game BGM controller", () => {
@@ -1287,7 +1371,7 @@ test("Title music hands off to the selected in-game BGM controller", () => {
   assert.match(titleBgm,/new Audio\("assets\/audio\/title-bgm\.mp3"\)/);
   assert.match(titleBgm,/audio\.loop = true/);
   assert.match(titleBgm,/function stop\(\)[\s\S]*?audio\.pause\(\)[\s\S]*?audio\.currentTime=0/);
-  const launch=source.match(/const launch=\(mode,playerTeam=null\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
+  const launch=source.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
   assert.ok(launch.indexOf("TitleBGM.stop()")>=0);
   assert.ok(launch.indexOf("BGM.start()")>launch.indexOf("TitleBGM.stop()"));
   assert.match(source,/document\.addEventListener\("pointerdown",resumeTitleMusic,true\)/);
@@ -1299,7 +1383,7 @@ test("Crimson Execution continues from Char Kick into the free Heat Hawk attack"
   const continuation=source.match(/function continueCrimsonExecution\(card,unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(continuation,/weapon=>weapon\.id==="char-heat-hawk"/);
   assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
-  assert.match(continuation,/if\(!isUsed\(card\.id\)\)markCommand\(card\)/);
+  assert.match(continuation,/if\(!isUsed\(card\.id,tacticOwner\(card\)\)\)markCommand\(card\)/);
   assert.match(source,/resolveCharKickTarget\(unit,target,continuation\)/);
   assert.match(source,/resolveCharKickGarrisonTarget\(unit,(?:garrison|target),continuation\)/);
   assert.match(source,/const continuation=mode\?\.callback\|\|null;[\s\S]{0,160}resolveCharKickTarget\(unit,target,continuation\)/);
@@ -1400,7 +1484,8 @@ test("a Response uses that player's one Tactic for the current activation only",
   const start=source.match(/function startActivation[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(start,/tacticUsed: \{ fed: false, zeon: false \}/);
   const response=source.match(/function useResponse\(card\)[^\n]*/)?.[0]||"";
-  assert.match(response,/state\.activation\.tacticUsed\[card\.team\]=true/);
+  assert.match(response,/const team=tacticOwner\(card\)/);
+  assert.match(response,/state\.activation\.tacticUsed\[team\]=true/);
 });
 
 test("White Base Unity requires Range 3 and Line of Sight", () => {
@@ -1429,7 +1514,7 @@ test("all attack paths pay Timeline before rolling and keep card-specific after-
   }
 });
 
-test("Unit Card weapon ranges and Timeline costs match the supplied six cards", () => {
+test("Unit Card weapon ranges and Timeline costs match all nine supplied cards", () => {
   const actual=Object.fromEntries(D.units.flatMap(unit=>unit.weapons.map(weapon=>[weapon.id,[weapon.timeline,weapon.range,weapon.strength]])));
   assert.deepEqual(actual,{
     "beam-saber":[2,1,2],"beam-rifle":[4,4,5],
@@ -1437,8 +1522,34 @@ test("Unit Card weapon ranges and Timeline costs match the supplied six cards", 
     "bop-missile":[2,3,2],"low-recoil-120":[4,4,4],
     "char-heat-hawk":[2,1,3],"char-machine-gun":[3,2,5],
     "cracker-grenade":[2,3,2],"bazooka":[3,3,4],
-    "shoulder-bash":[2,1,3],"enforcer-heat-hawk":[4,1,5]
+    "shoulder-bash":[2,1,3],"enforcer-heat-hawk":[4,1,5],
+    "wing-beam-saber":[2,1,4],"twin-buster-rifle":[4,"SP",6],
+    "vidar-handgun":[3,2,3],"buret-saber":[4,1,8],
+    "rex-claws":[2,1,3],"tail-blade":[4,2,7]
   });
+});
+
+test("Ultimate Team commands and follow-up attacks preserve their printed conditions", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/Full Power: Wing Gundam Zero ได้ Strength \+3/);
+  assert.match(source,/controlled<2[\s\S]{0,180}Alaya-Vijnana Type E System/);
+  assert.match(source,/Hunter’s Edge: ไม่มี Unit ศัตรูที่อยู่ติดกัน/);
+  assert.match(source,/beginPushDirection\(unit,target,2/);
+  assert.match(source,/damageUnit\(unit,target,1,"Hunter’s Edge"\)/);
+  assert.match(source,/damageUnit\(unit,unit,3,"Alaya-Vijnana Exertion"/);
+  assert.match(source,/!unit\.attackedWithRexClaws/);
+  assert.match(source,/beginAttack\(rex,\{free:true,required:true\}\)/);
+  assert.match(source,/weapon\.critical==="repeatAtTimeline0"&&!attacker\.handgunRepeatUsed/);
+  assert.match(source,/weapon\.preAttack==="pull1"/);
+});
+
+test("Sacrificial Overload damages Wing and every surviving Unit or Garrison target", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const response=source.match(/else if\(card\.id==="sacrificial-overload"\)[\s\S]*?\n    \}/)?.[0]||"";
+  assert.match(response,/damageUnit\(attacker,attacker,2/);
+  assert.match(response,/if\(target\.weapons&&target\.zone==="board"\)damageUnit/);
+  assert.match(response,/state\.garrisons\.find/);
+  assert.match(response,/damageGarrison\(attacker,garrison,2/);
 });
 
 test("direct-damage abilities use the shared Shield-aware defeat path", () => {
@@ -1461,12 +1572,34 @@ test("capture effects offer every adjacent Objective and AI prefers one it does 
   assert.match(ai,/objective\.owner === unit\.team \? 12 : objective\.owner \? 125 : 105/);
 });
 
-test("rules copy describes Phase 2 draw and current-activation Response limits", () => {
+test("rules copy describes the normal Phase 2 draw and Secret Team exception", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(html,/หลังจบ Phase 1 และคิดคะแนน Objective แล้ว จั่วเพิ่มฝ่ายละ 3 ใบ/);
+  assert.match(html,/Secret Team ไม่มีการจั่วเพิ่ม/);
+  assert.match(source,/Secret Team มีเพียง 3 ใบตลอดเกมและไม่จั่วเพิ่ม/);
   assert.doesNotMatch(html,/ทันทีเมื่อ Unit ทั้ง 3 ของฝ่ายผ่าน TL10/);
   assert.match(source,/การใช้ Response ใน Activation ของคู่ต่อสู้ไม่ล็อก Tactic ใน Activation ถัดไป/);
+});
+
+test("neutral Objectives are yellow while Ultimate Team uses its independent green palette", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(source,/factionForSide\(base\.team\)/);
+  assert.match(source,/factionForSide\(garrison\.team\)/);
+  assert.match(source,/const palette=factionPalette\(faction\)/);
+  assert.match(source,/const palette=factionPalette\(faction,\{garrison:true\}\)/);
+  assert.match(source,/f\.faction==="ultimate"&&f\.type!=="garrison"\?"ultimate-token":""/);
+  assert.match(source,/id="ultimate-token-green"/);
+  assert.match(css,/\.feature-token\.ultimate-token/);
+  assert.match(css,/filter: url\(#ultimate-token-green\)/);
+  assert.match(css,/--ultimate: #35D56F/);
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-green.png")));
+});
+
+test("Tactic hand capacity follows the selected faction deck size", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/const deckSize=\(D\.tacticDecks\?\.\[factionForSide\(handTeam\)\]\|\|\[\]\)\.length/);
+  assert.match(source,/HAND \$\{state\.hands\[handTeam\]\.length\} \/ \$\{deckSize\}/);
 });
 
 test("Drive Them Back target selection is mandatory after the Tactic is committed", () => {
@@ -1511,4 +1644,139 @@ test("committed Crimson Execution skips its required Attack safely when there is
   assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
   assert.match(continuation,/if\(!started\)[\s\S]*?ข้ามส่วน Attack และจบเอฟเฟกต์/);
   assert.match(continuation,/mode=null;menuOpen=true;menuView="main"/);
+});
+
+
+test("1 Player keeps the human Tactic hand visible during AI movement and Iron Grip uses the shared movement-response hook", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/const handTeam=matchMode==="ai"\?humanTeam:unit\.team/);
+  assert.match(source,/function resolveMovementResponses\(/);
+  assert.match(source,/openResponse\(\[getTactic\("iron-grip",enforcer\.team\)\]/);
+  assert.match(source,/afterUnitMove\([\s\S]{0,900}resolveMovementResponses\(unit,movementType,afterEffects,movementOccurred\)/);
+});
+
+
+test("Hover ignores elevation cost in the engine for both human and AI movement", () => {
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  wing.zone="board"; wing.q=0; wing.r=0;
+  // Artificially make one adjacent hex two levels higher. Hover should still pay only 1 movement point.
+  const [q,r]=E.neighbors(0,0)[0];
+  state.board[E.key(q,r)].elevation=2;
+  const reachable=E.reachable(state,wing,1);
+  assert.equal(reachable.get(E.key(q,r)),1);
+});
+
+test("Alaya-Vijnana Exertion commits the once-per-activation Command before self-damage", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const block=source.match(/else if\(unit\.id==="barbatos-lupus-rex"&&slot===2\)[\s\S]*?\n    \}/)?.[0]||"";
+  assert.ok(block.indexOf("spend();")>=0 && block.indexOf("spend();") < block.indexOf('damageUnit(unit,unit,3,"Alaya-Vijnana Exertion"'));
+  assert.match(block,/const legalMove=E\.reachable\(state,unit,2\)/);
+});
+
+test("Twin Buster Rifle may fire while Engaged only when the AoE includes an Engaged target", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const block=source.match(/function beginTwinBusterAttack[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(block,/const engaged=E\.engagedTargets\(state,attacker\)/);
+  assert.match(block,/targets\.some\(target=>engagedIds\.has\(target\.id\)\)/);
+  assert.doesNotMatch(block,/if\(E\.engagedTargets\(state,attacker\)\.length\).*return false/);
+});
+
+test("reopening an adjustable movement draft restores the unit to the original hex before reselection", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const block=source.match(/function openMovementDraft\(unit\)[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(block,/unit\.q=draft\.origin\.q; unit\.r=draft\.origin\.r; unit\.zone=draft\.origin\.zone/);
+});
+
+test("Ultimate Garrison uses a dedicated green-border token without whole-image tint", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/if\(faction==="ultimate"\)return garrison\?"green":"blue"/);
+  assert.match(source,/f\.faction==="ultimate"&&f\.type!=="garrison"\?"ultimate-token":""/);
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-green.png")));
+});
+
+
+
+
+test("Twin Buster confirmation previews blocked terrain in gray and can go Back to direction select", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(source,/function twinBusterPreview/);
+  assert.match(source,/previewTargets:new Set\(preview\.visible/);
+  assert.match(source,/blockedTargets:new Set\(preview\.blocked/);
+  assert.match(source,/mode\?\.type === "aoe-confirm" && mode\.previewTargets\?\.has/);
+  assert.match(source,/mode\?\.type === "aoe-confirm" && mode\.blockedTargets\?\.has/);
+  assert.match(source,/aoeConfirm\?"‹ Back · เปลี่ยนทิศ"/);
+  assert.match(source,/onCancel:\(\)=>\{mode=directionMode;menuOpen=true;\}/);
+  assert.match(source,/required:false,returnMenu:directionMode\.returnMenu\|\|"weapons"/);
+  assert.match(css,/\.hex\.aoe-visible polygon/);
+  assert.match(css,/\.hex\.aoe-blocked polygon/);
+});
+
+test("Twin Buster human aiming exposes all six directions even when every enemy is terrain-blocked", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const begin=source.match(/function beginTwinBusterAttack[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(begin,/const legalChoices=choices\.filter\(choice=>choice\.legal\)/);
+  assert.match(begin,/directionChoices:choices/);
+  assert.match(begin,/targets:new Set\(choices\.map\(choice=>E\.key\(choice\.q,choice\.r\)\)\)/);
+  assert.match(begin,/if\(!legalChoices\.length\)return false/); // AI still refuses an illegal shot.
+
+  // Reproduce the board position from the reported screenshot: Wing at the L2 crown,
+  // Guncannon two hexes north on L1, with L2 terrain at (7,5) in between.
+  const state=E.setupGame(()=>0.5,{fed:"fed",zeon:"ultimate"});
+  state.units.forEach(unit=>{unit.zone="reserve";});
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  const guncannon=state.units.find(unit=>unit.id==="guncannon");
+  wing.zone="board"; wing.q=7; wing.r=6;
+  guncannon.zone="board"; guncannon.q=7; guncannon.r=4;
+  assert.equal(E.elevationAt(state,7,6),2);
+  assert.equal(E.elevationAt(state,7,5),2);
+  assert.equal(E.elevationAt(state,7,4),1);
+  assert.equal(E.hasLineOfSight(state,wing,guncannon,{ignorePieces:true}),false);
+  const details=E.lineOfSightDetails(state,wing,guncannon,{ignorePieces:true});
+  assert.equal(details.paths[0].blocker.type,"terrain");
+  assert.deepEqual([details.paths[0].blocker.q,details.paths[0].blocker.r],[7,5]);
+});
+
+test("Twin Buster keeps all six fixed rotations at map edges and resolves elevation accuracy per target", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const begin=source.match(/function beginTwinBusterAttack[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(begin,/Array\.from\(\{length:6\}/,"Twin Buster directions must not come from filtered map neighbors");
+  assert.doesNotMatch(begin,/E\.neighbors\(attacker\.q,attacker\.r\)\.map/);
+
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"zeon"});
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  const a=state.units.find(unit=>unit.id==="chars-zaku");
+  const b=state.units.find(unit=>unit.id==="zaku-line");
+  const c=state.units.find(unit=>unit.id==="zaku-enforcer");
+  state.units.forEach(unit=>{unit.zone="reserve";});
+  for(const hex of Object.values(state.board))hex.elevation=0;
+  wing.zone="board";wing.q=5;wing.r=5;state.board[E.key(5,5)].elevation=1;
+  // Accuracy is evaluated independently from the same dice values against each elevation.
+  for(const [target,q,r,elev] of [[a,6,5,0],[b,6,6,1],[c,5,6,2]]){
+    target.zone="board";target.q=q;target.r=r;state.board[E.key(q,r)].elevation=elev;
+  }
+  const weapon=wing.weapons.find(w=>w.id==="twin-buster-rifle");
+  const dice=[3,4,5,6,7,8];
+  const down=E.attackResultFromDice(state,wing,a,weapon,dice);
+  const level=E.attackResultFromDice(state,wing,b,weapon,dice);
+  const up=E.attackResultFromDice(state,wing,c,weapon,dice);
+  assert.equal(down.accuracy,1);
+  assert.equal(level.accuracy,0);
+  assert.equal(up.accuracy,-1);
+  assert.ok(down.hits+down.criticals >= level.hits+level.criticals);
+  assert.ok(level.hits+level.criticals >= up.hits+up.criticals);
+});
+
+
+test("team select uses hologram styling and switches to opponent-red state on step two", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(source,/factionSelect\.classList\.toggle\("opponent-step",step===2\)/);
+  assert.match(css,/\.faction-select \{[\s\S]*--select-accent: #69d3ff;/);
+  assert.match(css,/\.faction-select\.opponent-step \{[\s\S]*--select-accent: #ff5067;/);
+  assert.match(css,/\.faction-select-panel::before/);
+  assert.match(css,/@keyframes faction-holo-sweep/);
+  assert.match(css,/\.secret-team-toggle \{[\s\S]*var\(--select-accent-rgb\)/);
+  assert.doesNotMatch(css,/\.secret-team-toggle \{[\s\S]{0,380}53,213,111/);
 });

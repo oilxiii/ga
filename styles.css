@@ -8,6 +8,7 @@
   --cyan: #52d7ff;
   --fed: #36b7ff;
   --zeon: #ff405a;
+  --ultimate: #35D56F;
   --gold: #f7c850;
   --danger: #ff405a;
 }
@@ -235,13 +236,20 @@ body.title-active { overflow: hidden; }
 .hex.reachable polygon { fill: #175c71; stroke: #6ee6ff; stroke-width: 2.4; filter: drop-shadow(0 0 7px #26ccff); }
 .hex.targetable { cursor: crosshair; }
 .hex.targetable polygon { fill: #8c2431; stroke: #ff9aa7; stroke-width: 2.4; filter: drop-shadow(0 0 8px #ff405a); }
+.hex.aoe-visible polygon { fill: #8c2431; stroke: #ff9aa7; stroke-width: 2.4; filter: drop-shadow(0 0 8px #ff405a); }
+.hex.aoe-blocked { cursor: not-allowed; }
+.hex.aoe-blocked polygon { fill: #535860; stroke: #aeb6c1; stroke-width: 2.2; filter: drop-shadow(0 0 6px rgba(180,190,204,.55)); }
 .hex.char-kick-target polygon { fill: #b50d29; stroke: #fff1f3; stroke-width: 3.4; animation: char-kick-hex-pulse .68s ease-in-out infinite alternate; }
 .hex.selected polygon { stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 7px #fff); }
 .elevation-label { fill: rgba(255,255,255,.48); font-size: 8px; font-weight: 900; pointer-events: none; }
 .objective-flag { pointer-events: none; filter: drop-shadow(0 3px 2px rgba(0,0,0,.82)); }
 .objective-pole, .objective-base { fill: none; stroke: #e8eef3; stroke-width: 3; stroke-linecap: round; paint-order: stroke; }
 .objective-cloth { stroke: #fff; stroke-width: 1.2; stroke-linejoin: round; }
-.objective-flag.neutral .objective-cloth { fill: #e6b91d; }
+.objective-flag.neutral .objective-cloth {
+  fill: #e6b91d;
+  stroke: #fff2a6;
+  filter: drop-shadow(0 0 4px rgba(255,212,59,.72));
+}
 .objective-flag.fed .objective-cloth { fill: #168ed0; filter: drop-shadow(0 0 4px #36b7ff); }
 .objective-flag.zeon .objective-cloth { fill: #c72740; filter: drop-shadow(0 0 4px #ff405a); }
 .feature-token { pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,.72)); }
@@ -1146,7 +1154,7 @@ body.title-active { overflow: hidden; }
 .faction-select:not(.show) :is(button, [tabindex]) { visibility: hidden; }
 .faction-select-panel h2 { margin: 7px 0 4px; font-size: clamp(1.55rem, 5vw, 2.25rem); }
 .faction-select-panel > p { margin: 0 0 17px; color: #a9bfd1; line-height: 1.45; }
-.faction-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.faction-options { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
 .faction-option {
   min-width: 0;
   padding: 11px 8px 13px;
@@ -1159,6 +1167,9 @@ body.title-active { overflow: hidden; }
 .faction-option:hover, .faction-option:focus-visible { transform: translateY(-3px); }
 .faction-option.fed:hover, .faction-option.fed:focus-visible { border-color: var(--fed); box-shadow: 0 0 22px rgba(54,183,255,.35); }
 .faction-option.zeon:hover, .faction-option.zeon:focus-visible { border-color: var(--zeon); box-shadow: 0 0 22px rgba(255,64,90,.35); }
+.faction-option.ultimate:hover, .faction-option.ultimate:focus-visible { border-color: var(--ultimate); box-shadow: 0 0 24px rgba(53,213,111,.42); }
+.faction-option.ultimate strong { color: var(--ultimate); text-shadow: 0 1px 8px rgba(53,213,111,.28); }
+.faction-option:disabled { opacity: .24; filter: grayscale(1); cursor: not-allowed; transform: none; box-shadow: none; }
 .faction-option img { display: block; width: 88px; height: 88px; margin: 0 auto 7px; border-radius: 50%; object-fit: cover; background: #eaf5ff; }
 .faction-option strong, .faction-option span { display: block; }
 .faction-option strong { font-size: 1rem; letter-spacing: .08em; }
@@ -1188,4 +1199,270 @@ body.title-active { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) {
   .faction-select, .faction-option, .ai-thinking-chip { transition-duration: .01ms; animation: none !important; }
+}
+
+/* Match-side colors are assigned from the selected factions at runtime. */
+.unit-base.fed, .token-counter-bg.fed { stroke: var(--fed); }
+.unit-base.zeon, .token-counter-bg.zeon { stroke: var(--zeon); }
+.objective-flag.fed .objective-cloth { fill: var(--fed); }
+.objective-flag.zeon .objective-cloth { fill: var(--zeon); }
+.attack-targeting-fx.team-fed .targeting-guide,
+.attack-targeting-fx.team-fed .targeting-ring { stroke: var(--fed); }
+.attack-targeting-fx.team-zeon .targeting-guide,
+.attack-targeting-fx.team-zeon .targeting-ring { stroke: var(--zeon); }
+.objective-capture-fx.fed, .objective-score-fx.fed { --capture: var(--fed); --score: var(--fed); }
+.objective-capture-fx.zeon, .objective-score-fx.zeon { --capture: var(--zeon); --score: var(--zeon); }
+
+/* Ultimate Team keeps the original token silhouettes but owns a distinct green palette. */
+.feature-token.ultimate-token {
+  filter: url(#ultimate-token-green);
+}
+
+/* v70 Secret Team reveal drawer */
+.faction-select-panel {
+  transition: width .28s ease, padding .28s ease, box-shadow .28s ease;
+}
+.faction-select.secret-revealed .faction-select-panel {
+  width: min(600px, 94%);
+  box-shadow: 0 26px 70px rgba(0,0,0,.72), inset 0 0 40px rgba(53,213,111,.08);
+}
+.faction-options-shell {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 27px 0fr;
+  align-items: stretch;
+  gap: 7px;
+  transition: grid-template-columns .28s ease;
+}
+.faction-select.secret-revealed .faction-options-shell {
+  grid-template-columns: minmax(0,1fr) 27px minmax(132px,.58fr);
+}
+.faction-options-shell > .faction-options {
+  grid-template-columns: repeat(2,minmax(0,1fr));
+}
+.secret-team-toggle {
+  align-self: center;
+  width: 27px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid rgba(105,211,255,.34);
+  border-radius: 3px;
+  color: rgba(105,211,255,.72);
+  background: linear-gradient(180deg,rgba(24,77,104,.34),rgba(4,20,31,.9));
+  box-shadow: inset 0 0 10px rgba(105,211,255,.06);
+  font-size: 1.28rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, color .16s ease, opacity .16s ease;
+}
+.secret-team-toggle:hover,.secret-team-toggle:focus-visible {
+  border-color: rgba(105,211,255,.72);
+  color: #69d3ff;
+  box-shadow: 0 0 12px rgba(105,211,255,.16), inset 0 0 10px rgba(105,211,255,.10);
+  transform: scale(1.05);
+}
+.secret-team-drawer {
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-12px);
+  pointer-events: none;
+  transition: opacity .22s ease, transform .28s ease;
+}
+.faction-select.secret-revealed .secret-team-drawer {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+.secret-team-option {
+  width: 100%;
+  height: 100%;
+}
+.secret-team-question {
+  display: grid !important;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 7px;
+  border: 2px solid rgba(53,213,111,.56);
+  border-radius: 50%;
+  color: #d8ffe4 !important;
+  background: radial-gradient(circle at 45% 38%,rgba(53,213,111,.22),rgba(3,17,13,.98) 68%);
+  box-shadow: inset 0 0 22px rgba(53,213,111,.16),0 0 18px rgba(53,213,111,.16);
+  font-size: 3rem !important;
+  font-weight: 950 !important;
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(53,213,111,.72);
+}
+.secret-team-option > span:last-child {
+  color: #70ad82;
+  letter-spacing: .14em;
+}
+@media (max-width:520px) {
+  .faction-select.secret-revealed .faction-select-panel { width:min(440px,94%); }
+  .faction-options-shell,
+  .faction-select.secret-revealed .faction-options-shell { grid-template-columns:1fr; gap:7px; }
+  .faction-options-shell > .faction-options { grid-template-columns:1fr; }
+  .secret-team-toggle {
+    justify-self:center;
+    width:48px;
+    height:25px;
+    transform:rotate(90deg);
+  }
+  .secret-team-toggle:hover,.secret-team-toggle:focus-visible { transform:rotate(90deg) scale(1.05); }
+  .secret-team-drawer {
+    max-height:0;
+    transform:translateY(-10px);
+    transition:max-height .28s ease,opacity .22s ease,transform .28s ease;
+  }
+  .faction-select.secret-revealed .secret-team-drawer { max-height:96px; transform:translateY(0); }
+  .secret-team-option { display:grid; grid-template-columns:72px 1fr; align-items:center; text-align:left; }
+  .secret-team-question { grid-row:1/3; width:64px; height:64px; margin:0 8px 0 0; font-size:2.25rem !important; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .faction-select-panel,.faction-options-shell,.secret-team-toggle,.secret-team-drawer { transition-duration:.01ms !important; }
+}
+
+
+/* v72 Team Select Hologram + Opponent Alert */
+.faction-select {
+  --select-accent: #69d3ff;
+  --select-accent-rgb: 105,211,255;
+  --select-deep: #0b334d;
+}
+.faction-select.opponent-step {
+  --select-accent: #ff5067;
+  --select-accent-rgb: 255,80,103;
+  --select-deep: #4a111d;
+}
+.faction-select-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: rgba(var(--select-accent-rgb),.74);
+  background:
+    linear-gradient(90deg, rgba(var(--select-accent-rgb),.045) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(var(--select-accent-rgb),.035) 1px, transparent 1px),
+    linear-gradient(145deg, color-mix(in srgb,var(--select-deep) 54%,#071321), rgba(2,10,20,.985) 72%);
+  background-size: 24px 24px,24px 24px,auto;
+  box-shadow:
+    0 26px 70px rgba(0,0,0,.72),
+    0 0 26px rgba(var(--select-accent-rgb),.13),
+    inset 0 0 36px rgba(var(--select-accent-rgb),.10);
+  transition: width .28s ease,padding .28s ease,box-shadow .28s ease,border-color .22s ease,background .22s ease;
+}
+.faction-select-panel::before,
+.faction-select-panel::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+}
+.faction-select-panel::before {
+  opacity:.32;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 3px,
+    rgba(var(--select-accent-rgb),.075) 3px 4px,
+    transparent 4px 7px
+  );
+  mix-blend-mode:screen;
+  animation:faction-holo-scan 4.8s linear infinite;
+}
+.faction-select-panel::after {
+  left:-36%;
+  right:auto;
+  width:34%;
+  background:linear-gradient(90deg,transparent,rgba(var(--select-accent-rgb),.08),rgba(255,255,255,.12),rgba(var(--select-accent-rgb),.06),transparent);
+  transform:skewX(-12deg);
+  filter:blur(.3px);
+  animation:faction-holo-sweep 4.2s ease-in-out infinite;
+}
+.faction-select-panel > * { position:relative; z-index:1; }
+.faction-select-panel .eyebrow {
+  color:var(--select-accent);
+  text-shadow:0 0 10px rgba(var(--select-accent-rgb),.72);
+  letter-spacing:.16em;
+}
+.faction-select-panel h2 {
+  text-shadow:0 0 16px rgba(var(--select-accent-rgb),.17);
+}
+.faction-select-panel > p {
+  transition:color .2s ease;
+}
+.faction-select.opponent-step .faction-select-panel > p { color:#dcb2b8; }
+.faction-select.opponent-step .faction-select-panel h2 { color:#fff4f5; }
+.faction-options-shell {
+  position:relative;
+}
+.faction-option {
+  position:relative;
+  overflow:hidden;
+  border-color:rgba(var(--select-accent-rgb),.17);
+  background:
+    linear-gradient(180deg,rgba(var(--select-accent-rgb),.035),transparent 42%),
+    rgba(5,18,29,.92);
+  box-shadow:inset 0 0 18px rgba(var(--select-accent-rgb),.025);
+}
+.faction-option::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.34;
+  background:linear-gradient(180deg,transparent 45%,rgba(var(--select-accent-rgb),.07) 50%,transparent 55%);
+  transform:translateY(-120%);
+  animation:faction-card-scan 3.6s linear infinite;
+}
+.faction-option:nth-child(2)::after { animation-delay:1.15s; }
+.secret-team-option::after { animation-delay:2.1s; }
+
+/* Hidden-team arrow follows the select-window theme; never uses the Secret Team green. */
+.secret-team-toggle {
+  border-color:rgba(var(--select-accent-rgb),.36);
+  color:rgba(var(--select-accent-rgb),.72);
+  background:linear-gradient(180deg,rgba(var(--select-accent-rgb),.09),rgba(3,15,25,.82));
+  box-shadow:inset 0 0 10px rgba(var(--select-accent-rgb),.06);
+  text-shadow:0 0 8px rgba(var(--select-accent-rgb),.28);
+  opacity:.72;
+}
+.secret-team-toggle:hover,.secret-team-toggle:focus-visible {
+  border-color:rgba(var(--select-accent-rgb),.72);
+  color:var(--select-accent);
+  box-shadow:0 0 12px rgba(var(--select-accent-rgb),.16),inset 0 0 10px rgba(var(--select-accent-rgb),.10);
+  opacity:1;
+}
+.faction-select.secret-revealed .faction-select-panel {
+  box-shadow:
+    0 26px 70px rgba(0,0,0,.72),
+    0 0 28px rgba(var(--select-accent-rgb),.15),
+    inset 0 0 40px rgba(var(--select-accent-rgb),.10);
+}
+.faction-select-back {
+  color:color-mix(in srgb,var(--select-accent) 68%,#91a6b5);
+  text-shadow:0 0 8px rgba(var(--select-accent-rgb),.15);
+}
+
+@keyframes faction-holo-scan {
+  0% { transform:translateY(-5px); opacity:.18; }
+  50% { opacity:.38; }
+  100% { transform:translateY(7px); opacity:.18; }
+}
+@keyframes faction-holo-sweep {
+  0%,18% { transform:translateX(-170%) skewX(-12deg); opacity:0; }
+  35% { opacity:.72; }
+  62% { transform:translateX(410%) skewX(-12deg); opacity:0; }
+  100% { transform:translateX(410%) skewX(-12deg); opacity:0; }
+}
+@keyframes faction-card-scan {
+  0%,38% { transform:translateY(-125%); opacity:0; }
+  46% { opacity:.46; }
+  62% { transform:translateY(125%); opacity:0; }
+  100% { transform:translateY(125%); opacity:0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .faction-select-panel::before,.faction-select-panel::after,.faction-option::after { animation:none !important; }
+  .faction-select-panel::before { opacity:.18; }
+  .faction-select-panel::after { display:none; }
 }

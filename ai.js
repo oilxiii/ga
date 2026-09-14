@@ -5,66 +5,179 @@
   const sumUpgrades = unit => Object.values(unit.upgrades || {}).reduce((sum, value) => sum + value, 0);
 
   function attackDice(unit, target, weapon) {
+    const damageTaken=Math.max(0,(unit.maxHp||unit.hp)-unit.hp);
+    const fightToEnd=unit.id==="barbatos-lupus-rex"?(damageTaken>=12?2:damageTaken>=6?1:0):0;
     return Math.max(1,
       weapon.strength +
       (unit.upgrades?.strength || 0) +
       (unit.tempStrength || 0) +
+      fightToEnd +
       (unit.id === "zaku-enforcer" && Number.isFinite(target?.hp) && Number.isFinite(target?.maxHp) && target.hp < target.maxHp ? 1 : 0)
     );
   }
 
-  function expectedAttackDamage(state, unit, target, weapon, engine) {
+  function attackOutcomeStats(state, unit, target, weapon, engine) {
     const elevation = Math.sign(engine.elevationAt(state, unit.q, unit.r) - engine.elevationAt(state, target.q, target.r));
     const targeted = unit.id === "guntank" && sumUpgrades(unit) >= 2 ? 1 : 0;
     const accuracy = elevation + targeted;
-    const critFloor = (unit.critBoost || (unit.id === "guncannon" && sumUpgrades(unit) >= 2)) ? 7 : 9;
-    let successFaces = 0;
+    const critFloor = (unit.critBoost || unit.id === "wing-zero-ew" || (unit.id === "guncannon" && sumUpgrades(unit) >= 2)) ? 7 : 9;
+    let hitFaces = 0;
     let criticalFaces = 0;
     for (let die = 1; die <= 10; die += 1) {
-      if (die >= 9 || (die >= critFloor && die <= 8)) {
-        successFaces += 1;
-        criticalFaces += 1;
-      } else if (die !== 1 && die + accuracy >= 4) successFaces += 1;
+      if (die >= 9 || (die >= critFloor && die <= 8)) criticalFaces += 1;
+      else if (die !== 1 && die + accuracy >= 4) hitFaces += 1;
     }
+    const missFaces = Math.max(0, 10 - hitFaces - criticalFaces);
+    const probabilities = {
+      miss: missFaces / 10,
+      hit: hitFaces / 10,
+      critical: criticalFaces / 10
+    };
     const dice = attackDice(unit, target, weapon);
-    let expected = dice * successFaces / 10;
-    const criticalChance = 1 - Math.pow(1 - criticalFaces / 10, dice);
-    if (weapon.critical === "damage2") expected += criticalChance * 2;
-    if (weapon.critical === "rescuedGarrisonDamage") expected += criticalChance * (state.rescuedGarrisons?.[unit.team] || 0);
-    if (weapon.effect === "objectiveBonus" && state.objectives.some(objective => engine.distance(target, objective) <= 1)) expected += 1;
-    return expected;
-  }
+    let distribution = new Map([["0,0", 1]]);
+    for (let index = 0; index < dice; index += 1) {
+      const next = new Map();
+      for (const [key, probability] of distribution) {
+        const [hits, criticals] = key.split(",").map(Number);
+        const add = (h, c, p) => {
+          if (p <= 0) return;
+          const nextKey = `${h},${c}`;
+          next.set(nextKey, (next.get(nextKey) || 0) + probability * p);
+        };
+        add(hits, criticals, probabilities.miss);
+        add(hits + 1, criticals, probabilities.hit);
+        add(hits, criticals + 1, probabilities.critical);
+      }
+      distribution = next;
+    }
 
-  function attackScore(state, unit, target, weapon, engine, isGarrison = false) {
-    const expected = expectedAttackDamage(state, unit, target, weapon, engine);
-    const hp = Math.max(1, target.hp || 1);
+    const hp = Math.max(1, Number(target.hp) || 1);
     const totalShields = Math.max(0, target.upgrades?.shield || 0);
     const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
     const activeShields = totalShields - inactiveShields;
-    const killChance = Math.min(1, expected / (hp + activeShields));
+    const objectiveBonus = weapon.effect === "objectiveBonus" && state.objectives.some(objective => engine.distance(target, objective) <= 1) ? 1 : 0;
+    const rescuedBonus = Math.max(0, state.rescuedGarrisons?.[unit.team] || 0);
+    let expectedIncoming = 0;
+    let expectedTaken = 0;
+    let usefulDamage = 0;
+    let killChance = 0;
+
+    for (const [key, probability] of distribution) {
+      const [hits, criticals] = key.split(",").map(Number);
+      let incoming = hits + criticals + objectiveBonus;
+      if (criticals > 0) {
+        if (weapon.critical === "damage2") incoming += 2;
+        if (weapon.critical === "damage1") incoming += 1;
+        if (weapon.critical === "criticalDamageUpTo4") incoming += Math.min(4, criticals);
+        if (weapon.critical === "rescuedGarrisonDamage") incoming += rescuedBonus;
+      }
+      let taken = Math.max(0, incoming - activeShields);
+      if (target.statuses?.fracture && taken >= 3) taken += 3;
+      expectedIncoming += probability * incoming;
+      expectedTaken += probability * taken;
+      usefulDamage += probability * Math.min(hp, taken);
+      if (taken >= hp) killChance += probability;
+    }
+
+    return { dice, accuracy, critFloor, expectedIncoming, expectedTaken, usefulDamage, killChance, activeShields };
+  }
+
+  function expectedAttackDamage(state, unit, target, weapon, engine) {
+    return attackOutcomeStats(state, unit, target, weapon, engine).expectedIncoming;
+  }
+
+  function attackScore(state, unit, target, weapon, engine, isGarrison = false) {
+    const stats = attackOutcomeStats(state, unit, target, weapon, engine);
     const vp = isGarrison ? 2 : (target.vp || 0);
-    let score = expected * 8 + killChance * vp * 22 - weapon.timeline * 2.5;
+    // Only reward damage that can actually matter.  Six damage into a 1 HP Garrison
+    // is not six times as valuable as one damage, which prevents expensive weapons
+    // from winning the heuristic purely through overkill.
+    let score = stats.usefulDamage * 10 + stats.killChance * vp * 24 - weapon.timeline * 6;
     if (isGarrison) score += 24;
-    if (target.statuses?.fracture && expected >= 3) score += 18;
+    if (stats.killChance >= 0.5) score += 8;
+    if (target.statuses?.fracture && stats.expectedTaken >= 3) score += 18;
     if (weapon.effect === "destroyUpgrade" && sumUpgrades(target)) score += 10 + sumUpgrades(target) * 2;
     if (weapon.effect === "shieldBreak" && target.upgrades?.shield) score += 8;
     if (["slow", "fracture", "push2"].includes(weapon.critical)) score += 5;
-    return score;
+    return { score, ...stats };
+  }
+
+  function applyTimelineEfficiency(choices) {
+    const RISKY_FINISH_THRESHOLD = 0.50;
+    const groups = new Map();
+    for (const choice of choices) {
+      // AOE weapons can create value across several targets, so do not force them
+      // into the single-target economy rule.
+      if (choice.weapon?.aoe) continue;
+      const key = choice.target?.id;
+      if (!key) continue;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(choice);
+    }
+    for (const group of groups.values()) {
+      const riskyFinishes = group.filter(choice => choice.killChance >= RISKY_FINISH_THRESHOLD);
+      if (!riskyFinishes.length) continue;
+      const minTimeline = Math.min(...riskyFinishes.map(choice => choice.weapon.timeline));
+      const economical = riskyFinishes
+        .filter(choice => choice.weapon.timeline === minTimeline)
+        .sort((a, b) => b.score - a.score)[0];
+      if (!economical) continue;
+      economical.score += 10;
+      economical.timelineEfficient = true;
+      for (const choice of riskyFinishes) {
+        if (choice.weapon.timeline <= minTimeline) continue;
+        // Once a cheaper attack already has at least a coin-flip chance to finish
+        // this exact target, the AI deliberately accepts that risk instead of
+        // buying certainty with more Timeline.
+        choice.score = Math.min(choice.score, economical.score - 1 - (choice.weapon.timeline - minTimeline) * 0.1);
+        choice.timelineEfficiencySuppressed = true;
+      }
+    }
   }
 
   function attacksFrom(state, unit, data, engine) {
     const choices = [];
     for (const weapon of unit.weapons) {
+      if(weapon.aoe==="twinBuster"){
+        const targets=[...state.units.filter(target=>target.zone==="board"&&target.team!==unit.team),...(state.garrisons||[]).filter(target=>target.team!==unit.team)]
+          .filter(target=>engine.distance(unit,target)<=3&&engine.hasLineOfSight(state,unit,target,{ignorePieces:true}));
+        if(targets.length){
+          const evaluations=targets.map(target=>({target,isGarrison:!target.weapons,...attackScore(state,unit,target,weapon,engine,!target.weapons)}));
+          const target=evaluations.slice().sort((a,b)=>b.score-a.score)[0]?.target;
+          choices.push({weapon,target,isGarrison:!target?.weapons,score:evaluations.reduce((sum,item)=>sum+item.score,0),killChance:Math.max(...evaluations.map(item=>item.killChance)),expectedDamage:evaluations.reduce((sum,item)=>sum+item.expectedIncoming,0),usefulDamage:evaluations.reduce((sum,item)=>sum+item.usefulDamage,0)});
+        }
+        continue;
+      }
       for (const target of engine.legalWeaponTargets(state, unit, weapon)) {
         const isGarrison = (state.garrisons || []).some(garrison => garrison === target || garrison.id === target.id);
-        choices.push({ weapon, target, isGarrison, score: attackScore(state, unit, target, weapon, engine, isGarrison) });
+        const evaluation=attackScore(state, unit, target, weapon, engine, isGarrison);
+        choices.push({ weapon, target, isGarrison, score: evaluation.score, killChance:evaluation.killChance, expectedDamage:evaluation.expectedIncoming, usefulDamage:evaluation.usefulDamage });
       }
     }
+    applyTimelineEfficiency(choices);
     return choices.sort((a, b) => b.score - a.score);
   }
 
   function chooseAttack(state, unit, data, engine) {
     return attacksFrom(state, unit, data, engine)[0] || null;
+  }
+
+  function pickupValue(state, unit, q, r) {
+    let value = 0;
+    const energyHere = state.energy.some(item => item.q === q && item.r === r);
+    const upgradeHere = state.upgrades.some(item => item.q === q && item.r === r);
+    if (energyHere) {
+      const energy = Math.max(0, unit.energy || 0);
+      const energyCommands = [unit.command, unit.command2].filter(command => (command?.energy || 0) > 0);
+      const canSpendEnergy = energyCommands.length > 0;
+      value += !canSpendEnergy ? 20 : energy === 0 ? 42 : energy === 1 ? 34 : energy === 2 ? 27 : 18;
+    }
+    if (upgradeHere) {
+      // Mystery tokens stay hidden from the AI; only scarcity changes their value.
+      const upgrades = sumUpgrades(unit);
+      value += upgrades === 0 ? 42 : upgrades === 1 ? 36 : upgrades === 2 ? 30 : 22;
+    }
+    return { value, hasItem: energyHere || upgradeHere };
   }
 
   function positionScore(state, unit, q, r, data, engine) {
@@ -86,13 +199,20 @@
       if (garrison.team === unit.team && distance <= 1) score += 44;
       if (garrison.team !== unit.team && distance <= 2) score += 12;
     }
-    if (state.energy.some(item => item.q === q && item.r === r)) score += 22;
-    // Mystery tokens are deliberately scored identically: the AI never reads their hidden type.
-    if (state.upgrades.some(item => item.q === q && item.r === r)) score += 24;
+    const pickup=pickupValue(state,unit,q,r);
+    score += pickup.value;
     const attack = chooseAttack(simulatedState, probe, data, engine);
-    if (attack) score += Math.min(85, attack.score * 0.72);
+    if (attack) {
+      score += Math.min(85, attack.score * 0.72);
+      // Ending Advance on an item while still retaining a good attack is especially
+      // efficient because the pickup costs no extra Timeline or action.
+      if(pickup.hasItem)score += 9;
+    }
     const threats = simulatedState.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board").filter(enemy =>
-      enemy.weapons.some(weapon => engine.distance(enemy, probe) <= weapon.range && (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe)))
+      enemy.weapons.some(weapon => {
+        const range=Number.isFinite(weapon.range)?weapon.range:weapon.aoe==="twinBuster"?3:0;
+        return engine.distance(enemy, probe) <= range && (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe,{ignorePieces:weapon.aoe==="twinBuster"}));
+      })
     );
     score -= threats.length * (unit.hp <= unit.maxHp * 0.4 ? 9 : 3);
     return score;
@@ -104,7 +224,19 @@
       return { q, r, score: positionScore(state, unit, q, r, data, engine) };
     });
     if (allowStay) candidates.push({ q: unit.q, r: unit.r, score: positionScore(state, unit, unit.q, unit.r, data, engine) + 1 });
-    return candidates.sort((a, b) => b.score - a.score || a.q - b.q || a.r - b.r)[0] || null;
+    const ranked=candidates.sort((a, b) => b.score - a.score || a.q - b.q || a.r - b.r);
+    const best=ranked[0]||null;
+    if(!best)return null;
+    const pickupCandidates=ranked.filter(candidate=>
+      state.energy.some(item=>item.q===candidate.q&&item.r===candidate.r)||
+      state.upgrades.some(item=>item.q===candidate.q&&item.r===candidate.r)
+    );
+    const pickup=pickupCandidates[0];
+    // If collecting an item is nearly as good as the absolute best destination,
+    // take the free resource now. A clearly superior attack/objective position can
+    // still override this bias, so the AI does not chase loot blindly.
+    if(pickup&&pickup.score>=best.score-18)return pickup;
+    return best;
   }
 
   function canReachEnemy(state, unit, distance, data, engine, includeGarrisons = true) {
@@ -119,7 +251,7 @@
   }
 
   function commandTacticScore(state, unit, card, data, engine) {
-    if (!card || card.team !== unit.team || card.timing !== "COMMAND") return -Infinity;
+    if (!card || card.timing !== "COMMAND") return -Infinity;
     const attacks = attacksFrom(state, unit, data, engine);
     const damaged = unit.maxHp - unit.hp;
     const adjacentObjective = state.objectives.find(objective => engine.distance(unit, objective) <= 1 && objective.owner !== unit.team);
@@ -139,6 +271,7 @@
       "sudden-pressure": suddenPressureTargets ? suddenPressureTargets * 30 : -Infinity,
       "breaking-line": visibleEnemyUnits.length ? 44 + Math.max(...visibleEnemyUnits.map(sumUpgrades)) * 4 : -Infinity,
       "crimson-execution": unit.id === "chars-zaku" && canReachEnemy(state, unit, data.rules.dash.distance + 1, data, engine) ? 76 : -Infinity
+      ,"renewed-power": attacks.length ? 54 : 20
     };
     return scores[card.id] ?? -Infinity;
   }
@@ -210,6 +343,10 @@
     }
     if (card.id === "return-fire") return context.canAttack !== false;
     if (card.id === "shattered-formation") return context.attackerAlive !== false;
+    if(card.id==="sacrificial-overload"){
+      const selfDefeated=(context.attackerHp||0)<=2;
+      return (context.sacrificialTargets||0)>0&&(!selfDefeated||(context.sacrificialKillVp||0)>(context.attackerVp||0));
+    }
     if (["iron-grip", "shield-recovery", "logistics-relay", "exploited-chaos"].includes(card.id)) return true;
     return false;
   }

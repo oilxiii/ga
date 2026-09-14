@@ -85,7 +85,7 @@
     return DATA.map.featureCoordinates.bases.find(base => base.q === q && base.r === r) || null;
   }
 
-  function lineOfSightDetails(state, attacker, target) {
+  function lineOfSightDetails(state, attacker, target, options={}) {
     // Adjacent targets never have an intervening hex, so LOS is automatically clear.
     if (distance(attacker,target) <= 1) return {clear:true,paths:[{clear:true,path:line(attacker,target),blocker:null}]};
     const aElev = elevationAt(state, attacker.q, attacker.r);
@@ -105,11 +105,11 @@
         // Allied pieces never block LOS. Enemy Units, Garrisons, and structures only
         // block at the shared elevation, or at the higher endpoint's elevation when
         // the acting unit and target are on different levels. Objectives are not structures.
-        const blockingUnit=unitAt(state,hex.q,hex.r);
+        const blockingUnit=options.ignorePieces?null:unitAt(state,hex.q,hex.r);
         if (blockingUnit && blockingUnit.team !== attacker.team && hexElevation === highElev) {
           return {clear:false,path,blocker:{...hex,type:"unit",elevation:hexElevation,id:blockingUnit.id}};
         }
-        const blockingGarrison=garrisonAt(state,hex.q,hex.r);
+        const blockingGarrison=options.ignorePieces?null:garrisonAt(state,hex.q,hex.r);
         if (blockingGarrison && blockingGarrison.team !== attacker.team && hexElevation === highElev) {
           return {clear:false,path,blocker:{...hex,type:"garrison",elevation:hexElevation,id:blockingGarrison.id}};
         }
@@ -127,8 +127,8 @@
     return {clear:paths.some(result=>result.clear),paths};
   }
 
-  function hasLineOfSight(state, attacker, target) {
-    return lineOfSightDetails(state,attacker,target).clear;
+  function hasLineOfSight(state, attacker, target, options={}) {
+    return lineOfSightDetails(state,attacker,target,options).clear;
   }
 
   function engagedEnemies(state, unit) {
@@ -187,8 +187,12 @@
         if ((isEnemyUnit || isEnemyGarrison || isEnemyBase) && !jumpsOverEnemy) continue;
 
         const currentElevation = elevationAt(state, q, r);
-        const elevationBaseline = jumping ? Math.max(startElevation, currentElevation) : currentElevation;
-        const climbCost = options.ignoreElevation ? 0 : Math.max(0, nextElevation - elevationBaseline);
+        const ignoresTerrainElevation = !!options.ignoreElevation || unit.id === "wing-zero-ew";
+        // Jump only affects whether an elevated unit may pass over lower enemy pieces.
+        // It must NOT make later climbs back toward the starting elevation free.
+        // Normal units always pay elevation cost from the CURRENT hex to the next hex;
+        // Wing Zero's Hover is the only built-in unit ability that ignores this cost.
+        const climbCost = ignoresTerrainElevation ? 0 : Math.max(0, nextElevation - currentElevation);
         const next = cost + 1 + climbCost;
         if (next > effectiveAllowance) continue;
         if (visited.has(nk) && visited.get(nk) <= next) continue;
@@ -265,9 +269,13 @@
     return board;
   }
 
-  function setupGame(rng = Math.random) {
+  function setupGame(rng = Math.random, factions = { fed:"fed", zeon:"zeon" }) {
     const selected = shuffle(DATA.mysteryPool, rng).slice(0, 9);
-    const units = DATA.units.map((unit, index) => ({
+    const matchFactions={fed:factions.fed||"fed",zeon:factions.zeon||"zeon"};
+    const units = ["fed","zeon"].flatMap(side=>DATA.units
+      .filter(unit=>unit.team===matchFactions[side])
+      .map(unit=>({...unit,originalTeam:unit.team,team:side})))
+      .map((unit, index) => ({
       ...unit,
       maxHp: unit.hp,
       zone: "reserve",
@@ -295,6 +303,7 @@
     const objectives = DATA.map.featureCoordinates.objectives.map(([q,r], index) => ({ id: `obj-${index+1}`, q, r, owner: null }));
     const state = {
       phase: 1, round: 1, status: "playing", board: boardData(), units, garrisons, upgrades, energy, objectives,
+      factions:matchFactions,
       vp: { fed: 0, zeon: 0 }, rescuedGarrisons: { fed: 0, zeon: 0 }, usedTactics: new Set(), hands: { fed: [], zeon: [] }, tacticDecks: { fed: [], zeon: [] }, retiredTactics: { fed: [], zeon: [] }, tacticCycles: { fed: 1, zeon: 1 },
       currentTick: 1, resolvedThisTick: new Set(), log: [], activeUnitId: null,
       timelineSeqCounter: units.length, lastActivatedTeam: null,
@@ -310,13 +319,14 @@
   }
 
   function dealTacticHand(state, team, rng = Math.random) {
+    const faction=state.factions?.[team]||team;
     if (!state.tacticDecks[team].length && !state.hands[team].length && !state.retiredTactics[team].length) {
-      state.tacticDecks[team] = shuffle(DATA.tactics.filter(card => card.team === team).map(card => card.id), rng);
+      state.tacticDecks[team] = shuffle([...(DATA.tacticDecks?.[faction]||DATA.tactics.filter(card => card.team === faction).map(card => card.id))], rng);
     }
-    const drawn = state.tacticDecks[team].splice(0, 3);
+    const drawCount=state.phase===1?3:(DATA.teams[faction]?.phaseTwoTacticDraw??3);
+    const drawn = state.tacticDecks[team].splice(0, drawCount);
     state.hands[team].push(...drawn);
-    const teamCards=new Set(DATA.tactics.filter(card=>card.team===team).map(card=>card.id));
-    state.usedTactics=new Set([...state.usedTactics].filter(id=>!teamCards.has(id)));
+    state.usedTactics=new Set([...state.usedTactics].filter(key=>!key.startsWith(`${team}:`)));
     return state.hands[team];
   }
 
@@ -325,7 +335,7 @@
     if(index<0) return false;
     state.hands[team].splice(index,1);
     if(!state.retiredTactics[team].includes(id)) state.retiredTactics[team].push(id);
-    state.usedTactics.add(id);
+    state.usedTactics.add(`${team}:${id}`);
     return true;
   }
 
@@ -385,7 +395,9 @@
     result.criticals = result.results.filter(value => value === "critical").length;
     result.damage = result.hits + result.criticals;
     const criticalEffectsActive=result.criticals>0&&!result.criticalEffectsDisabled;
+    if (weapon.critical === "damage1" && criticalEffectsActive) result.damage += 1;
     if (weapon.critical === "damage2" && criticalEffectsActive) result.damage += 2;
+    if (weapon.critical === "criticalDamageUpTo4" && criticalEffectsActive) result.damage += Math.min(4,result.criticals);
     result.criticalBonusDamage = 0;
     if (weapon.critical === "rescuedGarrisonDamage" && criticalEffectsActive) {
       result.criticalBonusDamage = Math.max(0, Number(state?.rescuedGarrisons?.[attacker?.team]) || 0);
@@ -397,14 +409,16 @@
 
   function rollAttack(state, attacker, defender, weapon, rng = Math.random) {
     const defenderIsDamaged=Number.isFinite(defender?.hp)&&Number.isFinite(defender?.maxHp)&&defender.hp<defender.maxHp;
-    const strengthBonus = attacker.upgrades.strength + attacker.tempStrength +
+    const damageTaken=Math.max(0,(attacker.maxHp||attacker.hp)-attacker.hp);
+    const fightToEnd=attacker.id==="barbatos-lupus-rex"?(damageTaken>=12?2:damageTaken>=6?1:0):0;
+    const strengthBonus = attacker.upgrades.strength + attacker.tempStrength + fightToEnd +
       (attacker.id === "zaku-enforcer" && defenderIsDamaged ? 1 : 0);
     const count = Math.max(1, weapon.strength + strengthBonus);
     const elevationMod = Math.sign(elevationAt(state, attacker.q, attacker.r) - elevationAt(state, defender.q, defender.r));
     const targeted = attacker.id === "guntank" && Object.values(attacker.upgrades).reduce((a,b)=>a+b,0) >= 2 ? 1 : 0;
     const accuracy = elevationMod + targeted;
     const dice = Array.from({ length: count }, () => Math.floor(rng() * 10) + 1);
-    const critFloor = attacker.critBoost || (attacker.id === "guncannon" && Object.values(attacker.upgrades).reduce((a,b)=>a+b,0) >= 2) ? 7 : 9;
+    const critFloor = attacker.critBoost || attacker.id==="wing-zero-ew" || (attacker.id === "guncannon" && Object.values(attacker.upgrades).reduce((a,b)=>a+b,0) >= 2) ? 7 : 9;
     const results = dice.map(die=>classifyAttackDie(die,accuracy,critFloor));
     const disarmedPending=!!attacker.statuses.disarm;
     return summarizeAttackResult(state,attacker,defender,weapon,{
@@ -412,6 +426,15 @@
       rerollEligible:attacker.id==="gundam",
       disarmed:false, disarmedPending, disarmRerolled:[], criticalEffectsDisabled:false
     });
+  }
+
+  function attackResultFromDice(state,attacker,defender,weapon,dice) {
+    const elevationMod=Math.sign(elevationAt(state,attacker.q,attacker.r)-elevationAt(state,defender.q,defender.r));
+    const targeted=attacker.id==="guntank"&&Object.values(attacker.upgrades).reduce((a,b)=>a+b,0)>=2?1:0;
+    const accuracy=elevationMod+targeted;
+    const critFloor=attacker.critBoost||attacker.id==="wing-zero-ew"||(attacker.id==="guncannon"&&Object.values(attacker.upgrades).reduce((a,b)=>a+b,0)>=2)?7:9;
+    const results=dice.map(die=>classifyAttackDie(die,accuracy,critFloor));
+    return summarizeAttackResult(state,attacker,defender,weapon,{dice:[...dice],results,accuracy,critFloor,rerollEligible:false,disarmed:false,disarmedPending:false,disarmRerolled:[],criticalEffectsDisabled:false});
   }
 
   function resolveDisarmAttack(state, attacker, defender, weapon, result, rng = Math.random) {
@@ -520,7 +543,8 @@
   function defeatUnit(state, unit, byTeam) {
     if (unit.hp > 0) return false;
     state.vp[byTeam] += unit.vp;
-    state.log.unshift(`${unit.name} ถูกทำลาย — ${DATA.teams[byTeam].short} +${unit.vp} VP`);
+    const faction=state.factions?.[byTeam]||byTeam;
+    state.log.unshift(`${unit.name} ถูกทำลาย — ${DATA.teams[faction].short} +${unit.vp} VP`);
     unit.zone = "reserve";
     unit.q = null; unit.r = null;
     unit.hp = unit.maxHp;
@@ -545,7 +569,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, resolveDisarmAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, resolveDisarmAttack, rerollAttackDie, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

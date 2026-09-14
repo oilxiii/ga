@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=57">
+  <link rel="stylesheet" href="styles.css?v=72">
 </head>
 <body class="title-active">
   <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
@@ -20,18 +20,27 @@
       <div id="title-notice" class="title-notice" aria-live="polite"></div>
       <section id="faction-select" class="faction-select" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="faction-select-title" aria-describedby="faction-select-description">
         <div class="faction-select-panel" tabindex="-1">
-          <span class="eyebrow">1 PLAYER // SELECT SIDE</span>
+          <span id="faction-select-eyebrow" class="eyebrow">SELECT TEAM</span>
           <h2 id="faction-select-title">เลือกฝ่ายของคุณ</h2>
           <p id="faction-select-description">AI จะควบคุมฝ่ายตรงข้าม ใช้กติกาเดียวกับผู้เล่น และไม่เห็นข้อมูลลับของคุณ</p>
-          <div class="faction-options">
-            <button type="button" class="faction-option fed" data-player-team="fed">
-              <img src="assets/icons/gundam.png" alt="">
-              <strong>E.F.S.F.</strong><span>EARTH FEDERATION</span>
-            </button>
-            <button type="button" class="faction-option zeon" data-player-team="zeon">
-              <img src="assets/icons/chars-zaku.png" alt="">
-              <strong>ZEON</strong><span>PRINCIPALITY OF ZEON</span>
-            </button>
+          <div id="faction-options-shell" class="faction-options-shell">
+            <div class="faction-options">
+              <button type="button" class="faction-option fed" data-faction="fed">
+                <img src="assets/icons/gundam.png" alt="">
+                <strong>E.F.S.F.</strong><span>EARTH FEDERATION</span>
+              </button>
+              <button type="button" class="faction-option zeon" data-faction="zeon">
+                <img src="assets/icons/chars-zaku.png" alt="">
+                <strong>ZEON</strong><span>PRINCIPALITY OF ZEON</span>
+              </button>
+            </div>
+            <button id="secret-team-toggle" class="secret-team-toggle" type="button" aria-expanded="false" aria-controls="secret-team-drawer" aria-label="เปิด Secret Team" title="มีบางอย่างซ่อนอยู่">›</button>
+            <div id="secret-team-drawer" class="secret-team-drawer" aria-hidden="true">
+              <button type="button" class="faction-option ultimate secret-team-option" data-faction="ultimate" tabindex="-1">
+                <span class="secret-team-question" aria-hidden="true">?</span>
+                <strong>SECRET TEAM</strong><span>CLASSIFIED</span>
+              </button>
+            </div>
           </div>
           <button id="faction-select-back" class="faction-select-back" type="button">‹ กลับหน้า Title</button>
         </div>
@@ -45,12 +54,12 @@
         <span class="brand-kicker">GUNDAM ASSEMBLE // ONLINE</span>
       </div>
       <section class="match-state" aria-label="สถานะเกม">
-        <div class="score fed"><span>E.F.S.F. <em id="fed-controller" class="controller-badge"></em></span><strong id="fed-vp">0</strong><small>VP</small></div>
+        <div id="fed-score" class="score fed"><span><b id="fed-team-name">E.F.S.F.</b> <em id="fed-controller" class="controller-badge"></em></span><strong id="fed-vp">0</strong><small>VP</small></div>
         <div class="round-state"><span id="phase-label">PHASE 1</span><strong id="round-label">ROUND 1 / 10</strong></div>
-        <div class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> ZEON</span></div>
+        <div id="zeon-score" class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> <b id="zeon-team-name">ZEON</b></span></div>
       </section>
       <div class="topbar-actions">
-        <span class="build-version" title="Game build version">v57</span>
+        <span class="build-version" title="Game build version">v72</span>
         <button id="sound-btn" class="icon-btn" type="button" aria-label="เลือกเพลงและเสียง" title="เลือกเพลงและเสียง" aria-pressed="false">🔊</button>
         <button id="restart-btn" class="icon-btn" type="button" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
       </div>
@@ -84,7 +93,7 @@
     <section id="tactics-panel" class="tactics-panel">
       <div class="tactics-title">
         <div><span class="eyebrow">TACTICS DECK</span><strong id="hand-title">—</strong></div>
-        <small>เริ่มเกม 3 ใบ · หลังจบ Phase 1 และคิดคะแนน Objective แล้ว จั่วเพิ่มฝ่ายละ 3 ใบ</small>
+        <small>เริ่มเกม 3 ใบ · ทีมทั่วไปจั่วเพิ่ม 3 ใบหลัง Phase 1 · Secret Team ไม่มีการจั่วเพิ่ม</small>
       </div>
       <div id="tactic-hand" class="tactic-hand"></div>
     </section>
@@ -99,9 +108,9 @@
     </div>
   </div>
 
-  <script src="data.js?v=57"></script>
-  <script src="engine.js?v=57"></script>
-  <script src="ai.js?v=57"></script>
-  <script src="game.js?v=57"></script>
+  <script src="data.js?v=72"></script>
+  <script src="engine.js?v=72"></script>
+  <script src="ai.js?v=72"></script>
+  <script src="game.js?v=72"></script>
 </body>
 </html>

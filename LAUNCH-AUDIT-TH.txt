@@ -1,12 +1,12 @@
-GUNDAM ASSEMBLE // ONLINE — LAUNCH AUDIT v51
-วันที่ตรวจ: 13 กันยายน 2026
-ต้นทาง: gundam-assemble-final-v49
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v72
+วันที่ตรวจ: 14 กันยายน 2026
+ต้นทาง: Gundam Assemble version57 + ชุด Asset Extend
 ผลลัพธ์: ไม่พบบั๊กระดับ Blocker/Critical ที่ยังทราบอยู่หลังการแก้และรันทดสอบรอบสุดท้าย
 อัปเดต v51: Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามประกาศ Scenario ล่าสุด
 
 แหล่งอ้างอิง
 - GA Official Core Rulebook v1.0 (Updated August 28, 2026)
-- Unit Card จริง 6 ใบ และ Tactic Card ภาษาไทยจริง 18 ใบที่อยู่ในโฟลเดอร์ assets/cards
+- Unit Card จริง 9 ใบ และ Tactic Card ภาษาไทยจริง 20 ใบที่อยู่ในโฟลเดอร์ assets/cards
 - แผนที่ Sleeping Leviathan และภาพ Token ที่ผู้ใช้อัปโหลด
 
 ขอบเขตที่ตรวจ
@@ -15,8 +15,8 @@ GUNDAM ASSEMBLE // ONLINE — LAUNCH AUDIT v51
 - Line of Sight ทุกระดับความสูง รวมกรณีเส้นพาดขอบ Hex
 - Attack Timing, Accuracy, Critical, Shield, Disarm, Fracture, Slow, Push และ Defeat
 - Objective, Garrison, Rescue และ Victory Point
-- ความสามารถของ Unit ทั้ง 6 ตัวและอาวุธทั้ง 12 แบบ
-- Tactic Card ทั้ง 18 ใบ รวม Response ซ้อนจาก Return Fire
+- ความสามารถของ Unit ทั้ง 9 ตัวและอาวุธทั้ง 18 แบบ
+- Tactic Card ทั้ง 20 ใบ รวม Response ซ้อนจาก Return Fire และ Tactic ที่ใช้ร่วมกันระหว่างทีม
 - AI, ข้อมูลลับ, การเลือกเป้าหมาย, การเคลื่อนที่ และทางออกจากสถานะรอ
 - UI สำคัญ, เสียง, เพลง, ภาพการ์ด, Unit icon, Token icon และไฟล์ asset
 
@@ -76,18 +76,31 @@ GUNDAM ASSEMBLE // ONLINE — LAUNCH AUDIT v51
 - Garrison ทุกอันมี HP 1; ทำลายหรือ Rescue ให้ 2 VP
 - ไม่มี Counterattack อัตโนมัติ การยิงกลับเกิดจาก Return Fire เท่านั้น
 
+สิ่งที่เพิ่มและตรวจใน v58
+- เพิ่ม Secret Team สีเหลือง: Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex
+- 1 Player เลือกทีมผู้เล่นและทีมคู่ต่อสู้ AI ได้เอง; 2 Player ให้ผู้เล่นทั้งสองเลือกทีม และทั้งสองโหมดห้ามทีมซ้ำในแมตช์เดียวกัน
+- Twin Buster Rifle ใช้ pattern 9 Hex ตามการ์ด, หมุนได้ 6 ทิศ, ทอย Attack Roll ชุดเดียวและคำนวณแต่ละเป้าหมายแยกกัน
+- AoE เล็งเฉพาะ Unit/Garrison ศัตรู ไม่โดนฝ่ายเดียวกันและไม่โดน Base; LOS ของ AoE มองทะลุ Unit/Garrison แต่ยังถูก Terrain/Base บัง
+- Zero System ทำให้ 7–8 เป็น Critical และ Twin Buster เพิ่ม Damage +1 ต่อ Critical สูงสุด +4 แก่ทุกเป้าหมาย
+- Hunter’s Edge ผลักศัตรูที่ติดกันสูงสุด 2 Hex แล้วทำ Damage 1; Handgun ยิงซ้ำ TL0 ได้ครั้งเดียวต่อ Critical chain
+- Tail Blade ดึงก่อนทอย 1 Hex; Annihilate ยิง Rex Claws ซ้ำ TL0; Fight to the End เพิ่ม Strength ตาม Damage 6/12
+- Ultimate Tactic deck จำกัดเป็น Renewed Power, Sacrificial Overload และ Built to Last รวม 3 ใบตั้งแต่เริ่มเกม และไม่มีการจั่วเพิ่มใน Phase 2
+- Base และ Garrison ของฝั่ง Secret Team แสดงกรอบสีเหลืองทองของทีมเอง โดยยังคงรูปทรง Token เดิมและตรรกะตำแหน่ง Base/Garrison เดิม
+- Objective ที่ยังเป็นกลางใช้ธงสีเทาอ่อน ส่วน Objective ที่ Secret Team ยึดแล้วใช้สีเหลืองทอง จึงไม่เกิดสถานะสีซ้ำกัน
+- AI ประเมินอาวุธ/ความสามารถของ Secret Team, เลือก AoE ที่ถูกกติกา และไม่ใช้ Sacrificial Overload ฆ่าตัวเองเว้นแต่ VP ที่กำจัดได้คุ้มกว่า
+
 ผลการตรวจอัตโนมัติรอบสุดท้าย
 - JavaScript syntax: ผ่าน data.js, engine.js, ai.js และ game.js
-- Core/rules checks: 121 ผ่าน
+- Core/rules checks: 132 ผ่าน
 - AI/fairness checks: 11 ผ่าน
-- รวม: 132/132 ผ่าน
-- Unit data: 6 ตัว / อาวุธ 12 แบบ ตรงกับภาพการ์ด
-- Tactic data และ implementation: 18/18 ใบตรวจครบ
+- รวม: 143/143 ผ่าน
+- Unit data: 9 ตัว / อาวุธ 18 แบบ ตรงกับภาพการ์ด
+- Tactic data และ implementation: 20/20 ใบตรวจครบ
 - Asset อ้างอิง: ไม่พบไฟล์หาย; MP3, GIF และ PNG ที่ใช้ตรวจชนิดไฟล์ผ่าน
 
 เช็กลิสต์สั้นก่อนเผยแพร่จริง
 - เปิด index.html จากโฟลเดอร์ทั้งชุด ห้ามอัปโหลดเฉพาะ index.html
-- ทดสอบ 1 PLAYER อย่างน้อยหนึ่งเกมต่อการเลือก E.F.S.F. และ ZEON
-- ทดสอบ 2 PLAYER หนึ่งรอบเพื่อดูหน้าส่งเครื่องและมือการ์ดลับ
+- ทดสอบ 1 PLAYER อย่างน้อยหนึ่งเกมต่อการเลือก E.F.S.F., ZEON และ Secret Team พร้อมลองเลือกคู่ต่อสู้ทุกทีม
+- ทดสอบ 2 PLAYER อย่างน้อยหนึ่งเกมที่มี Secret Team เพื่อดูหน้าส่งเครื่องและมือการ์ดลับ
 - ตรวจเสียง Title/Battle, ปุ่ม Mute, การย่อ Battle Log และ Line of Sight บนเบราว์เซอร์ที่จะใช้เผยแพร่
 - เมื่ออัปขึ้น GitHub ให้อัปเดตไฟล์ root ทั้งหมด พร้อมโฟลเดอร์ assets และ tests เพื่อไม่ให้ cache/เวอร์ชันต่างกัน

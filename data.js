@@ -68,6 +68,41 @@
       ],
       command: { id: "domination", name: "Domination", energy: 1, text: "ยึด Objective ที่อยู่บนช่องเดียวกันหรือช่องติดกัน" },
       ongoing: { name: "Suppressing Presence", text: "ได้ Strength +1 เมื่อโจมตี Unit ศัตรูที่มี Damage อยู่แล้ว" }
+    },
+    {
+      id: "wing-zero-ew", team: "ultimate", name: "Wing Gundam Zero [EW]", model: "XXXG-00W0", role: "Wing of Destruction",
+      hp: 12, vp: 9, tl: 3, card: "assets/cards/unit-wing-gundam-zero.png", portrait: "right",
+      icon: "assets/icons/icon-wing-gundam-zero.png",
+      weapons: [
+        { id: "wing-beam-saber", name: "Beam Saber", timeline: 2, range: 1, strength: 4, critical: "move2IgnoreEngagement", criticalTiming: "afterCombatDamage" },
+        { id: "twin-buster-rifle", name: "Twin Buster Rifle", timeline: 4, range: "SP", strength: 6, aoe: "twinBuster", critical: "criticalDamageUpTo4" }
+      ],
+      command: { id: "full-power", name: "Full Power", energy: 1, text: "ได้รับ Strength +3 จนจบ Activation นี้" },
+      ongoing: { name: "Zero System", text: "ผลทอย 7 และ 8 เป็น Critical" },
+      ongoing2: { name: "Hover", text: "ไม่สนใจผลของภูมิประเทศระหว่างการเคลื่อนที่" }
+    },
+    {
+      id: "gundam-vidar", team: "ultimate", name: "Gundam Vidar", model: "ASW-G-XX", role: "Hunter of the Guilty",
+      hp: 13, vp: 7, tl: 1, card: "assets/cards/unit-gundam-vidar.png", portrait: "right",
+      icon: "assets/icons/icon-gundam-vidar.png",
+      weapons: [
+        { id: "vidar-handgun", name: "Handgun", timeline: 3, range: 2, strength: 3, critical: "repeatAtTimeline0", criticalTiming: "afterCombatDamage" },
+        { id: "buret-saber", name: "Buret Saber", timeline: 4, range: 1, strength: 8, critical: "damage2" }
+      ],
+      command: { id: "hunters-edge", name: "Hunter’s Edge", energy: 1, text: "ผลัก Unit ศัตรูที่อยู่ติดกันได้สูงสุด 2 ช่อง แล้วสร้าง Damage 1 ให้ Unit นั้น" },
+      command2: { id: "alaya-type-e", name: "Alaya-Vijnana Type E System", energy: 0, text: "หากควบคุม Objective อย่างน้อย 2 จุด ได้ Move +2 และ Strength +1 ใน Activation นี้" }
+    },
+    {
+      id: "barbatos-lupus-rex", team: "ultimate", name: "Gundam Barbatos Lupus Rex", model: "ASW-G-08", role: "Final Stand",
+      hp: 17, vp: 10, tl: 2, card: "assets/cards/unit-gundam-barbatos-lupus-rex.png", portrait: "right",
+      icon: "assets/icons/icon-gundam-barbatos-lupus-rex.png",
+      weapons: [
+        { id: "rex-claws", name: "Rex Claws", timeline: 2, range: 1, strength: 3, critical: "slow" },
+        { id: "tail-blade", name: "Tail Blade", timeline: 4, range: 2, strength: 7, preAttack: "pull1", critical: "damage1" }
+      ],
+      command: { id: "annihilate", name: "Annihilate", energy: 1, text: "หากโจมตีด้วย Rex Claws ใน Activation นี้ โจมตีด้วย Rex Claws เพิ่มอีก 1 ครั้งที่ Timeline 0" },
+      command2: { id: "alaya-exertion", name: "Alaya-Vijnana Exertion", energy: 0, text: "สร้าง Damage 3 ให้ยูนิตนี้เพื่อเคลื่อนที่ 2 ช่อง" },
+      ongoing: { name: "Fight to the End", text: "เมื่อมี Damage 6 ขึ้นไป ได้ Strength +1 และเมื่อมี Damage 12 ขึ้นไป ได้ Strength เพิ่มอีก +1" }
     }
   ];
 
@@ -89,7 +124,9 @@
     { id: "iron-grip", team: "zeon", name: "Iron Grip", timing: "RESPONSE", trigger: "After Enemy Movement", card: "assets/cards/tactic-iron-grip.png", text: "เมื่อ Unit ศัตรูเคลื่อนที่มาหยุดอยู่ติดกับ Zaku II: Enforcer สร้าง Damage 3 แก่ศัตรูตัวนั้น" },
     { id: "sudden-pressure", team: "zeon", name: "Sudden Pressure", timing: "COMMAND", card: "assets/cards/tactic-sudden-pressure.png", text: "Unit ที่กำลังใช้งานสร้าง Damage 2 แก่ Unit ศัตรูทุกตัวและ Garrison ศัตรูทุกอันภายใน Range 3" },
     { id: "breaking-line", team: "zeon", name: "Breaking the Line", timing: "COMMAND", card: "assets/cards/tactic-breaking-line.png", text: "Unit ที่กำลังใช้งานอาจทำลาย Upgrade Token 1 อันบน Unit ศัตรูภายใน Range 3 จากนั้นทำให้ Unit นั้นติด Fracture" },
-    { id: "crimson-execution", team: "zeon", name: "Crimson Execution", timing: "COMMAND", card: "assets/cards/tactic-crimson-execution.png", text: "Char’s Zaku II ทำ Dash เพิ่ม 1 ครั้งโดยใช้ Timeline 0 จากนั้นโจมตีด้วย Heat Hawk เพิ่ม 1 ครั้งโดยใช้ Timeline 0" }
+    { id: "crimson-execution", team: "zeon", name: "Crimson Execution", timing: "COMMAND", card: "assets/cards/tactic-crimson-execution.png", text: "Char’s Zaku II ทำ Dash เพิ่ม 1 ครั้งโดยใช้ Timeline 0 จากนั้นโจมตีด้วย Heat Hawk เพิ่ม 1 ครั้งโดยใช้ Timeline 0" },
+    { id: "renewed-power", team: "ultimate", name: "Renewed Power", timing: "COMMAND", card: "assets/cards/tactic-renewed-power.png", text: "Unit ที่กำลัง Active ได้รับ Strength Upgrade 1" },
+    { id: "sacrificial-overload", team: "ultimate", name: "Sacrificial Overload", timing: "RESPONSE", trigger: "After Combat Damage", card: "assets/cards/tactic-sacrificial-overload.png", text: "หลัง Wing Gundam Zero เป็นฝ่ายโจมตี สร้าง Damage 2 ให้ Wing Gundam Zero และเป้าหมายแต่ละตัว" }
   ];
 
   const featureCoordinates = {
@@ -120,8 +157,15 @@
 
   const data = {
     teams: {
-      fed: { name: "Earth Federation", short: "E.F.S.F.", color: "#36b7ff" },
-      zeon: { name: "Principality of Zeon", short: "ZEON", color: "#ff405a" }
+      fed: { name: "Earth Federation", short: "E.F.S.F.", color: "#36b7ff", phaseTwoTacticDraw: 3 },
+      zeon: { name: "Principality of Zeon", short: "ZEON", color: "#ff405a", phaseTwoTacticDraw: 3 },
+      ultimate: { name: "Secret Team", short: "SECRET", color: "#35D56F", phaseTwoTacticDraw: 0 }
+    },
+    factionOrder: ["fed", "zeon", "ultimate"],
+    tacticDecks: {
+      fed: ["built-to-last","entrenched-position","forward-artillery","last-shot-counts","return-fire","rookies-momentum","lock-down","shield-recovery","federation-shield"],
+      zeon: ["rescued-extraction","logistics-relay","exploited-chaos","shattered-formation","drive-them-back","iron-grip","sudden-pressure","breaking-line","crimson-execution"],
+      ultimate: ["renewed-power","sacrificial-overload","built-to-last"]
     },
     rules: {
       advance: { distance: 3, timeline: 0 },
