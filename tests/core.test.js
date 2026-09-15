@@ -68,7 +68,7 @@ test("Ultimate Team core combat rules match Zero System and Fight to the End", (
   assert.equal(E.rollAttack(state,barbatos,target,rex,()=>0.5).dice.length,5);
 });
 
-test("AoE Line of Sight ignores Units and Garrisons but Twin Buster never targets a Base", () => {
+test("Twin Buster ignores normal piece LOS and never targets a Base", () => {
   const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   const target=state.units.find(unit=>unit.id==="gundam");
@@ -81,7 +81,7 @@ test("AoE Line of Sight ignores Units and Garrisons but Twin Buster never target
   const targets=source.match(/function twinBusterTargets[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(targets,/\.\.\.state\.garrisons\.filter/);
   assert.doesNotMatch(targets,/state\.bases|featureCoordinates\.bases/);
-  assert.match(preview,/ignorePieces:true/);
+  assert.match(preview,/hasTwinBusterLine/);
 });
 
 test("all supplied token types have separate transparent game assets", () => {
@@ -544,7 +544,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v72<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v74<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1169,7 +1169,7 @@ test("Range-tagged Tactics use LOS and Forward Artillery counts team-wide rescue
   assert.match(source,/rescued-extraction[\s\S]{0,260}hasOwnGarrisonInRange\(unit,3,true\)/);
   assert.match(source,/rescueGarrison\(unit,3,false,[\s\S]{0,180}\{requireLos:true\}\)/);
   assert.match(source,/sudden-pressure[\s\S]{0,400}E\.hasLineOfSight\(state,unit,target\)/);
-  assert.match(source,/state\.rescuedGarrisons\?\.fed\|\|0/);
+  assert.match(source,/state\.rescuedGarrisons\?\.\[unit\.team\]\|\|0/);
 });
 
 test("Restart invalidates delayed gameplay callbacks and cache versions stay aligned", () => {
@@ -1718,7 +1718,9 @@ test("Twin Buster human aiming exposes all six directions even when every enemy 
   const begin=source.match(/function beginTwinBusterAttack[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(begin,/const legalChoices=choices\.filter\(choice=>choice\.legal\)/);
   assert.match(begin,/directionChoices:choices/);
-  assert.match(begin,/targets:new Set\(choices\.map\(choice=>E\.key\(choice\.q,choice\.r\)\)\)/);
+  assert.match(begin,/const uniqueAnchors=choices\.filter/);
+  assert.match(begin,/targets:new Set\(uniqueAnchors\.map\(choice=>E\.key\(choice\.q,choice\.r\)\)\)/);
+  assert.match(source,/data-aoe-rotation/);
   assert.match(begin,/if\(!legalChoices\.length\)return false/); // AI still refuses an illegal shot.
 
   // Reproduce the board position from the reported screenshot: Wing at the L2 crown,
@@ -1733,9 +1735,36 @@ test("Twin Buster human aiming exposes all six directions even when every enemy 
   assert.equal(E.elevationAt(state,7,5),2);
   assert.equal(E.elevationAt(state,7,4),1);
   assert.equal(E.hasLineOfSight(state,wing,guncannon,{ignorePieces:true}),false);
+  assert.equal(E.hasTwinBusterLine(state,wing,guncannon),true,"Twin Buster fires through terrain at Wing's own elevation");
   const details=E.lineOfSightDetails(state,wing,guncannon,{ignorePieces:true});
   assert.equal(details.paths[0].blocker.type,"terrain");
   assert.deepEqual([details.paths[0].blocker.q,details.paths[0].blocker.r],[7,5]);
+});
+
+test("Twin Buster is blocked only by terrain higher than Wing and still hits a target standing on that high terrain", () => {
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"zeon"});
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  const target=state.units.find(unit=>unit.id==="chars-zaku");
+  state.units.forEach(unit=>{unit.zone="reserve";});
+  for(const hex of Object.values(state.board))hex.elevation=0;
+
+  // Wing L0 -> target L0 behind an intervening L1 ridge: blocked.
+  wing.zone="board"; wing.q=4; wing.r=4; state.board[E.key(4,4)].elevation=0;
+  target.zone="board"; target.q=4; target.r=6; state.board[E.key(4,6)].elevation=0;
+  state.board[E.key(4,5)].elevation=1;
+  assert.equal(E.hasTwinBusterLine(state,wing,target),false);
+
+  // Put the target ON the high L1 hex: endpoint terrain itself does not block.
+  target.q=4; target.r=5;
+  assert.equal(E.hasTwinBusterLine(state,wing,target),true);
+
+  // Wing L2 can fire across L2 terrain downhill; only terrain strictly above L2 blocks.
+  wing.q=4; wing.r=4; state.board[E.key(4,4)].elevation=2;
+  target.q=4; target.r=6; state.board[E.key(4,6)].elevation=0;
+  state.board[E.key(4,5)].elevation=2;
+  assert.equal(E.hasTwinBusterLine(state,wing,target),true);
+  state.board[E.key(4,5)].elevation=3;
+  assert.equal(E.hasTwinBusterLine(state,wing,target),false);
 });
 
 test("Twin Buster keeps all six fixed rotations at map edges and resolves elevation accuracy per target", () => {
@@ -1779,4 +1808,100 @@ test("team select uses hologram styling and switches to opponent-red state on st
   assert.match(css,/@keyframes faction-holo-sweep/);
   assert.match(css,/\.secret-team-toggle \{[\s\S]*var\(--select-accent-rgb\)/);
   assert.doesNotMatch(css,/\.secret-team-toggle \{[\s\S]{0,380}53,213,111/);
+});
+
+
+test("v74 targeting FX has a wall-clock failsafe and the AI watchdog fully clears it", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const fx=source.match(/function clearAttackTargetingFx[\s\S]*?function spawnShotFx/)?.[0]||"";
+  const wait=source.match(/function aiWaitForSettled[\s\S]*?function aiAdvance/)?.[0]||"";
+  assert.match(fx,/targetingFxFailsafeTimer/);
+  assert.match(fx,/cancelAnimationFrame\(targetingFxFrame\)/);
+  assert.match(fx,/attackTargetingBusy=false;aiEffectPending=false/);
+  assert.match(fx,/setTimeout\(\(\)=>clearAttackTargetingFx\(\{complete:true\}\),travelTime\+lockTime\+900\)/);
+  assert.match(wait,/clearAttackTargetingFx\(\);mode=null;pendingAttack=null/);
+});
+
+test("Response windows trap focus and inert the underlying game UI", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const response=source.match(/function openResponse[\s\S]*?function scheduleAiCallback/)?.[0]||"";
+  assert.match(response,/lockResponseModal\(modal\)/);
+  assert.match(response,/shell\.inert=true/);
+  assert.match(response,/dataset\.responseLock/);
+  assert.match(source,/game-modal\.show\[data-response-lock='true'\]/);
+  assert.match(source,/event\.key==="Tab"/);
+  assert.match(source,/event\.key==="Escape"\)\{event\.preventDefault\(\);return;/);
+});
+
+test("Vidar Handgun repeat preserves the first attack continuation", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const critical=source.match(/function resolveAfterCombatCritical[\s\S]*?function applyCritical/)?.[0]||"";
+  const finish=source.match(/function finishAttack[\s\S]*?function criticalEffectsActive/)?.[0]||"";
+  assert.match(critical,/beginAttack\(weapon,\{free:true,required:true,onComplete\}\)/);
+  assert.match(source,/pendingAttack=\{attacker,defender,weapon,result,reductions:\{\},continuation:options\.onComplete\|\|null\}/);
+  assert.match(finish,/if\(continuation\)continuation\(\)/);
+});
+
+test("canceling Beam Saber Critical Move resumes post-combat resolution", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const critical=source.match(/function resolveAfterCombatCritical[\s\S]*?function applyCritical/)?.[0]||"";
+  assert.match(critical,/Beam Saber Critical Move[\s\S]*onCancel:onComplete/);
+});
+
+test("Shattered Formation cannot damage an attacker that already returned to Reserve", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const post=source.match(/function openPostCombatResponses[\s\S]*?function useUnitAbility/)?.[0]||"";
+  assert.match(post,/card\.id!=="shattered-formation"\|\|opposingUnit\?\.zone==="board"/);
+  assert.match(post,/attackerAlive:attacker\.zone==="board"/);
+  assert.match(post,/if\(attacker\.zone==="board"\)damageUnit\(responseUnit,attacker,2,"Shattered Formation"\)/);
+});
+
+test("Twin Buster edge aiming exposes six explicit direction controls instead of ambiguous shared Hexes", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const begin=source.match(/function beginTwinBusterAttack[\s\S]*?function resolveTwinBusterAttack/)?.[0]||"";
+  assert.match(begin,/anchorCounts/);
+  assert.match(begin,/uniqueAnchors/);
+  assert.match(source,/data-aoe-rotation="\$\{choice\.rotation\}"/);
+  assert.match(source,/previewTwinBusterDirection\(Number\(button\.dataset\.aoeRotation\)\)/);
+  assert.match(source,/if\(matching\.length===1\)previewTwinBusterDirection/);
+});
+
+test("Wing LOS inspector uses Twin Buster terrain rules and never shows RNaN", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const los=source.match(/function renderLosInspection[\s\S]*?function blockedForEveryInRangeWeapon/)?.[0]||"";
+  const button=source.match(/function renderLosButton[\s\S]*?function toggleLosInspection/)?.[0]||"";
+  assert.match(los,/weapon\.aoe==="twinBuster"\?E\.hasTwinBusterLine/);
+  assert.match(los,/twinBusterClear/);
+  assert.match(button,/map\(weaponRange\)/);
+  assert.doesNotMatch(button,/weapon=>weapon\.range\|\|0/);
+});
+
+test("Forward Artillery counts rescues from Guncannon's actual match side", () => {
+  const state=E.setupGame(()=>0.5,{fed:"zeon",zeon:"fed"});
+  const guncannon=state.units.find(unit=>unit.id==="guncannon");
+  assert.equal(guncannon.team,"zeon");
+  state.rescuedGarrisons={fed:0,zeon:2};
+  const A=require("../ai.js");
+  const card=D.tactics.find(item=>item.id==="forward-artillery");
+  assert.equal(A.commandTacticScore(state,guncannon,card,D,E),53);
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/const rescued=state\.rescuedGarrisons\?\.\[unit\.team\]\|\|0/);
+});
+
+test("normal adjustable Advance and Dash cannot confirm the original Hex", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const begin=source.match(/function beginAdjustableMovement[\s\S]*?function cancelMovementDraft/)?.[0]||"";
+  const commit=source.match(/function commitMovementDraft[\s\S]*?function startMoveFor/)?.[0]||"";
+  assert.match(begin,/placed:false/);
+  assert.match(begin,/allowStay:false/);
+  assert.match(commit,/if\(!moved&&draft\.origin\.zone!=="deploying"\)/);
+});
+
+test("dice and sound animations do not consume gameplay Math.random", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const dice=source.match(/function showDiceRoll[\s\S]*?function offerNewtypeReroll/)?.[0]||"";
+  const sfx=source.match(/const SFX = \(\(\) => \{[\s\S]*?\}\)\(\);/)?.[0]||"";
+  assert.match(dice,/visualRandom\(\)/);
+  assert.doesNotMatch(dice,/Math\.random/);
+  assert.doesNotMatch(sfx,/Math\.random/);
 });

@@ -79,7 +79,7 @@ test("AI cannot inspect a Mystery Upgrade before it is revealed", () => {
 test("AI uses the same legal-action entry points while 1 Player keeps only the human hand visible", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
   assert.match(source, /E\.reachable\(state,unit,allowance/);
-  assert.match(source, /beginAttack\(attack\.weapon\)/);
+  assert.match(source, /beginAttack\(attack\.weapon,\{rotation:attack\.rotation\}\)/);
   assert.match(source, /rescueGarrison\(unit,1,true\)/);
   assert.match(source, /handleHexClick\(q,r\)/);
   assert.match(source, /const handTeam=matchMode==="ai"\?humanTeam:unit\.team/);
@@ -228,4 +228,31 @@ test("AI takes a reachable item when it is close to the best positional choice",
   gundam.energy = 0;
   const choice = A.chooseMove(state, gundam, [E.key(1, 1), E.key(10, 10)], D, E, false);
   assert.deepEqual([choice.q, choice.r], [1, 1], "a near-best free pickup should beat a small positional edge");
+});
+
+
+test("AI scores Twin Buster one rotation at a time and preserves the chosen rotation", () => {
+  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const wing=place(state.units.find(unit=>unit.id==="wing-zero-ew"),7,6);
+  const enemyA=place(state.units.find(unit=>unit.id==="gundam"),7,4);
+  const enemyB=place(state.units.find(unit=>unit.id==="guncannon"),9,7);
+  state.units.filter(unit=>![wing,enemyA,enemyB].includes(unit)).forEach(unit=>{unit.zone="reserve";unit.q=null;unit.r=null;});
+  state.garrisons=[];
+  const twinChoices=A.attacksFrom(state,wing,D,E).filter(choice=>choice.weapon.id==="twin-buster-rifle");
+  assert.ok(twinChoices.length>=2,"different legal firing rotations should be separate AI choices");
+  assert.ok(twinChoices.every(choice=>Number.isInteger(choice.rotation)&&Array.isArray(choice.aoeTargets)));
+  assert.ok(twinChoices.every(choice=>choice.aoeTargets.length<=2));
+  const best=A.chooseAttack(state,wing,D,E);
+  if(best?.weapon.id==="twin-buster-rifle")assert.ok(Number.isInteger(best.rotation));
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(game,/const preferred=legalChoices\.find\(choice=>choice\.rotation===options\.rotation\)/);
+});
+
+test("AI Forward Artillery scoring follows the Guncannon side rather than hard-coded fed", () => {
+  const state=E.setupGame(()=>0.5,{fed:"zeon",zeon:"fed"});
+  const guncannon=state.units.find(unit=>unit.id==="guncannon");
+  state.rescuedGarrisons={fed:4,zeon:1};
+  const card=D.tactics.find(item=>item.id==="forward-artillery");
+  assert.equal(guncannon.team,"zeon");
+  assert.equal(A.commandTacticScore(state,guncannon,card,D,E),39);
 });
