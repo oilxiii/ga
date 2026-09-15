@@ -1,5 +1,6 @@
-GUNDAM ASSEMBLE // ONLINE — Twin Buster Terrain Rule v73
+GUNDAM ASSEMBLE // ONLINE — Deadend / Rules Audit Fix v74
 
+- v74 Deadend / Rules Audit Fix: แก้ AI deadlock เมื่อแท็บถูกพักระหว่างเอฟเฟกต์เล็ง, ล็อก Focus ของ Response modal, รักษา Response chain ของ Vidar Handgun และ Beam Saber Critical Move, กัน Shattered Formation ทำ Damage ใส่ Unit ที่กลับ Reserve, แก้ Twin Buster 6 ทิศบริเวณขอบแผนที่/LOS Inspector/RNaN, แก้ Forward Artillery ให้ยึดฝั่งจริง, ให้ AI ประเมิน Twin Buster แยกทีละทิศ, ห้าม Move/Dash ปกติยืนยันช่องเดิม และแยก RNG ของ Animation ออกจาก RNG ผลเกม.
 - v73 Twin Buster Terrain Rule: Twin Buster ไม่ใช้ LOS ปกติ; Unit/Garrison/Base และ Terrain ที่สูงไม่เกินระดับของ Wing Zero ไม่บังลำแสง; เป้าหมายที่ยืนบนพื้นที่สูงยังโดน แต่เป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับยิงของ Wing จะถูกบังและแสดง Preview สีเทา.
 - v72 Hologram Team Select: เพิ่ม scanline/sweep/glow ให้หน้าต่างเลือกทีมดูเป็นโฮโลแกรมมากขึ้น; ลูกศร Secret Team ใช้ accent เดียวกับหน้าต่าง (ฟ้าในขั้นเลือกทีมตัวเอง และแดงในขั้นเลือกคู่แข่ง) โดยไม่ใช้สีเขียว; หลังเลือกทีมตัวเอง ขั้นเลือกคู่แข่งเปลี่ยนกรอบ/แสง/ข้อความ accent เป็นสีแดงทั้งใน 1 Player และ 2 Player.
 - v71 Faction Visual Fix: Base และ Garrison เลือกสีจาก faction ที่ผู้เล่นเลือกจริง ไม่อิง logical board side; ZEON เป็นสีแดงแม้ถูกกำหนดเป็นฝั่ง fed/Player 1, E.F.S.F. เป็นสีน้ำเงินแม้อยู่ฝั่ง zeon/Player 2, Secret Team คง Garrison สีเขียวและ Base แบบเดิม.
@@ -49,7 +50,7 @@ GUNDAM ASSEMBLE // ONLINE — Twin Buster Terrain Rule v73
 - Secret Team ใช้สีเขียว ประกอบด้วย Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex
 - Twin Buster Rifle ใช้ AoE ตามรูปบน Unit Card, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison/Base และ Terrain ปกติ; จะถูกบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับที่ Wing Zero ยืน และไม่โจมตี Base หรือพวกเดียวกัน
 - Secret Team มี Tactic เพียง 3 ใบตลอดเกม: Renewed Power, Sacrificial Overload และ Built to Last โดยไม่จั่วเพิ่มหลัง Phase 1
-- Base และ Garrison ของฝั่งที่เลือก Secret Team ใช้กรอบสีเหลืองทองแยกจาก E.F.S.F. และ ZEON
+- Secret Team ใช้สีเขียวเป็นสีทีม; Garrison เป็นกรอบเขียว/ด้านในเทา ส่วน Base ใช้ Token สีน้ำเงินตาม palette ปัจจุบัน; Objective ที่ Secret Team ยึดแล้วใช้สีเขียวของทีม และ Objective ที่ยังเป็นกลางใช้สีเหลือง
 
 การตรวจสอบสำหรับผู้พัฒนา (ต้องมี Node.js)
   node tests/ai.test.js

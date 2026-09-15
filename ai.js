@@ -135,16 +135,33 @@
     }
   }
 
+  function twinBusterPattern(unit, rotation, engine) {
+    const source={x:unit.q,z:unit.r-(unit.q-(unit.q&1))/2};source.y=-source.x-source.z;
+    const base=[
+      {x:0,y:1,z:-1},{x:0,y:2,z:-2},{x:0,y:3,z:-3},
+      {x:1,y:0,z:-1},{x:1,y:1,z:-2},{x:1,y:2,z:-3},
+      {x:2,y:0,z:-2},{x:2,y:1,z:-3},{x:3,y:0,z:-3}
+    ];
+    const rotate=offset=>{let value={...offset};for(let i=0;i<rotation;i++)value={x:-value.z,y:-value.x,z:-value.y};return value;};
+    return base.map(offset=>{const value=rotate(offset);const x=source.x+value.x,z=source.z+value.z;return {q:x,r:z+(x-(x&1))/2};}).filter(hex=>engine.inBounds(hex.q,hex.r));
+  }
+
   function attacksFrom(state, unit, data, engine) {
     const choices = [];
     for (const weapon of unit.weapons) {
       if(weapon.aoe==="twinBuster"){
-        const targets=[...state.units.filter(target=>target.zone==="board"&&target.team!==unit.team),...(state.garrisons||[]).filter(target=>target.team!==unit.team)]
-          .filter(target=>engine.distance(unit,target)<=3&&engine.hasTwinBusterLine(state,unit,target));
-        if(targets.length){
+        const engagedIds=new Set((engine.engagedTargets?.(state,unit)||[]).map(target=>target.id));
+        for(let rotation=0;rotation<6;rotation+=1){
+          const cells=new Set(twinBusterPattern(unit,rotation,engine).map(hex=>engine.key(hex.q,hex.r)));
+          const targets=[...state.units.filter(target=>target.zone==="board"&&target.team!==unit.team),...(state.garrisons||[]).filter(target=>target.team!==unit.team)]
+            .filter(target=>cells.has(engine.key(target.q,target.r))&&engine.hasTwinBusterLine(state,unit,target));
+          if(!targets.length||(engagedIds.size&&!targets.some(target=>engagedIds.has(target.id))))continue;
           const evaluations=targets.map(target=>({target,isGarrison:!target.weapons,...attackScore(state,unit,target,weapon,engine,!target.weapons)}));
           const target=evaluations.slice().sort((a,b)=>b.score-a.score)[0]?.target;
-          choices.push({weapon,target,isGarrison:!target?.weapons,score:evaluations.reduce((sum,item)=>sum+item.score,0),killChance:Math.max(...evaluations.map(item=>item.killChance)),expectedDamage:evaluations.reduce((sum,item)=>sum+item.expectedIncoming,0),usefulDamage:evaluations.reduce((sum,item)=>sum+item.usefulDamage,0)});
+          // attackScore includes the Timeline cost. For one AoE roll the cost is paid
+          // once, not once per target, so add back the duplicated penalties.
+          const score=evaluations.reduce((sum,item)=>sum+item.score,0)+Math.max(0,evaluations.length-1)*weapon.timeline*6;
+          choices.push({weapon,target,isGarrison:!target?.weapons,rotation,aoeTargets:targets.map(item=>item.id),score,killChance:Math.max(...evaluations.map(item=>item.killChance)),expectedDamage:evaluations.reduce((sum,item)=>sum+item.expectedIncoming,0),usefulDamage:evaluations.reduce((sum,item)=>sum+item.usefulDamage,0)});
         }
         continue;
       }
@@ -262,7 +279,7 @@
     const scores = {
       "built-to-last": damaged > 0 ? Math.min(damaged, sumUpgrades(unit)) * 18 : -Infinity,
       "entrenched-position": unit.id === "guntank" ? (adjacentObjective ? 105 : 24) : -Infinity,
-      "forward-artillery": unit.id === "guncannon" ? 25 + (state.rescuedGarrisons?.fed || 0) * 14 : -Infinity,
+      "forward-artillery": unit.id === "guncannon" ? 25 + (state.rescuedGarrisons?.[unit.team] || 0) * 14 : -Infinity,
       "last-shot-counts": unit.id === "gundam" && attacks.length ? 72 : -Infinity,
       "rookies-momentum": attacks.length ? 58 : -Infinity,
       "lock-down": visibleEnemyUnits.length ? 42 + Math.max(...visibleEnemyUnits.map(sumUpgrades)) * 4 : -Infinity,

@@ -1,7 +1,7 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v72
-วันที่ตรวจ: 14 กันยายน 2026
-ต้นทาง: Gundam Assemble version57 + ชุด Asset Extend
-ผลลัพธ์: ไม่พบบั๊กระดับ Blocker/Critical ที่ยังทราบอยู่หลังการแก้และรันทดสอบรอบสุดท้าย
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v74
+วันที่ตรวจ: 15 กันยายน 2026
+ต้นทาง: Gundam Assemble version73.zip
+ผลลัพธ์: แก้รายการ Audit v73 ครบ 13 จุด และไม่พบบั๊กระดับ Blocker/High/Medium จากรายการดังกล่าวค้างอยู่หลังรันทดสอบอัตโนมัติรอบสุดท้าย
 อัปเดต v51: Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามประกาศ Scenario ล่าสุด
 
 แหล่งอ้างอิง
@@ -19,6 +19,21 @@ GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v72
 - Tactic Card ทั้ง 20 ใบ รวม Response ซ้อนจาก Return Fire และ Tactic ที่ใช้ร่วมกันระหว่างทีม
 - AI, ข้อมูลลับ, การเลือกเป้าหมาย, การเคลื่อนที่ และทางออกจากสถานะรอ
 - UI สำคัญ, เสียง, เพลง, ภาพการ์ด, Unit icon, Token icon และไฟล์ asset
+
+บั๊กที่แก้ใน v74
+1. AI targeting watchdog: เพิ่ม failsafe/cleanup กลางสำหรับ requestAnimationFrame และ timer เพื่อคืน attackTargetingBusy/aiEffectPending และยกเลิกเอฟเฟกต์ค้างเมื่อแท็บถูกพัก
+2. Response modal: ใช้ modal focus lock + inert กับ game shell ป้องกัน Tab/Enter ไปกด UI เบื้องหลังและทำ callback เดิมหาย
+3. Vidar Handgun: การยิงซ้ำ TL0 รักษา continuation ของการโจมตีแรก ทำให้ Return Fire/Shattered Formation/Response หลังการโจมตียัง Resolve ต่อ
+4. Wing Beam Saber: Back/Escape จาก Critical Move เรียก onComplete และเข้าสู่ Response chain ตามปกติ
+5. Shattered Formation: ตรวจ attacker ยังอยู่บน Board ก่อนสร้าง Damage; Unit ที่ถูกทำลายและกลับ Reserve ไม่รับ Damage ซ้ำ
+6. Twin Buster edge aiming: แยกตัวเลือก 6 rotation ด้วยปุ่มทิศเฉพาะ ไม่ใช้ Hex anchor ซ้ำเป็นตัวตัดสินเมื่ออยู่ขอบแผนที่
+7. Twin Buster LOS Inspector: ใช้ hasTwinBusterLine() ตามกฎพิเศษจริง แทน LOS ปกติ
+8. Forward Artillery: อ่าน rescuedGarrisons จาก side จริงของ Guncannon ทั้ง Player/AI ไม่ hard-code ฝั่ง fed
+9. AI Twin Buster: ประเมิน AoE ทีละ rotation และส่ง rotation ที่เลือกเข้า attack จริง แทนการรวมศัตรูทั้ง 6 ทิศ
+10. Move/Dash ปกติ: ไม่อนุญาตยืนยันปลายทางที่ช่องเริ่มต้น; ปิดช่อง stationary Dash ที่ใช้ต่อ Char Kick ได้
+11. LOS button: Range พิเศษ SP ผ่าน weaponRange() จึงไม่แสดง RNaN
+12. RNG: Animation/SFX ใช้ visual RNG แยกจาก Math.random ของผลเกม ลดผลต่างจากความเร็วเครื่อง/Reduced Motion
+13. Release metadata/docs: Build/cache tag, README และ Audit ซิงก์เป็น v74 พร้อมแก้สถานะสี Secret Team/Objective และจำนวน test ปัจจุบัน
 
 บั๊กที่แก้ใน v50
 1. Line of Sight
@@ -77,7 +92,7 @@ GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v72
 - ไม่มี Counterattack อัตโนมัติ การยิงกลับเกิดจาก Return Fire เท่านั้น
 
 สิ่งที่เพิ่มและตรวจใน v58
-- เพิ่ม Secret Team สีเหลือง: Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex
+- เพิ่ม Secret Team: Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex; สีทีมปัจจุบันเป็นสีเขียว
 - 1 Player เลือกทีมผู้เล่นและทีมคู่ต่อสู้ AI ได้เอง; 2 Player ให้ผู้เล่นทั้งสองเลือกทีม และทั้งสองโหมดห้ามทีมซ้ำในแมตช์เดียวกัน
 - Twin Buster Rifle ใช้ pattern 9 Hex ตามการ์ด, หมุนได้ 6 ทิศ, ทอย Attack Roll ชุดเดียวและคำนวณแต่ละเป้าหมายแยกกัน
 - AoE เล็งเฉพาะ Unit/Garrison ศัตรู ไม่โดนฝ่ายเดียวกันและไม่โดน Base; Twin Buster ไม่ใช้ LOS ปกติและมองทะลุ Unit/Garrison/Base/Terrain ที่ระดับไม่สูงกว่า Wing Zero; จะบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับที่ Wing Zero ยืน โดยเป้าหมายที่ยืนบน Terrain สูงนั้นเองยังโดน
@@ -85,15 +100,15 @@ GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v72
 - Hunter’s Edge ผลักศัตรูที่ติดกันสูงสุด 2 Hex แล้วทำ Damage 1; Handgun ยิงซ้ำ TL0 ได้ครั้งเดียวต่อ Critical chain
 - Tail Blade ดึงก่อนทอย 1 Hex; Annihilate ยิง Rex Claws ซ้ำ TL0; Fight to the End เพิ่ม Strength ตาม Damage 6/12
 - Ultimate Tactic deck จำกัดเป็น Renewed Power, Sacrificial Overload และ Built to Last รวม 3 ใบตั้งแต่เริ่มเกม และไม่มีการจั่วเพิ่มใน Phase 2
-- Base และ Garrison ของฝั่ง Secret Team แสดงกรอบสีเหลืองทองของทีมเอง โดยยังคงรูปทรง Token เดิมและตรรกะตำแหน่ง Base/Garrison เดิม
-- Objective ที่ยังเป็นกลางใช้ธงสีเทาอ่อน ส่วน Objective ที่ Secret Team ยึดแล้วใช้สีเหลืองทอง จึงไม่เกิดสถานะสีซ้ำกัน
+- สถานะปัจจุบัน: Secret Team Garrison ใช้กรอบเขียว/ด้านในเทา; Base ใช้ Token สีน้ำเงินตาม palette ปัจจุบัน โดยตำแหน่งและตรรกะ Base/Garrison ไม่เปลี่ยน
+- สถานะปัจจุบัน: Objective ที่ยังเป็นกลางใช้ธงสีเหลือง; Objective ที่ถูกยึดใช้สี faction จริงของเจ้าของ (Secret Team = เขียว)
 - AI ประเมินอาวุธ/ความสามารถของ Secret Team, เลือก AoE ที่ถูกกติกา และไม่ใช้ Sacrificial Overload ฆ่าตัวเองเว้นแต่ VP ที่กำจัดได้คุ้มกว่า
 
 ผลการตรวจอัตโนมัติรอบสุดท้าย
 - JavaScript syntax: ผ่าน data.js, engine.js, ai.js และ game.js
-- Core/rules checks: 132 ผ่าน
-- AI/fairness checks: 11 ผ่าน
-- รวม: 143/143 ผ่าน
+- Core/rules checks: 154 ผ่าน
+- AI/fairness checks: 17 ผ่าน
+- รวม: 171/171 ผ่าน
 - Unit data: 9 ตัว / อาวุธ 18 แบบ ตรงกับภาพการ์ด
 - Tactic data และ implementation: 20/20 ใบตรวจครบ
 - Asset อ้างอิง: ไม่พบไฟล์หาย; MP3, GIF และ PNG ที่ใช้ตรวจชนิดไฟล์ผ่าน

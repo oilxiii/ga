@@ -29,7 +29,11 @@
   let attackTargetingBusy = false;
   let targetingFxTimer = null;
   let targetingFxFrame = null;
+  let targetingFxFailsafeTimer = null;
+  let targetingFxGroup = null;
+  let targetingFxCompletion = null;
   let movementDraft = null;
+  let responseModalRestoreFocus = null;
   let soundMuted = false;
   let losInspection = { enabled:false };
   const AI_PACE = Object.freeze({ firstTurn: 1450, turnStart: 1200, target: 650, poll: 900, between: 620, finish: 820 });
@@ -54,6 +58,11 @@
   function isAiTurn() { return !!state?.activeUnitId && isAiTeam(activeUnit()?.team); }
   function modeUnit() { return mode?.unitId ? state?.units?.find(unit=>unit.id===mode.unitId) : activeUnit(); }
   function weaponRange(weapon) { return Number.isFinite(weapon?.range)?weapon.range:weapon?.aoe==="twinBuster"?3:0; }
+  function visualRandom() {
+    if(globalThis.crypto?.getRandomValues){const value=new Uint32Array(1);globalThis.crypto.getRandomValues(value);return value[0]/4294967296;}
+    visualRandom.seed=(Math.imul(1664525,visualRandom.seed||0x51f15e5d)+1013904223)>>>0;
+    return visualRandom.seed/4294967296;
+  }
 
 
   const SFX = (() => {
@@ -97,7 +106,7 @@
       const sampleRate=audio.sampleRate;
       const buffer=audio.createBuffer(1,Math.max(1,Math.floor(sampleRate*duration)),sampleRate);
       const data=buffer.getChannelData(0);
-      for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*(1-i/data.length);
+      for(let i=0;i<data.length;i++) data[i]=(visualRandom()*2-1)*(1-i/data.length);
       const source=audio.createBufferSource();source.buffer=buffer;
       const filter=audio.createBiquadFilter();filter.type="lowpass";filter.frequency.value=cutoff;
       const amp=audio.createGain();const start=audio.currentTime+delay;
@@ -369,9 +378,20 @@
     return {x:x0+q*dx,y:y0+(r+(q&1)*.5)*dy};
   }
 
+  function clearAttackTargetingFx({complete=false}={}) {
+    if(targetingFxTimer){clearTimeout(targetingFxTimer);targetingFxTimer=null;}
+    if(targetingFxFailsafeTimer){clearTimeout(targetingFxFailsafeTimer);targetingFxFailsafeTimer=null;}
+    if(targetingFxFrame){cancelAnimationFrame(targetingFxFrame);targetingFxFrame=null;}
+    targetingFxGroup?.remove();targetingFxGroup=null;
+    const callback=complete?targetingFxCompletion:null;
+    targetingFxCompletion=null;attackTargetingBusy=false;aiEffectPending=false;
+    if(callback)callback();
+  }
+
   function playAttackTargetingFx({from,to,team="fed",garrison=false,onComplete=()=>{}}) {
     const svg=$("#board");
     if(!svg||from?.q==null||to?.q==null){onComplete();return;}
+    clearAttackTargetingFx();
     const a=boardPoint(from.q,from.r),b=boardPoint(to.q,to.r);
     const ns="http://www.w3.org/2000/svg";
     const group=document.createElementNS(ns,"g");
@@ -386,29 +406,25 @@
     attackTargetingBusy=true;
     if(isAiTurn())aiEffectPending=true;
     menuOpen=false;menuView="main";renderAll();
-    svg.appendChild(group);
+    svg.appendChild(group);targetingFxGroup=group;targetingFxCompletion=()=>{if(epoch===gameEpoch)onComplete();};
     const reticle=group.querySelector(".targeting-reticle");
     const lock=group.querySelector(".target-lock-mark");
     const started=performance.now();
     const ease=t=>1-Math.pow(1-t,3);
     const step=now=>{
-      if(epoch!==gameEpoch){group.remove();attackTargetingBusy=false;aiEffectPending=false;targetingFxFrame=null;return;}
+      if(epoch!==gameEpoch){clearAttackTargetingFx();return;}
       const t=Math.min(1,(now-started)/travelTime);
       const e=ease(t);
       const x=a.x+(b.x-a.x)*e,y=a.y+(b.y-a.y)*e;
       reticle.setAttribute("transform",`translate(${x} ${y})`);
       if(t<1){targetingFxFrame=requestAnimationFrame(step);return;}
-      targetingFxFrame=null;
-      reticle.classList.add("locked");
-      lock.classList.add("show");
-      targetingFxTimer=setTimeout(()=>{
-        targetingFxTimer=null;
-        group.remove();
-        if(epoch!==gameEpoch){attackTargetingBusy=false;aiEffectPending=false;return;}
-        attackTargetingBusy=false;aiEffectPending=false;
-        onComplete();
-      },lockTime);
+      targetingFxFrame=null;reticle.classList.add("locked");lock.classList.add("show");
+      targetingFxTimer=setTimeout(()=>clearAttackTargetingFx({complete:true}),lockTime);
     };
+    // requestAnimationFrame may stop entirely in a background tab. This wall-clock
+    // fallback resolves the visual step independently, and the AI watchdog can also
+    // cancel the same state safely if browser timer throttling delays this callback.
+    targetingFxFailsafeTimer=setTimeout(()=>clearAttackTargetingFx({complete:true}),travelTime+lockTime+900);
     targetingFxFrame=requestAnimationFrame(step);
   }
 
@@ -745,9 +761,7 @@
     if(activationResumeTimer){clearTimeout(activationResumeTimer);activationResumeTimer=null;}
     if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
     if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
-    if(targetingFxTimer){clearTimeout(targetingFxTimer);targetingFxTimer=null;}
-    if(targetingFxFrame){cancelAnimationFrame(targetingFxFrame);targetingFxFrame=null;}
-    attackTargetingBusy=false;
+    clearAttackTargetingFx();
     document.querySelectorAll(".attack-targeting-fx").forEach(node=>node.remove());
     $("#dice-roll-overlay")?.classList.remove("show");
     closeModal();
@@ -1035,21 +1049,22 @@
         const distance=E.distance(source,target);
         const details=E.lineOfSightDetails(state,source,target);
         const inRangeWeapons=(source.weapons||[]).filter(weapon=>distance<=weaponRange(weapon));
-        const canAttack=inRangeWeapons.some(weapon=>weapon.ignoreLos||details.clear);
+        const twinBusterClear=inRangeWeapons.some(weapon=>weapon.aoe==="twinBuster"&&E.hasTwinBusterLine(state,source,target));
+        const canAttack=inRangeWeapons.some(weapon=>weapon.ignoreLos||(weapon.aoe==="twinBuster"?E.hasTwinBusterLine(state,source,target):details.clear));
         const ignoresLos=!details.clear&&inRangeWeapons.some(weapon=>weapon.ignoreLos);
         // A line exactly on a hex border gives the acting player a choice. Green means
         // at least one in-range weapon can legally attack; Ignore LOS weapons remain green.
         const route=details.paths.find(candidate=>candidate.clear)||details.paths[0];
         const status=canAttack?"clear":"blocked";
         const targetX=x0+target.q*dx,targetY=y0+(target.r+(target.q&1)*.5)*dy;
-        return `<g aria-label="${canAttack?"ยิงได้":"Line of Sight ถูกบัง"}${ignoresLos?"ด้วยอาวุธ Ignore Line of Sight":""}"><title>${ignoresLos?"ยิงได้ด้วยอาวุธที่ Ignore Line of Sight":canAttack?"ยิงได้ด้วยอาวุธอย่างน้อย 1 ชิ้น":"ไม่มีอาวุธในระยะที่มองเห็นเป้าหมาย"}</title><polyline class="los-path ${status}" points="${route.path.map(point).join(" ")}"></polyline><circle class="los-endpoint ${status}" cx="${targetX}" cy="${targetY}" r="25"></circle><g class="los-range-badge ${status}" transform="translate(${targetX+20} ${targetY-21})"><circle r="8"></circle><text y=".5">${distance}</text></g></g>`;
+        return `<g aria-label="${canAttack?"ยิงได้":"Line of Sight ถูกบัง"}${ignoresLos?"ด้วยอาวุธ Ignore Line of Sight":""}"><title>${twinBusterClear&&!details.clear?"Twin Buster ยิงถึงตามกฎพื้นที่สูง แม้ LOS ปกติถูกบัง":ignoresLos?"ยิงได้ด้วยอาวุธที่ Ignore Line of Sight":canAttack?"ยิงได้ด้วยอาวุธอย่างน้อย 1 ชิ้น":"ไม่มีอาวุธในระยะที่มองเห็นเป้าหมาย"}</title><polyline class="los-path ${status}" points="${route.path.map(point).join(" ")}"></polyline><circle class="los-endpoint ${status}" cx="${targetX}" cy="${targetY}" r="25"></circle><g class="los-range-badge ${status}" transform="translate(${targetX+20} ${targetY-21})"><circle r="8"></circle><text y=".5">${distance}</text></g></g>`;
       }).join("");
   }
 
   function blockedForEveryInRangeWeapon(source,target) {
     const distance=E.distance(source,target);
     const weapons=(source.weapons||[]).filter(weapon=>distance<=weaponRange(weapon));
-    return !weapons.some(weapon=>weapon.ignoreLos||E.hasLineOfSight(state,source,target));
+    return !weapons.some(weapon=>weapon.ignoreLos||(weapon.aoe==="twinBuster"?E.hasTwinBusterLine(state,source,target):E.hasLineOfSight(state,source,target)));
   }
 
   function focusCameraOnUnit(unit) {
@@ -1189,7 +1204,8 @@
       const backSub=draftKick?"SELECT DASH HEX AGAIN":aoeConfirm?"SELECT DIRECTION AGAIN":"CANCEL";
       const cancelButton=mode.required?"":`<button class="command-item" id="cancel-mode"><span>${backText}</span><small>${backSub}</small></button>`;
       const stopPushButton=mode.type==="push-direction"&&mode.canStop?`<button class="command-item" id="stop-push"><span>หยุด Push</span><small>ยืนยันระยะปัจจุบัน</small></button>`:"";
-      menu.innerHTML=`<div class="command-caption"><span>${mode.type.toUpperCase()}</span><span>${draftKick?"DASH DECISION":"SELECTING"}</span></div>${charKickAlert}${pushAlert}<div class="command-list">${kickButtons}${mode.type==="move"&&mode.allowStay?`<button class="command-item" id="stay-in-place"><span>อยู่ช่องเดิม</span><small>0 HEX</small></button>`:""}${stopPushButton}${cancelButton}</div>`;
+      const twinDirectionButtons=mode.type==="aoe-direction"?(mode.directionChoices||[]).map(choice=>`<button class="command-item" data-aoe-rotation="${choice.rotation}"><span>แนวยิง ${choice.rotation+1}</span><small>${choice.legal?`${choice.targets.length} TARGET${choice.targets.length===1?"":"S"}`:"PREVIEW"}</small></button>`).join(""):"";
+      menu.innerHTML=`<div class="command-caption"><span>${mode.type.toUpperCase()}</span><span>${draftKick?"DASH DECISION":"SELECTING"}</span></div>${charKickAlert}${pushAlert}<div class="command-list">${kickButtons}${twinDirectionButtons}${mode.type==="move"&&mode.allowStay?`<button class="command-item" id="stay-in-place"><span>อยู่ช่องเดิม</span><small>0 HEX</small></button>`:""}${stopPushButton}${cancelButton}</div>`;
       menu.querySelectorAll("[data-char-kick-unit]").forEach(button=>button.addEventListener("click",()=>{
         const target=state.units.find(candidate=>candidate.id===button.dataset.charKickUnit);
         const continuation=mode?.callback||null;
@@ -1200,6 +1216,7 @@
         const continuation=mode?.callback||null;
         if(target)resolveCharKickGarrisonTarget(unit,target,continuation);
       }));
+      menu.querySelectorAll("[data-aoe-rotation]").forEach(button=>button.addEventListener("click",()=>previewTwinBusterDirection(Number(button.dataset.aoeRotation))));
       menu.querySelector("#stay-in-place")?.addEventListener("click",()=>completeMove(unit.q,unit.r));
       menu.querySelector("#stop-push")?.addEventListener("click",()=>mode?.stopCallback?.());
       menu.querySelector("#cancel-mode")?.addEventListener("click",()=>{const back=mode.returnMenu||"main";const onCancel=mode.onCancel;mode=null;menuOpen=true;menuView=back;if(onCancel)onCancel();renderAll();});
@@ -1322,7 +1339,7 @@
     const holdTime=reduced?350:700;
     if(diceRollInterval)clearInterval(diceRollInterval);
     const epoch=gameEpoch;
-    diceRollInterval=setInterval(()=>nodes.forEach(node=>{node.querySelector("span").textContent=String(Math.floor(Math.random()*10)+1);}),reduced?80:65);
+    diceRollInterval=setInterval(()=>nodes.forEach(node=>{node.querySelector("span").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
     diceAnimationTimer=setTimeout(()=>{
       if(epoch!==gameEpoch){if(diceRollInterval)clearInterval(diceRollInterval);diceRollInterval=null;return;}
       clearInterval(diceRollInterval);
@@ -1466,7 +1483,7 @@
       allowance,
       effectiveAllowance:Math.max(0,allowance-(engaged.length?1:0)),
       engaged:engaged.length>0,
-      placed:!wasDeploying,
+      placed:false,
       cost,label,movementType,primaryAction
     };
     return openMovementDraft(unit);
@@ -1480,7 +1497,7 @@
     // selecting again so the highlighted range cannot look like extra movement.
     if(draft.placed&&(unit.q!==draft.origin.q||unit.r!==draft.origin.r)){
       unit.q=draft.origin.q; unit.r=draft.origin.r; unit.zone=draft.origin.zone;
-      draft.placed=draft.origin.zone!=="deploying";
+      draft.placed=false;
     }
     // Rebuild the legal area from the saved origin every time the preview is reopened.
     // This prevents a previewed position from ever becoming a new movement origin
@@ -1489,7 +1506,7 @@
     draft.targets=new Set(refreshedTargets.keys());
     mode={
       type:"move",unitId:unit.id,targets:new Set(draft.targets),cost:0,label:draft.label,afterMove:null,
-      primaryAction:draft.primaryAction,allowStay:draft.placed,adjustableMovement:true,returnMenu:"main",
+      primaryAction:draft.primaryAction,allowStay:false,adjustableMovement:true,returnMenu:"main",
       origin:{q:draft.origin.q,r:draft.origin.r},allowance:draft.allowance,reachOptions:{},
       hint:`${draft.label}: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged?` จาก ${draft.allowance} เพราะ ENCOUNTER -1`:""}) — ยืนยันเมื่อเลือก Action อื่น`
     };
@@ -1519,6 +1536,10 @@
     movementDraft=null;
     if(!unit){onComplete();return;}
     const moved=unit.q!==draft.origin.q||unit.r!==draft.origin.r||draft.origin.zone==="deploying";
+    if(!moved&&draft.origin.zone!=="deploying"){
+      unit.q=draft.origin.q;unit.r=draft.origin.r;unit.zone=draft.origin.zone;
+      addLog(`${unit.name}: ${draft.label} ต้องจบต่างจากช่องเริ่มต้น`);renderAll();onComplete();return;
+    }
     payTimeline(unit,draft.cost);
     const pickups=E.pickupAt(state,unit);
     playPickupFeedback(unit,pickups);
@@ -1549,6 +1570,29 @@
     menuOpen=true;
     renderAll();
     return true;
+  }
+
+  function previewTwinBusterDirection(rotation) {
+    const unit=modeUnit();
+    if(!unit||mode?.type!=="aoe-direction")return false;
+    const choice=mode.directionChoices?.find(entry=>entry.rotation===rotation);
+    const callback=mode.callback;
+    if(!choice||!callback)return false;
+    const directionMode=mode;
+    const preview=twinBusterPreview(unit,choice.rotation);
+    const canFire=!!choice.legal;
+    mode={
+      type:"aoe-confirm",unitId:unit.id,
+      previewTargets:new Set(preview.visible.map(hex=>E.key(hex.q,hex.r))),
+      targets:canFire?new Set(preview.visible.map(hex=>E.key(hex.q,hex.r))):new Set(),
+      blockedTargets:new Set(preview.blocked.map(hex=>E.key(hex.q,hex.r))),
+      hint:canFire
+        ?`Twin Buster Rifle: แดง = ยิงถึง · เทา = อยู่หลังพื้นที่สูงที่บัง · เป้าหมาย ${choice.targets.length} จุด — คลิกช่องสีแดงเพื่อยืนยัน`
+        :`Twin Buster Rifle: แดง = แนวยิง · เทา = อยู่หลังพื้นที่สูงที่บัง · ทิศนี้ไม่มีเป้าหมายที่ยิงได้ — Back เพื่อเปลี่ยนทิศ`,
+      callback:canFire?()=>callback(choice.rotation):null,required:false,returnMenu:directionMode.returnMenu||"weapons",
+      onCancel:()=>{mode=directionMode;menuOpen=true;}
+    };
+    menuOpen=true;renderAll();return true;
   }
 
   function handleHexClick(q,r,event=null) {
@@ -1584,9 +1628,9 @@
       SFX.unlock();
       const target=E.unitAt(state,q,r);
       const garrison=state.garrisons.find(g=>g.q===q&&g.r===r&&g.team!==unit.team);
-      const weapon=mode.weapon; const free=mode.free; const onDeclare=mode.onDeclare; mode=null;
-      if (target) {if(onDeclare)onDeclare();resolveAttack(unit,target,weapon,{free});}
-      else if (garrison) {if(onDeclare)onDeclare();resolveGarrisonAttack(unit,garrison,weapon,{free});}
+      const weapon=mode.weapon; const free=mode.free; const onDeclare=mode.onDeclare; const onComplete=mode.onComplete; mode=null;
+      if (target) {if(onDeclare)onDeclare();resolveAttack(unit,target,weapon,{free,onComplete});}
+      else if (garrison) {if(onDeclare)onDeclare();resolveGarrisonAttack(unit,garrison,weapon,{free,onComplete});}
     } else if (mode.type==="select-unit") {
       const target=E.unitAt(state,q,r); const callback=mode.callback; mode=null;
       if (target) callback(target);
@@ -1619,27 +1663,11 @@
       const callback=mode.callback;mode=null;
       callback({q,r});
     } else if(mode.type==="aoe-direction"){
-      const choice=mode.directionChoices?.find(entry=>entry.q===q&&entry.r===r);
-      const callback=mode.callback;
-      if(choice&&callback){
-        const directionMode=mode;
-        const preview=twinBusterPreview(unit,choice.rotation);
-        const canFire=!!choice.legal;
-        mode={
-          type:"aoe-confirm",unitId:unit.id,
-          // Always show the clear part of the footprint in red for orientation, but
-          // only make it clickable when this direction has a legal enemy target.
-          previewTargets:new Set(preview.visible.map(hex=>E.key(hex.q,hex.r))),
-          targets:canFire?new Set(preview.visible.map(hex=>E.key(hex.q,hex.r))):new Set(),
-          blockedTargets:new Set(preview.blocked.map(hex=>E.key(hex.q,hex.r))),
-          hint:canFire
-            ?`Twin Buster Rifle: แดง = ยิงถึง · เทา = อยู่หลังพื้นที่สูงที่บัง · เป้าหมาย ${choice.targets.length} จุด — คลิกช่องสีแดงเพื่อยืนยัน`
-            :`Twin Buster Rifle: แดง = แนวยิง · เทา = อยู่หลังพื้นที่สูงที่บัง · ทิศนี้ไม่มีเป้าหมายที่ยิงได้ — Back เพื่อเปลี่ยนทิศ`,
-          callback:canFire?()=>callback(choice.rotation):null,required:false,returnMenu:directionMode.returnMenu||"weapons",
-          onCancel:()=>{mode=directionMode;menuOpen=true;}
-        };
-        renderAll();
-      }
+      const matching=mode.directionChoices?.filter(entry=>entry.q===q&&entry.r===r)||[];
+      // Ambiguous map anchors are intentionally not clickable. At map edges two
+      // rotations can project onto the same in-bounds Hex; the direction buttons in
+      // the command panel remain the canonical six-way selector.
+      if(matching.length===1)previewTwinBusterDirection(matching[0].rotation);
     } else if(mode.type==="aoe-confirm"){
       const callback=mode.callback;mode=null;if(callback)callback();
     }
@@ -1780,7 +1808,7 @@
     const normalHint=weapon.effect==="splash"
       ? `${weapon.name}: เลือกเป้าหมายหลัก — หลัง Combat Damage ศัตรูทุกตัวที่ติดกับเป้าหมายจะรับ Damage 0 (Critical = 1)`
       : `${weapon.name}: เลือกยูนิตหรือ Garrison สีแดง`;
-    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,onDeclare:options.onDeclare,required:!!options.required,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน`:normalHint};
+    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,onDeclare:options.onDeclare,onComplete:options.onComplete,required:!!options.required,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน`:normalHint};
     menuOpen=true;
     renderAll();
     return true;
@@ -1844,7 +1872,8 @@
     const fire=rotation=>resolveTwinBusterAttack(attacker,weapon,rotation,options);
     if(isAiTeam(attacker.team)){
       if(!legalChoices.length)return false;
-      const best=legalChoices.slice().sort((a,b)=>b.targets.length-a.targets.length)[0];
+      const preferred=legalChoices.find(choice=>choice.rotation===options.rotation);
+      const best=preferred||legalChoices.slice().sort((a,b)=>b.targets.reduce((sum,target)=>sum+(target.vp||D.rules.garrison?.defeatVp||2),0)-a.targets.reduce((sum,target)=>sum+(target.vp||D.rules.garrison?.defeatVp||2),0))[0];
       fire(best.rotation);return true;
     }
     // Human players can inspect all six fixed directions even when every current
@@ -1856,7 +1885,9 @@
       :engaged.length
         ?"Twin Buster Rifle: ยังไม่มีแนวที่โจมตีเป้าหมาย Engaged ได้ — เลือกทิศเพื่อดูแนวยิง/สิ่งกีดขวาง"
         :"Twin Buster Rifle: ยังไม่มีเป้าหมายที่ยิงถึง — เลือกทิศเพื่อดูแนวยิงและพื้นที่สูงที่บัง";
-    mode={type:"aoe-direction",unitId:attacker.id,weapon,required:!!options.required,directionChoices:choices,targets:new Set(choices.map(choice=>E.key(choice.q,choice.r))),hint,callback:fire};
+    const anchorCounts=choices.reduce((counts,choice)=>{const key=E.key(choice.q,choice.r);counts.set(key,(counts.get(key)||0)+1);return counts;},new Map());
+    const uniqueAnchors=choices.filter(choice=>anchorCounts.get(E.key(choice.q,choice.r))===1);
+    mode={type:"aoe-direction",unitId:attacker.id,weapon,required:!!options.required,directionChoices:choices,targets:new Set(uniqueAnchors.map(choice=>E.key(choice.q,choice.r))),hint:`${hint} · หรือเลือกแนวยิง 1–6 จากเมนู`,callback:fire};
     menuOpen=true;renderAll();return true;
   }
 
@@ -1938,7 +1969,7 @@
             const attackerResponses=availablePostCombat(attacker,"attacker");
             openPostCombatResponses([
               {cards:attackerResponses,role:"attacker",responders:[attacker]}
-            ],attacker,surrogate,0,()=>{finishDefeatedActiveActivation(attacker,"Sacrificial Overload");});
+            ],attacker,surrogate,0,()=>{finishDefeatedActiveActivation(attacker,"Sacrificial Overload");if(options.onComplete)options.onComplete();});
           });
           });
         }));
@@ -2036,7 +2067,7 @@
       if(weapon.id==="rex-claws")attacker.attackedWithRexClaws=true;
       const result=E.rollAttack(state,attacker,defender,weapon);
       lastDice=result;
-      pendingAttack={attacker,defender,weapon,result,reductions:{}};
+      pendingAttack={attacker,defender,weapon,result,reductions:{},continuation:options.onComplete||null};
       addLog(`${attacker.name} ใช้ ${weapon.name}: ${result.hits} Hit · ${result.criticals} Critical`);
       renderAll();
       showDiceRoll(result,weapon.name,()=>offerNewtypeReroll(attacker,defender,weapon,result,()=>offerWeaponAfterRollEffect(attacker,defender,weapon,()=>resolveDisarmReroll(attacker,defender,weapon,result,()=>{
@@ -2048,7 +2079,7 @@
   function finishAttack() {
     closeModal();
     if (!pendingAttack) return;
-    const {attacker,defender,weapon,result,reductions={}}=pendingAttack;
+    const {attacker,defender,weapon,result,reductions={},continuation=null}=pendingAttack;
     const from={q:attacker.q,r:attacker.r};
     const to={q:defender.q,r:defender.r};
     const dealDamageAndFinish=()=>{
@@ -2082,6 +2113,7 @@
           {cards:defenderResponses,role:"defender",responders:defenderResponders}
         ],attacker,defender,0,()=>{
           finishDefeatedActiveActivation(attacker,"Combat Response");
+          if(continuation)continuation();
         });
       });
     };
@@ -2105,7 +2137,7 @@
     }
     if(weapon.critical==="move2IgnoreEngagement"){
       addLog("Beam Saber Critical: เคลื่อนที่ได้ 2 ช่องโดยไม่สนใจ Engagement");
-      const started=startMoveFor(attacker,2,0,"Beam Saber Critical Move",moved=>afterUnitMove(attacker,"critical",onComplete,moved),{allowStay:true,ignoreEngagement:true});
+      const started=startMoveFor(attacker,2,0,"Beam Saber Critical Move",moved=>afterUnitMove(attacker,"critical",onComplete,moved),{allowStay:true,ignoreEngagement:true,onCancel:onComplete});
       if(started&&isAiTeam(attacker.team))scheduleAiResolveMode();
       if(!started)onComplete();
       return;
@@ -2113,7 +2145,7 @@
     if(weapon.critical==="repeatAtTimeline0"&&!attacker.handgunRepeatUsed){
       attacker.handgunRepeatUsed=true;
       addLog("Handgun Critical: โจมตีด้วย Handgun เพิ่มอีก 1 ครั้งที่ Timeline 0");
-      const started=beginAttack(weapon,{free:true,required:true});
+      const started=beginAttack(weapon,{free:true,required:true,onComplete});
       if(!started)onComplete();
       else if(isAiTeam(attacker.team))scheduleAiResolveMode();
       return;
@@ -2296,7 +2328,8 @@
       inHand(tacticOwner(card),card.id)&&
       !isUsed(card.id,tacticOwner(card))&&
       !state.activation.tacticUsed[tacticOwner(card)]&&
-      (card.id!=="return-fire"||canAttack)
+      (card.id!=="return-fire"||canAttack)&&
+      (card.id!=="shattered-formation"||opposingUnit?.zone==="board")
     );
     if(!legalCards.length)return continueQueue();
     const sacrificialTargets=[...new Map((attacker.lastAoeTargets||[defender]).filter(target=>target&&(
@@ -2308,7 +2341,7 @@
       return total+(remainingHp<=2?(target.vp||D.rules.garrison?.defeatVp||2):0);
     },0);
     openResponse(legalCards,card=>resolvePostCombat(card,attacker,defender,responseWindow.role,continueQueue,responders),continueQueue,{
-      canAttack,attackerHp:attacker.hp,attackerVp:attacker.vp||0,
+      canAttack,attackerAlive:attacker.zone==="board",attackerHp:attacker.hp,attackerVp:attacker.vp||0,
       sacrificialTargets:sacrificialTargets.length,sacrificialKillVp
     });
   }
@@ -2381,7 +2414,7 @@
       });
       addLog(`Sacrificial Overload: Wing Gundam Zero และเป้าหมาย ${targets.length} ตัวรับ Damage 2`);
     }
-    else if (card.id==="shattered-formation") { const responseUnit=responders[0]||defender;damageUnit(responseUnit,attacker,2,"Shattered Formation"); }
+    else if (card.id==="shattered-formation") { const responseUnit=responders[0]||defender;if(attacker.zone==="board")damageUnit(responseUnit,attacker,2,"Shattered Formation");else addLog("Shattered Formation: ผู้โจมตีถูกทำลายไปแล้ว — ไม่มีเป้าหมาย"); }
     closeModal();renderAll();done();
   }
 
@@ -2572,7 +2605,7 @@
       markCommand(card);grantUpgrade(unit,"shield",1);
       if(adjacentObjectives(unit).length)selectObjective(unit,"Entrenched Position",objective=>captureObjective(unit,objective,"Entrenched Position"),()=>{},true);
     }
-    else if (card.id==="forward-artillery") { if(unit.id!=="guncannon")return showCard(card,"ใช้ได้เมื่อ Guncannon กำลังทำงาน");markCommand(card);unit.energy+=1;const rescued=state.rescuedGarrisons?.fed||0;unit.tempStrength+=rescued;addLog(`Forward Artillery: Strength ชั่วคราว +${rescued} (Garrison ที่ E.F.S.F. ช่วยไว้)`); }
+    else if (card.id==="forward-artillery") { if(unit.id!=="guncannon")return showCard(card,"ใช้ได้เมื่อ Guncannon กำลังทำงาน");markCommand(card);unit.energy+=1;const rescued=state.rescuedGarrisons?.[unit.team]||0;unit.tempStrength+=rescued;addLog(`Forward Artillery: Strength ชั่วคราว +${rescued} (Garrison ที่ E.F.S.F. ช่วยไว้)`); }
     else if (card.id==="last-shot-counts") { if(unit.id!=="gundam")return showCard(card,"ใช้ได้เมื่อ Gundam กำลังทำงาน");markCommand(card);grantUpgrade(unit,"strength",1);unit.nextAttackDiscount=1;unit.lastShotBonus=true; }
     else if (card.id==="rookies-momentum") { markCommand(card);unit.tempStrength+=2;unit.critBoost=true; }
     else if (card.id==="lock-down"||card.id==="breaking-line") {
@@ -2639,7 +2672,7 @@
       const totalShields=Math.max(0,responseTarget?.upgrades?.shield||0);
       const inactiveShields=Math.min(totalShields,Math.max(0,responseTarget?.inactiveShields||0));
       const activeShields=Math.max(0,totalShields-inactiveShields);
-      const context={damage,effectiveDamage:Math.max(0,damage-activeShields),activeShields,hp:responseTarget?.hp,attackerAlive:pendingAttack?.attacker?.zone!=="reserve",canAttack:true,...decisionContext};
+      const context={damage,effectiveDamage:Math.max(0,damage-activeShields),activeShields,hp:responseTarget?.hp,attackerAlive:decisionContext.attackerAlive??(pendingAttack?.attacker?.zone==="board"),canAttack:true,...decisionContext};
       // Resolve this hidden decision immediately. Delaying only when the AI owns a
       // matching card leaks hand information and lets a callback cross Activations.
       if(A.shouldUseResponse(aiCard,context))onPlay(aiCard);
@@ -2650,7 +2683,7 @@
     let selected=cards[0];
     const render=()=>{
       modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><span class="eyebrow">RESPONSE WINDOW // ${teamName(tacticOwner(selected))}</span><h2>ตรวจการ์ดก่อนยืนยัน</h2>${cards.length>1?`<div class="response-picker">${cards.map(card=>`<button class="${card.id===selected.id?"selected":""}" data-response-preview="${card.id}">${card.name}</button>`).join("")}</div>`:""}<div class="tactic-confirm-layout"><img class="modal-card-image" src="${selected.card}" alt="${selected.name}"><div><h3>${selected.name}</h3><p>${selected.text}</p><div class="modal-actions"><button class="primary-btn" id="confirm-response">Confirm ใช้ Response</button><button class="action-btn" id="skip-response">ไม่ใช้ Response <span>SKIP</span></button></div></div></div></div>`;
-      modal.classList.add("show");
+      modal.classList.add("show");lockResponseModal(modal);
       modal.querySelectorAll("[data-response-preview]").forEach(btn=>btn.addEventListener("click",()=>{selected=getTactic(btn.dataset.responsePreview,tacticOwner(selected));render();}));
       modal.querySelector("#confirm-response").addEventListener("click",()=>onPlay(selected));
       modal.querySelector("#skip-response").addEventListener("click",()=>{closeModal();onSkip();});
@@ -2661,7 +2694,21 @@
   function ensureModal() {
     let modal=$("#game-modal"); if(!modal){modal=document.createElement("div");modal.id="game-modal";modal.className="overlay";document.body.appendChild(modal);}return modal;
   }
-  function closeModal(){const m=$("#game-modal");if(m)m.classList.remove("show");}
+  function lockResponseModal(modal) {
+    if(!modal)return;
+    if(modal.dataset.responseLock!=="true")responseModalRestoreFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    modal.dataset.responseLock="true";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
+    const shell=$(".game-shell");if(shell)shell.inert=true;
+    requestAnimationFrame(()=>{const focusable=modal.querySelector("#confirm-response,[data-response-preview],#skip-response,button,[href],[tabindex]:not([tabindex='-1'])");focusable?.focus?.({preventScroll:true});});
+  }
+  function releaseResponseModalLock(modal) {
+    if(!modal||modal.dataset.responseLock!=="true")return;
+    delete modal.dataset.responseLock;
+    const shell=$(".game-shell");if(shell&&!document.body.classList.contains("title-active"))shell.inert=false;
+    const restore=responseModalRestoreFocus;responseModalRestoreFocus=null;
+    if(restore?.isConnected&&!restore.closest?.("[inert]"))restore.focus?.({preventScroll:true});
+  }
+  function closeModal(){const m=$("#game-modal");if(m){releaseResponseModalLock(m);m.classList.remove("show");}}
 
   function scheduleAiCallback(callback,delay=AI_PACE.between) {
     const epoch=gameEpoch;
@@ -2746,7 +2793,7 @@
     if(diceAnimationTimer||pendingAttack||transitionBusy||aiResponsePending||aiEffectPending||attackTargetingBusy){
       if(attempt>AI_WATCHDOG_ATTEMPTS){
         addLog("AI ยุติขั้นตอนภายในที่ใช้เวลานานผิดปกติ");
-        mode=null;pendingAttack=null;aiResponsePending=false;aiEffectPending=false;closeModal();renderAll();aiFinishTurn(unit);return;
+        clearAttackTargetingFx();mode=null;pendingAttack=null;aiResponsePending=false;aiEffectPending=false;closeModal();renderAll();aiFinishTurn(unit);return;
       }
       scheduleAiCallback(()=>aiWaitForSettled(unit,next,attempt+1),AI_PACE.poll);return;
     }
@@ -2829,7 +2876,7 @@
     if(attack){
       addLog(`AI · ${unit.name} เลือก ${attack.weapon.name}`);renderAll();
       aiPreferredTargetKey=E.key(attack.target.q,attack.target.r);
-      beginAttack(attack.weapon);
+      beginAttack(attack.weapon,{rotation:attack.rotation});
       scheduleAiResolveMode();
       aiWaitForSettled(unit,()=>aiUseAnnihilateFollowUp(unit));
       return;
@@ -2949,7 +2996,7 @@
     document.body.classList.toggle("los-inspection-active",!!available&&losInspection.enabled);
     button.disabled=!available;
     button.setAttribute("aria-pressed",String(!!available&&losInspection.enabled));
-    const maximumRange=unit?Math.max(0,...(unit.weapons||[]).map(weapon=>weapon.range||0)):0;
+    const maximumRange=unit?Math.max(0,...(unit.weapons||[]).map(weaponRange)):0;
     button.innerHTML=`<span class="los-eye" aria-hidden="true"><i></i></span><span>LINE OF SIGHT${available?` · R${maximumRange}`:""}</span>`;
     button.setAttribute("aria-label",available&&losInspection.enabled?"ปิดการตรวจสอบ Line of Sight":`เปิดการตรวจสอบ Line of Sight ระยะ ${maximumRange}`);
     button.title=available&&losInspection.enabled?`กำลังแสดง Unit และ Garrison ศัตรูภายในระยะอาวุธสูงสุด ${maximumRange} · กดอีกครั้งเพื่อปิด`:`แสดง Line of Sight ตามระยะอาวุธไกลที่สุด (${maximumRange})`;
@@ -2981,6 +3028,15 @@
     renderActions();
   });
   document.addEventListener("keydown",event=>{
+    const responseModal=$("#game-modal.show[data-response-lock='true']");
+    if(responseModal){
+      if(event.key==="Tab"){
+        const focusable=[...responseModal.querySelectorAll("button:not([disabled]),[href],[tabindex]:not([tabindex='-1'])")].filter(node=>!node.inert&&node.offsetParent!==null);
+        if(focusable.length){const first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
+        return;
+      }
+      if(event.key==="Escape"){event.preventDefault();return;}
+    }
     if(event.key!=="Escape"||!state)return;
     // Resolution dialogs have explicit Confirm/Skip controls. Closing one without running
     // its continuation would strand pending combat, so Escape deliberately leaves it open.
