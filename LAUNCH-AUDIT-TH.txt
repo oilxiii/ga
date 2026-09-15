@@ -1,12 +1,77 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v74
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v89
+
+AUDIT UPDATE v89
+- ลดขนาดโฟลเดอร์เกมจาก 71 MB เหลือ 24 MB หรือลดลงประมาณ 66% โดยไม่แตะข้อมูลกฎหรือ AI.
+- ภาพการ์ด PNG ที่ไม่มี Alpha ถูกแปลงเป็น JPEG คุณภาพสูง; Unit Card ขนาดเกินจำเป็นจำกัดด้านยาวไว้ที่ 1,800 px ส่วน Tactic Card ขนาดปกติคงความละเอียดต้นฉบับ.
+- ไอคอนบนสนามและหน้าเลือกทีมจำกัดด้านยาวไว้ที่ 384 px ซึ่งยังสูงกว่าขนาดแสดงจริงหลายเท่า; Title Art แบบโปร่งใสคง PNG และจำกัดด้านยาวไว้ที่ 1,400 px.
+- ตรวจยืนยันว่าการ์ดที่ระบบอ้างถึงครบ 40 ภาพ, ไม่มี path เสีย และขนาดรวมของภาพการ์ดที่ใช้งานจริงไม่เกิน 13 MB.
+- ผลทดสอบ v89: Core 186 + AI 23 = 209 tests ผ่านทั้งหมด.
+
+วันที่ตรวจ: 16 กันยายน 2026
+
+AUDIT UPDATE v88
+- เพิ่มหน้าต่าง AI Tactic Reveal ที่แสดงภาพการ์ดจริงกลางหน้าจอ พร้อมปุ่ม X และ “ปิดและดำเนินการต่อ”.
+- ลำดับเกมจะยังไม่ใช้การ์ด ไม่เริ่มเลือกเป้าหมาย ไม่ทอยโจมตี และไม่สร้างเอฟเฟกต์ จนผู้เล่นปิดหน้าต่าง.
+- ครอบคลุม Tactic ของ AI ทั้ง Command, Attack และ Response; การ์ด Response ที่ AI ตัดสินใจไม่ใช้จะไม่ถูกเปิดเผย.
+- หน้าต่างล็อกกระดานและ Focus ระหว่างรอ ป้องกันการกดคำสั่งอื่นหรือทำให้ resolution ข้ามขั้น.
+- ผลทดสอบ v88: Core 185 + AI 23 = 208 tests ผ่านทั้งหมด.
+
+วันที่ตรวจ: 16 กันยายน 2026
+
+AUDIT UPDATE v87
+- Hacking System ตรวจ source ของเหตุการณ์โดยตรง: ทริกเกอร์เฉพาะเมื่อ Mechazawa ทำลาย Garrison ศัตรู หรือ Mechazawa Rescue Garrison ฝ่ายเรา; การกระทำเดียวกันจาก EVA-01/Mazinger Z/ยูนิตทีมเดียวกันไม่สร้าง Response.
+- Motorcycle เปลี่ยนจาก movementBonus เป็น Move แยกสูงสุด 2 ช่อง ค่า Timeline 0; ไม่ตั้งค่า Advance/Primary Action จึงใช้ได้ก่อนหรือหลัง Move/Dash และยังผ่าน movement-response hook กลาง.
+- AI ประเมินตำแหน่งจาก Motorcycle แยกจาก Advance และสามารถใช้ได้ทั้งขั้นก่อน Advance หรือขั้น Command หลัง Advance.
+- Super Alloy Z เปลี่ยนเป็นได้รับ Shield Upgrade 1 ทุกครั้งที่ Mazinger Z Deploy จาก Base และยกเลิกการลด Damage แบบเดิม.
+- อัปเดตภาพ Unit Card ของ Mechazawa และ Mazinger Z จากไฟล์ล่าสุด.
+- ผลทดสอบ v87: Core 184 + AI 23 = 207 tests ผ่านทั้งหมด.
+
+วันที่ตรวจ: 16 กันยายน 2026
+
+AUDIT UPDATE v86
+- เพิ่ม regression test ที่วางทั้ง Terrain สูงและ Unit ขวางแนวยิง แล้วยืนยันว่า Rocket Punch ยังเลือก Unit และ Garrison ภายใน Range 3 เป็นเป้าหมายได้.
+- เมนู Rocket Punch แสดง IGNORE LOS และหน้าต่างเลือกเป้าหมายระบุชัดว่าไม่ตรวจ Line of Sight.
+- แยกข้อความกรณีไม่มีเป้าหมายของ Rocket Punch ออกจากข้อความ LOS ของอาวุธทั่วไป เพื่อลดการตีความผิดเมื่อเป้าหมายอยู่นอก Range หรือถูก Encounter จำกัด.
+- ผลทดสอบ v86: Core 183 + AI 23 = 206 tests ผ่านทั้งหมด.
+
+วันที่ตรวจ: 16 กันยายน 2026
+
+AUDIT UPDATE v85
+- อัปเดตภาพ Unit Card ของ Secret Team ครบทั้ง EVA-01, Mazinger Z และ Mechazawa.
+- Positron Rifle เปลี่ยน Timeline 5 เป็น 4 และ Rocket Punch เปลี่ยน Range 2 เป็น 3 ตามการ์ดใหม่.
+- Breast Fire เปลี่ยนเป็น SP AoE รูปกรวย 6 ช่องตาม diagram; ใช้ shared roll, ไม่โดน Unit ฝ่ายเดียวกันหรือ Base และใช้แนวเล็งพิเศษของ AoE.
+- โบนัส Damage +2 ของ Breast Fire ตรวจแยกต่อเป้าหมายที่อยู่ติด Mazinger Z และ Critical Fracture Resolve แยกกับเป้าหมายแต่ละตัว.
+- Mechazawa เปลี่ยนจาก HP 7 / VP 5 เป็น HP 10 / VP 4 ตามการ์ดใหม่.
+- AI ประเมินทั้งหกทิศของ Breast Fire และ Line of Sight Inspector แสดงผลด้วยกฎเดียวกับการโจมตีจริง.
+- ผลทดสอบ v85: Core 182 + AI 23 = 205 tests ผ่านทั้งหมด.
+
+วันที่ตรวจ: 16 กันยายน 2026
+
+AUDIT UPDATE v84
+- Timeline icon inspection เปิด Unit Card + live HUD ได้ทั้งสองฝ่ายโดยไม่เปลี่ยน Active Unit/Targeting/Turn และ modal ใช้ focus lock เดิม.
+- Team Select แบ่งทีมที่เปิดเผยเป็น CLASSIC: E.F.S.F./ZEON และ STARTER 01: White Devil/The Rival
+- 4 ทีมดังกล่าวแสดงทันทีทั้ง 1 Player และ 2 Player
+- Secret Team เท่านั้นที่อยู่ใน hidden drawer; icon เป็น ? พร้อม noise/glitch animation และรองรับ Reduced Motion
+- ไม่มีการเปลี่ยน gameplay rules หรือ faction IDs
+
 วันที่ตรวจ: 15 กันยายน 2026
-ต้นทาง: Gundam Assemble version73.zip
-ผลลัพธ์: แก้รายการ Audit v73 ครบ 13 จุด และไม่พบบั๊กระดับ Blocker/High/Medium จากรายการดังกล่าวค้างอยู่หลังรันทดสอบอัตโนมัติรอบสุดท้าย
+
+AUDIT UPDATE v81
+- Hacking System ใช้ trigger counter และ Resolve ทีละ Garrison รวม Push collision / AoE ได้ครบ
+- Progressive Knife Critical ครั้งซ้ำยังทำ Fracture แต่ไม่สร้างการโจมตีครั้งที่ 3
+- No Escape ใช้ LOS ปกติ
+- Checkmate ให้ Human เลือก Upgrade และ AI เลือกตาม policy
+- War Edge + Exploit Weakness ใช้ +2 Strength กับ shared roll เมื่อมี Unit เป้าหมายอย่างน้อย 1 ตัวติด Status
+- Resolution modal ทุกชนิดใช้ focus trap + inert ป้องกัน callback ถูก modal อื่นเขียนทับ
+- AI ประเมิน extra dice / repeat / Disarm / Push+Slow / Shield break ดีขึ้น และ Motorcycle ใช้ก่อน Advance เมื่อระยะเพิ่มสร้างมูลค่าจริง
+- Log ของ Heat Rod/Bazooka ใช้ชื่ออาวุธจริง และ cache tag sync เป็น v81
+ต้นทาง: Gundam Assemble version80
+ผลลัพธ์: อัปเดต v80 เป็น v81 โดยเพิ่ม Hacking USE/SKIP, ป้องกัน Annihilate เสีย Energy เมื่อไม่มีเป้าหมาย, เติม temporary status ใน HUD และทำ Alaya-Vijnana Exertion rollback เมื่อกด Back โดยไม่เปลี่ยนกฎหลักอื่น
 อัปเดต v51: Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามประกาศ Scenario ล่าสุด
 
 แหล่งอ้างอิง
 - GA Official Core Rulebook v1.0 (Updated August 28, 2026)
-- Unit Card จริง 9 ใบ และ Tactic Card ภาษาไทยจริง 20 ใบที่อยู่ในโฟลเดอร์ assets/cards
+- Unit Cardจริง 15 ใบ และ Tactic Card 25 ใบที่อยู่ในโฟลเดอร์ assets/cards
 - แผนที่ Sleeping Leviathan และภาพ Token ที่ผู้ใช้อัปโหลด
 
 ขอบเขตที่ตรวจ
@@ -15,10 +80,17 @@ GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v74
 - Line of Sight ทุกระดับความสูง รวมกรณีเส้นพาดขอบ Hex
 - Attack Timing, Accuracy, Critical, Shield, Disarm, Fracture, Slow, Push และ Defeat
 - Objective, Garrison, Rescue และ Victory Point
-- ความสามารถของ Unit ทั้ง 9 ตัวและอาวุธทั้ง 18 แบบ
-- Tactic Card ทั้ง 20 ใบ รวม Response ซ้อนจาก Return Fire และ Tactic ที่ใช้ร่วมกันระหว่างทีม
+- ความสามารถของ Unit ทั้ง 15 ตัวและอาวุธ Unit 30 แบบ
+- Tactic Card ทั้ง 25 ใบ รวม Attack Tactic แบบ AoE, Response ซ้อนจาก Return Fire และ Tactic ที่ใช้ร่วมกันระหว่างทีม
 - AI, ข้อมูลลับ, การเลือกเป้าหมาย, การเคลื่อนที่ และทางออกจากสถานะรอ
 - UI สำคัญ, เสียง, เพลง, ภาพการ์ด, Unit icon, Token icon และไฟล์ asset
+
+การเปลี่ยนแปลงใน v75
+1. ZEON ใช้สีแดงเสมอ และ E.F.S.F. ใช้สีน้ำเงินเสมอ ไม่ว่าจะถูกเลือกเป็น Player 1 หรือ Player 2
+2. Secret Team ใช้สีที่เหลือจากคู่แข่ง: พบ ZEON จะเป็นน้ำเงิน; พบ E.F.S.F. จะเป็นแดง
+3. Unit, Timeline, HUD, Score, Objective ที่ถูกยึด, Base และ Garrison อ่านสีจากตัวตัดสินชุดเดียวกัน
+4. ลบการอ้างอิง Garrison/เอฟเฟกต์สีเขียวออกจากเกมและชุดไฟล์ส่งมอบ
+5. Objective ที่ยังไม่มีผู้ครอบครองคงเป็นธงสีเหลือง
 
 บั๊กที่แก้ใน v74
 1. AI targeting watchdog: เพิ่ม failsafe/cleanup กลางสำหรับ requestAnimationFrame และ timer เพื่อคืน attackTargetingBusy/aiEffectPending และยกเลิกเอฟเฟกต์ค้างเมื่อแท็บถูกพัก
@@ -92,7 +164,7 @@ GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v74
 - ไม่มี Counterattack อัตโนมัติ การยิงกลับเกิดจาก Return Fire เท่านั้น
 
 สิ่งที่เพิ่มและตรวจใน v58
-- เพิ่ม Secret Team: Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex; สีทีมปัจจุบันเป็นสีเขียว
+- เพิ่ม Secret Team: Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex; ใน v75 ใช้สีแดงหรือน้ำเงินที่เหลือจากคู่แข่ง
 - 1 Player เลือกทีมผู้เล่นและทีมคู่ต่อสู้ AI ได้เอง; 2 Player ให้ผู้เล่นทั้งสองเลือกทีม และทั้งสองโหมดห้ามทีมซ้ำในแมตช์เดียวกัน
 - Twin Buster Rifle ใช้ pattern 9 Hex ตามการ์ด, หมุนได้ 6 ทิศ, ทอย Attack Roll ชุดเดียวและคำนวณแต่ละเป้าหมายแยกกัน
 - AoE เล็งเฉพาะ Unit/Garrison ศัตรู ไม่โดนฝ่ายเดียวกันและไม่โดน Base; Twin Buster ไม่ใช้ LOS ปกติและมองทะลุ Unit/Garrison/Base/Terrain ที่ระดับไม่สูงกว่า Wing Zero; จะบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับที่ Wing Zero ยืน โดยเป้าหมายที่ยืนบน Terrain สูงนั้นเองยังโดน
@@ -100,22 +172,29 @@ GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v74
 - Hunter’s Edge ผลักศัตรูที่ติดกันสูงสุด 2 Hex แล้วทำ Damage 1; Handgun ยิงซ้ำ TL0 ได้ครั้งเดียวต่อ Critical chain
 - Tail Blade ดึงก่อนทอย 1 Hex; Annihilate ยิง Rex Claws ซ้ำ TL0; Fight to the End เพิ่ม Strength ตาม Damage 6/12
 - Ultimate Tactic deck จำกัดเป็น Renewed Power, Sacrificial Overload และ Built to Last รวม 3 ใบตั้งแต่เริ่มเกม และไม่มีการจั่วเพิ่มใน Phase 2
-- สถานะปัจจุบัน: Secret Team Garrison ใช้กรอบเขียว/ด้านในเทา; Base ใช้ Token สีน้ำเงินตาม palette ปัจจุบัน โดยตำแหน่งและตรรกะ Base/Garrison ไม่เปลี่ยน
-- สถานะปัจจุบัน: Objective ที่ยังเป็นกลางใช้ธงสีเหลือง; Objective ที่ถูกยึดใช้สี faction จริงของเจ้าของ (Secret Team = เขียว)
+- สถานะปัจจุบัน: Base และ Garrison ใช้ Token แดง/น้ำเงินตามสีของแต่ละฝั่งในแมตช์ โดยตำแหน่งและตรรกะ Base/Garrison ไม่เปลี่ยน
+- สถานะปัจจุบัน: Objective ที่ยังเป็นกลางใช้ธงสีเหลือง; Objective ที่ถูกยึดใช้สีแดง/น้ำเงินของฝั่งเจ้าของ
 - AI ประเมินอาวุธ/ความสามารถของ Secret Team, เลือก AoE ที่ถูกกติกา และไม่ใช้ Sacrificial Overload ฆ่าตัวเองเว้นแต่ VP ที่กำจัดได้คุ้มกว่า
 
 ผลการตรวจอัตโนมัติรอบสุดท้าย
 - JavaScript syntax: ผ่าน data.js, engine.js, ai.js และ game.js
-- Core/rules checks: 154 ผ่าน
-- AI/fairness checks: 17 ผ่าน
-- รวม: 171/171 ผ่าน
-- Unit data: 9 ตัว / อาวุธ 18 แบบ ตรงกับภาพการ์ด
-- Tactic data และ implementation: 20/20 ใบตรวจครบ
+- Core/rules checks: 174 ผ่าน
+- AI/fairness checks: 22 ผ่าน
+- รวม: 196/196 ผ่าน
+- Unit data: 15 ตัว / อาวุธ Unit 30 แบบ ตรงกับภาพการ์ด
+- Tactic data และ implementation: 25/25 ใบตรวจครบ
 - Asset อ้างอิง: ไม่พบไฟล์หาย; MP3, GIF และ PNG ที่ใช้ตรวจชนิดไฟล์ผ่าน
 
 เช็กลิสต์สั้นก่อนเผยแพร่จริง
 - เปิด index.html จากโฟลเดอร์ทั้งชุด ห้ามอัปโหลดเฉพาะ index.html
-- ทดสอบ 1 PLAYER อย่างน้อยหนึ่งเกมต่อการเลือก E.F.S.F., ZEON และ Secret Team พร้อมลองเลือกคู่ต่อสู้ทุกทีม
-- ทดสอบ 2 PLAYER อย่างน้อยหนึ่งเกมที่มี Secret Team เพื่อดูหน้าส่งเครื่องและมือการ์ดลับ
+- ทดสอบ 1 PLAYER โดยลองเลือกทั้ง E.F.S.F., ZEON, White Devil, The Rival และ Secret พร้อมเลือกคู่ต่อสู้ทุกทีม
+- ทดสอบ 2 PLAYER อย่างน้อยหนึ่งเกมที่มีทีมใหม่ เพื่อดูหน้าส่งเครื่องและมือการ์ดลับ
 - ตรวจเสียง Title/Battle, ปุ่ม Mute, การย่อ Battle Log และ Line of Sight บนเบราว์เซอร์ที่จะใช้เผยแพร่
 - เมื่ออัปขึ้น GitHub ให้อัปเดตไฟล์ root ทั้งหมด พร้อมโฟลเดอร์ assets และ tests เพื่อไม่ให้ cache/เวอร์ชันต่างกัน
+
+
+AUDIT UPDATE v81
+- Hacking System: เพิ่ม USE / SKIP ต่อ trigger; Back จากการเลือกเป้าหมายกลับสู่ตัวเลือกโดยไม่เสีย trigger
+- Annihilate: ตรวจ Rex Claws legal target ก่อนเปิดใช้/ก่อนจ่าย Energy; ปุ่มถูก disable เมื่อโจมตีซ้ำไม่ได้
+- HUD: แสดง ACC/Checkmate, Mazin Power Crit floor และ Frenzied Charge Beam Saber bonus
+- Alaya-Vijnana Exertion: Back ได้ และ rollback HP, Shield state, Energy/Command ไปก่อนกด Command

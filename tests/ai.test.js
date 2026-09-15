@@ -25,12 +25,12 @@ test("AI policy is deterministic and never performs its own random rolls", () =>
 test("1 Player asks for the human team and then a different AI opponent", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   const game = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
-  for(const faction of ["fed","zeon","ultimate"])assert.match(html,new RegExp(`data-faction="${faction}"`));
+  for(const faction of ["fed","zeon","white-devil","rival","secret"])assert.match(html,new RegExp(`data-faction="${faction}"`));
   assert.match(html,/id="secret-team-toggle"/);
   assert.match(html,/id="secret-team-drawer"[^>]*aria-hidden="true"/);
-  assert.match(html,/<strong>SECRET TEAM<\/strong><span>CLASSIFIED<\/span>/);
-  assert.match(html,/class="secret-team-question"[^>]*>\?<\/span>/);
-  assert.doesNotMatch(html,/WING ZERO · VIDAR · BARBATOS/);
+  assert.match(html,/<strong>WHITE DEVIL<\/strong>/);
+  assert.match(html,/<strong>THE RIVAL<\/strong>/);
+  assert.match(html,/<strong>SECRET TEAM<\/strong><span>CLASSIFIED \/\/ SIGNAL LOST<\/span>/);
   assert.match(game,/setSecretRevealed\(false\)/);
   assert.match(game, /button\.disabled=step===2&&button\.dataset\.faction===firstFaction/);
   assert.match(game, /launch\(selectingMode,\{fed:firstFaction,zeon:faction\}\)/);
@@ -79,7 +79,7 @@ test("AI cannot inspect a Mystery Upgrade before it is revealed", () => {
 test("AI uses the same legal-action entry points while 1 Player keeps only the human hand visible", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
   assert.match(source, /E\.reachable\(state,unit,allowance/);
-  assert.match(source, /beginAttack\(attack\.weapon,\{rotation:attack\.rotation\}\)/);
+  assert.match(source, /beginAttack\(attack\.weapon,\{rotation:attack\.rotation,onDeclare:/);
   assert.match(source, /rescueGarrison\(unit,1,true\)/);
   assert.match(source, /handleHexClick\(q,r\)/);
   assert.match(source, /const handTeam=matchMode==="ai"\?humanTeam:unit\.team/);
@@ -232,7 +232,7 @@ test("AI takes a reachable item when it is close to the best positional choice",
 
 
 test("AI scores Twin Buster one rotation at a time and preserves the chosen rotation", () => {
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
   const wing=place(state.units.find(unit=>unit.id==="wing-zero-ew"),7,6);
   const enemyA=place(state.units.find(unit=>unit.id==="gundam"),7,4);
   const enemyB=place(state.units.find(unit=>unit.id==="guncannon"),9,7);
@@ -255,4 +255,86 @@ test("AI Forward Artillery scoring follows the Guncannon side rather than hard-c
   const card=D.tactics.find(item=>item.id==="forward-artillery");
   assert.equal(guncannon.team,"zeon");
   assert.equal(A.commandTacticScore(state,guncannon,card,D,E),39);
+});
+
+test("AI can evaluate and choose God Drill from Secret's Tactic hand",()=>{
+  const state=E.setupGame(()=>.5,{fed:"secret",zeon:"fed"});
+  const mech=place(state.units.find(unit=>unit.id==="mechazawa"),5,5);
+  place(state.units.find(unit=>unit.id==="gundam"),5,4);
+  state.hands.fed=["god-drill"];
+  const choices=A.tacticAttacksFrom(state,mech,D,E);
+  assert.ok(choices.some(choice=>choice.tactic.id==="god-drill"&&choice.aoeTargets.includes("gundam")));
+});
+
+test("AI can evaluate War Edge with the compact special AoE pattern",()=>{
+  const state=E.setupGame(()=>.5,{fed:"rival",zeon:"fed"});
+  const epyon=place(state.units.find(unit=>unit.id==="gundam-epyon"),5,5);
+  place(state.units.find(unit=>unit.id==="gundam"),5,4);
+  state.hands.fed=["war-edge"];
+  const choices=A.tacticAttacksFrom(state,epyon,D,E);
+  assert.ok(choices.some(choice=>choice.tactic.id==="war-edge"&&choice.aoeTargets.includes("gundam")));
+});
+
+test("AI evaluates Breast Fire's six-hex cone and its per-target adjacent bonus",()=>{
+  const makeState=(q,r)=>{
+    const state=E.setupGame(()=>.5,{fed:"secret",zeon:"fed"});
+    state.garrisons=[];
+    for(const unit of state.units)unit.zone="reserve";
+    const mazinger=place(state.units.find(unit=>unit.id==="mazinger-z"),7,7);
+    place(state.units.find(unit=>unit.id==="gundam"),q,r);
+    return {state,mazinger};
+  };
+  const adjacent=makeState(7,6);
+  const distant=makeState(7,5);
+  const adjacentChoice=A.attacksFrom(adjacent.state,adjacent.mazinger,D,E).find(choice=>choice.weapon.id==="breast-fire"&&choice.rotation===0);
+  const distantChoice=A.attacksFrom(distant.state,distant.mazinger,D,E).find(choice=>choice.weapon.id==="breast-fire"&&choice.rotation===0);
+  assert.ok(adjacentChoice?.aoeTargets.includes("gundam"));
+  assert.ok(distantChoice?.aoeTargets.includes("gundam"));
+  assert.ok(Math.abs(adjacentChoice.expectedDamage-distantChoice.expectedDamage-2)<1e-9);
+});
+
+
+test("v80 AI values Vulcan extra dice and special Critical utility",()=>{
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"secret"});
+  const hero=place(state.units.find(unit=>unit.id==="hero-gundam"),5,5);
+  const eva=place(state.units.find(unit=>unit.id==="eva-01"),5,4);
+  const vulcan=hero.weapons.find(weapon=>weapon.id==="hero-vulcan");
+  const base={...vulcan,critical:null};
+  const withExtra=A.attacksFrom(state,{...hero,weapons:[vulcan]},D,E)[0];
+  const withoutExtra=A.attacksFrom(state,{...hero,weapons:[base]},D,E)[0];
+  assert.ok(withExtra.expectedDamage>withoutExtra.expectedDamage,"conditional +2 dice should increase expected damage");
+
+  const rival=E.setupGame(()=>0.5,{fed:"rival",zeon:"secret"});
+  const epyon=place(rival.units.find(unit=>unit.id==="gundam-epyon"),5,5);
+  const mazinger=place(rival.units.find(unit=>unit.id==="mazinger-z"),5,4);
+  const rod=epyon.weapons.find(weapon=>weapon.id==="epyon-heat-rod");
+  const plain={...rod,critical:null};
+  assert.ok(A.attacksFrom(rival,{...epyon,weapons:[rod]},D,E)[0].score>A.attacksFrom(rival,{...epyon,weapons:[plain]},D,E)[0].score,"Disarm should add tactical value");
+});
+
+test("v80 AI War Edge evaluation uses one shared Exploit Weakness state per direction",()=>{
+  const state=E.setupGame(()=>0.5,{fed:"rival",zeon:"fed"});
+  const epyon=place(state.units.find(unit=>unit.id==="gundam-epyon"),5,5);
+  const enemyA=place(state.units.find(unit=>unit.id==="gundam"),5,4);
+  const enemyB=place(state.units.find(unit=>unit.id==="guncannon"),6,4);
+  enemyB.statuses.slow=true;
+  state.hands.fed=["war-edge"];
+  state.activation={advanced:false,actionUsed:false,commandUsed:false,tacticUsed:{fed:false,zeon:false},timelineSpent:0};
+  const attacks=A.tacticAttacksFrom(state,epyon,D,E).filter(choice=>choice.weapon.aoe==="warEdge");
+  assert.ok(attacks.length>0);
+  assert.equal(epyon.aoeExploitWeakness,undefined,"temporary shared-roll flag must not leak after evaluation");
+});
+
+test("v87 AI treats Motorcycle as an independent move before or after Advance",()=>{
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const preMove=source.match(/function aiUsePreMoveAbility[\s\S]*?function aiAdvance/)?.[0]||"";
+  const abilityScore=source.match(/function aiAbilityScore[\s\S]*?function aiUseAbility/)?.[0]||"";
+  const run=source.match(/function runAiTurn[\s\S]*?function showCard/)?.[0]||"";
+  assert.match(preMove,/unit\?\.id!=="mechazawa"/);
+  assert.match(preMove,/function aiMotorcycleChoice/);
+  assert.match(preMove,/E\.reachable\(state,unit,2\)/);
+  assert.match(preMove,/useUnitAbility\(unit,1\)/);
+  assert.match(abilityScore,/unit\.id==="mechazawa".*aiMotorcycleChoice\(unit\)\?40:-Infinity/);
+  assert.ok(run.indexOf("aiUsePreMoveAbility")<run.indexOf("aiAdvance"));
+  assert.ok(run.indexOf("aiAdvance")<run.indexOf("aiUseAbility"));
 });

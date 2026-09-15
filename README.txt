@@ -1,5 +1,26 @@
-GUNDAM ASSEMBLE // ONLINE — Deadend / Rules Audit Fix v74
+GUNDAM ASSEMBLE // ONLINE — Five Teams v89
 
+- v89 Asset Optimization: ลดขนาดโฟลเดอร์เกมจากประมาณ 71 MB เหลือประมาณ 24 MB (ลดลงราว 66%) โดยแปลงภาพการ์ด PNG ที่ไม่มีความโปร่งใสเป็น JPEG คุณภาพสูง, จำกัดภาพ Unit Card ขนาดใหญ่มากไว้ที่สูงสุด 1,800 px, จำกัดไอคอนบนกระดานไว้ที่ 384 px และลด Title Art เหลือสูงสุด 1,400 px; ไม่แก้กฎเกม, AI, เสียง หรือเอฟเฟกต์.
+
+- v88 AI Tactic Reveal: เมื่อ AI ตัดสินใจใช้ Tactic แบบ Command, Attack หรือ Response เกมจะแสดงภาพการ์ดกลางหน้าจอและหยุดลำดับการเล่นไว้จนผู้เล่นกด X หรือ “ปิดและดำเนินการต่อ” แล้วจึงเริ่ม Action/เอฟเฟกต์ของการ์ด; Response ที่ AI ไม่ใช้ยังคงเป็นข้อมูลลับ.
+
+- v87 Secret Team ability update: Hacking System เกิดเฉพาะเมื่อ Mechazawa เป็นผู้ทำลาย Garrison ศัตรูหรือเป็นผู้ Rescue Garrison ฝ่ายเราเอง; Motorcycle เปลี่ยนเป็นการเคลื่อนที่แยกสูงสุด 2 ช่อง ใช้ได้ทั้งก่อนหรือหลัง Move/Dash โดยไม่เพิ่มระยะให้คำสั่งเดิม ไม่เสีย Primary Action และ AI ใช้กฎเดียวกัน. Super Alloy Z เปลี่ยนเป็นให้ Mazinger Z ได้ Shield Upgrade 1 ทุกครั้งที่ Deploy จาก Base พร้อมอัปเดตภาพการ์ด Mechazawa/Mazinger Z.
+
+- v86 Rocket Punch LOS clarity: ยืนยันด้วยกฎและ regression test ว่า Rocket Punch โจมตี Unit/Garrison ภายใน Range 3 ได้แม้ Terrain หรือ Unit บัง Line of Sight; เมนูอาวุธและข้อความเลือกเป้าหมายแสดง IGNORE LOS โดยตรง และข้อความไม่มีเป้าหมายไม่กล่าวว่าอาวุธถูก LOS บล็อก.
+
+- v85 Secret Team rebalance: อัปเดต Unit Card ทั้ง 3 ใบ; Positron Rifle ใช้ Timeline 4, Rocket Punch เป็น Range 3, Breast Fire เป็น AoE ระยะ SP รูปกรวย 6 ช่อง และ Mechazawa เป็น HP 10 / VP 4. Breast Fire ใช้กฎ AoE พิเศษร่วมกับอาวุธ SP อื่น ทอยครั้งเดียว ไม่โดนฝ่ายเดียวกันหรือ Base และโบนัส Damage +2 คิดเฉพาะเป้าหมายที่อยู่ติด Mazinger Z.
+
+- v84 Timeline inspection: คลิก/แตะไอคอน Unit บน Timeline ของทั้งสองฝ่ายเพื่อดู Unit Card พร้อม HUD สถานะ/Upgrade/HP/Energy และ Garrison Data แบบสถานะปัจจุบัน โดยไม่เปลี่ยน Active Unit หรือ state ของเกม.
+
+- v83 Team Select layout: CLASSIC และ STARTER 01 เรียงเป็นสองแถวเต็มความกว้าง; Secret Team อยู่ drawer แถวล่างเพื่อไม่ให้การ์ดถูกบีบ.
+- v82 Team Select UI: CLASSIC (E.F.S.F./ZEON) และ STARTER 01 (White Devil/The Rival) แสดงทันที; Secret Team ซ่อนใน drawer และไอคอน ? มี classified noise animation.
+- v81 Stability / HUD Fix: Hacking System มี USE/SKIP, Annihilate ใช้ไม่ได้หากไม่มี Rex Claws target, HUD แสดง Checkmate/Mazin Power/Frenzied Charge ชั่วคราว, และ Alaya-Vijnana Exertion กด Back แล้วคืน HP/Shield/Command.
+- v80 Stability / Ability Audit Fix: แก้ Hacking System ให้ Resolve ครบทุก Garrison และไม่ค้าง state, Progressive Knife ให้ Fracture ทำงานในการโจมตีซ้ำโดยไม่ chain ครั้งที่ 3, No Escape ตรวจ LOS, Checkmate ให้ผู้เล่นเลือก Upgrade, War Edge ใช้ Exploit Weakness แบบ shared roll อย่างคงที่, ล็อก focus ของ resolution modal ทุกชนิด, ปรับ AI ให้เข้าใจ effect สำคัญ/ใช้ Motorcycle ก่อน Advance เมื่อคุ้ม, แก้ชื่อ Heat Rod/Bazooka ใน log และ sync cache/docs.
+- v79 Unit HUD + Garrison Record: แถบ Unit Data แบ่งครึ่งเป็นสถานะ/อัปเกรดของยูนิตและสถิติ Garrison DESTROYED/RESCUED ของฝ่ายที่กำลัง Active.
+- v78 Vulcan Dice UX: เมื่อ Vulcan Cannons ของ Gundam [Hero of Side 7] ติด Critical ลูกเต๋า 3 ลูกแรกจะค้างผลเดิมบนหน้าต่างเดิม แล้วเพิ่ม/หมุนเฉพาะลูกเต๋าใหม่ 2 ลูกข้างกัน ก่อนสรุปผลรวม 5 ลูก โดยไม่ทอยหรือ Animate ลูกเดิมซ้ำ.
+- v77 Encounter Fix: Encounter ยังถูก Trigger เฉพาะศัตรูติดกันระดับเดียวกัน แต่เมื่อถูก Encounter แล้วสามารถโจมตีศัตรูทุกตัวที่อยู่ติดกันได้ รวมถึงต่างระดับ และอาวุธยิงอย่าง Bazooka ไม่ถูกปิดโดย Encounter.
+- v76 Five Teams: เพิ่ม White Devil, The Rival และ Secret จนครบ 5 ทีม ทีมละ 3 Unit; เพิ่ม Epic Shot, War Edge, Berserk, God Drill และ Jet Scrander พร้อมข้อจำกัดยูนิต; War Edge/God Drill ใช้ระบบ AoE SP และแนวเล็งพิเศษเดียวกับ Twin Buster; ทีมใหม่มี Tactic 3 ใบตั้งแต่ต้นและไม่จั่วเพิ่มหลัง Phase 1; AI เลือกทีม/ยูนิต/การ์ดใหม่ได้ตามข้อมูลเปิดเผย.
+- v75 Two-Color Team Palette: สีทีมบนสนามเหลือเพียงแดงและน้ำเงิน; ZEON ได้สีแดงและ E.F.S.F. ได้สีน้ำเงินเป็นลำดับแรก ส่วน Secret Team ใช้สีที่เหลือตามคู่แข่งในแมตช์เดียวกัน ทั้ง Unit, Timeline, HUD, Objective ที่ยึดแล้ว, Base และ Garrison; ตัดสี/Token เขียวออก และคงธง Objective กลางเป็นสีเหลือง.
 - v74 Deadend / Rules Audit Fix: แก้ AI deadlock เมื่อแท็บถูกพักระหว่างเอฟเฟกต์เล็ง, ล็อก Focus ของ Response modal, รักษา Response chain ของ Vidar Handgun และ Beam Saber Critical Move, กัน Shattered Formation ทำ Damage ใส่ Unit ที่กลับ Reserve, แก้ Twin Buster 6 ทิศบริเวณขอบแผนที่/LOS Inspector/RNaN, แก้ Forward Artillery ให้ยึดฝั่งจริง, ให้ AI ประเมิน Twin Buster แยกทีละทิศ, ห้าม Move/Dash ปกติยืนยันช่องเดิม และแยก RNG ของ Animation ออกจาก RNG ผลเกม.
 - v73 Twin Buster Terrain Rule: Twin Buster ไม่ใช้ LOS ปกติ; Unit/Garrison/Base และ Terrain ที่สูงไม่เกินระดับของ Wing Zero ไม่บังลำแสง; เป้าหมายที่ยืนบนพื้นที่สูงยังโดน แต่เป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับยิงของ Wing จะถูกบังและแสดง Preview สีเทา.
 - v72 Hologram Team Select: เพิ่ม scanline/sweep/glow ให้หน้าต่างเลือกทีมดูเป็นโฮโลแกรมมากขึ้น; ลูกศร Secret Team ใช้ accent เดียวกับหน้าต่าง (ฟ้าในขั้นเลือกทีมตัวเอง และแดงในขั้นเลือกคู่แข่ง) โดยไม่ใช้สีเขียว; หลังเลือกทีมตัวเอง ขั้นเลือกคู่แข่งเปลี่ยนกรอบ/แสง/ข้อความ accent เป็นสีแดงทั้งใน 1 Player และ 2 Player.
@@ -18,7 +39,7 @@ GUNDAM ASSEMBLE // ONLINE — Deadend / Rules Audit Fix v74
 2. เปิด index.html ด้วย Chrome, Edge หรือ Safari รุ่นปัจจุบัน
 3. เลือก 1 PLAYER แล้วเลือกทีมของผู้เล่นและทีมคู่ต่อสู้ของ AI
    หรือเลือก 2 PLAYER สำหรับ Hot-seat แล้วให้ผู้เล่นทั้งสองเลือกทีม
-4. ในหนึ่งแมตช์ ทีมของทั้งสองฝั่งต้องไม่ซ้ำกัน โดยเลือกได้จาก E.F.S.F., ZEON และ Secret Team
+4. ในหนึ่งแมตช์ ทีมของทั้งสองฝั่งต้องไม่ซ้ำกัน โดยเลือกได้จาก E.F.S.F., ZEON, White Devil, The Rival และ Secret
 
 โครงสร้างสำคัญ
 - index.html       หน้าเริ่มเกม
@@ -47,10 +68,9 @@ GUNDAM ASSEMBLE // ONLINE — Deadend / Rules Audit Fix v74
 - แสดงหมายเลข Build ขนาดเล็กที่มุมขวาบนของหน้าการเล่น
 - กติกาการออกเวอร์ชัน: ทุกครั้งที่เปลี่ยนเลข Build/Version ต้องอัปเดตข้อความเวอร์ชันที่แสดงในเกม (มุมขวาบนใน index.html) ให้ตรงกับเวอร์ชันไฟล์และ cache tag เสมอ
 - Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามอัปเดต Scenario ล่าสุด
-- Secret Team ใช้สีเขียว ประกอบด้วย Wing Gundam Zero [EW], Gundam Vidar และ Gundam Barbatos Lupus Rex
-- Twin Buster Rifle ใช้ AoE ตามรูปบน Unit Card, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison/Base และ Terrain ปกติ; จะถูกบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับที่ Wing Zero ยืน และไม่โจมตี Base หรือพวกเดียวกัน
-- Secret Team มี Tactic เพียง 3 ใบตลอดเกม: Renewed Power, Sacrificial Overload และ Built to Last โดยไม่จั่วเพิ่มหลัง Phase 1
-- Secret Team ใช้สีเขียวเป็นสีทีม; Garrison เป็นกรอบเขียว/ด้านในเทา ส่วน Base ใช้ Token สีน้ำเงินตาม palette ปัจจุบัน; Objective ที่ Secret Team ยึดแล้วใช้สีเขียวของทีม และ Objective ที่ยังเป็นกลางใช้สีเหลือง
+- ทีมพิเศษปัจจุบันคือ White Devil, The Rival และ Secret; ทุกทีมใช้สีแดงหรือน้ำเงินตามฝั่งของแมตช์ ไม่มี Token สีเขียว และ Objective กลางเป็นสีเหลือง
+- Twin Buster Rifle, War Edge, God Drill และ Breast Fire ใช้ AoE ตาม pattern ของการ์ด, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison/Base และ Terrain ปกติ; จะถูกบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับผู้ยิง และไม่โจมตี Base หรือพวกเดียวกัน
+- White Devil, The Rival และ Secret มี Tactic ทีมละ 3 ใบตลอดเกมโดยไม่จั่วเพิ่มหลัง Phase 1
 
 การตรวจสอบสำหรับผู้พัฒนา (ต้องมี Node.js)
   node tests/ai.test.js

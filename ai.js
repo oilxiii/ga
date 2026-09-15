@@ -7,11 +7,14 @@
   function attackDice(unit, target, weapon) {
     const damageTaken=Math.max(0,(unit.maxHp||unit.hp)-unit.hp);
     const fightToEnd=unit.id==="barbatos-lupus-rex"?(damageTaken>=12?2:damageTaken>=6?1:0):0;
+    const exploitWeakness=unit.id==="gundam-epyon"&&(unit.aoeExploitWeakness||(target?.statuses&&Object.values(target.statuses).some(Boolean)))?2:0;
+    const heroSaber=weapon.id==="hero-beam-saber"?(unit.heroBeamSaberBonus||0):0;
     return Math.max(1,
       weapon.strength +
       (unit.upgrades?.strength || 0) +
       (unit.tempStrength || 0) +
       fightToEnd +
+      exploitWeakness+heroSaber+
       (unit.id === "zaku-enforcer" && Number.isFinite(target?.hp) && Number.isFinite(target?.maxHp) && target.hp < target.maxHp ? 1 : 0)
     );
   }
@@ -19,8 +22,8 @@
   function attackOutcomeStats(state, unit, target, weapon, engine) {
     const elevation = Math.sign(engine.elevationAt(state, unit.q, unit.r) - engine.elevationAt(state, target.q, target.r));
     const targeted = unit.id === "guntank" && sumUpgrades(unit) >= 2 ? 1 : 0;
-    const accuracy = elevation + targeted;
-    const critFloor = (unit.critBoost || unit.id === "wing-zero-ew" || (unit.id === "guncannon" && sumUpgrades(unit) >= 2)) ? 7 : 9;
+    const accuracy = elevation + targeted+(unit.tempAccuracy||0);
+    const critFloor = Number.isFinite(unit.critFloorOverride)?unit.critFloorOverride:(unit.critBoost || unit.id === "wing-zero-ew" || (unit.id === "guncannon" && sumUpgrades(unit) >= 2)) ? 7 : 9;
     let hitFaces = 0;
     let criticalFaces = 0;
     for (let die = 1; die <= 10; die += 1) {
@@ -33,22 +36,43 @@
       hit: hitFaces / 10,
       critical: criticalFaces / 10
     };
-    const dice = attackDice(unit, target, weapon);
-    let distribution = new Map([["0,0", 1]]);
-    for (let index = 0; index < dice; index += 1) {
-      const next = new Map();
+    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(ally=>ally.id!==unit.id&&ally.team===unit.team&&ally.zone==="board"&&engine.distance(unit,ally)<=3).length*2:0;
+    const dice = attackDice(unit, target, weapon)+heroAllies;
+    const rollDistribution = count => {
+      let dist = new Map([["0,0", 1]]);
+      for (let index = 0; index < count; index += 1) {
+        const next = new Map();
+        for (const [key, probability] of dist) {
+          const [hits, criticals] = key.split(",").map(Number);
+          const add = (h, c, p) => {
+            if (p <= 0) return;
+            const nextKey = `${h},${c}`;
+            next.set(nextKey, (next.get(nextKey) || 0) + probability * p);
+          };
+          add(hits, criticals, probabilities.miss);
+          add(hits + 1, criticals, probabilities.hit);
+          add(hits, criticals + 1, probabilities.critical);
+        }
+        dist = next;
+      }
+      return dist;
+    };
+    let distribution = rollDistribution(dice);
+    // Vulcan Cannons adds exactly two dice if the initial roll contains a Critical.
+    // Model that conditional roll instead of valuing the weapon as a plain S3 attack.
+    if (weapon.critical === "extraDice2") {
+      const extra = rollDistribution(2);
+      const combined = new Map();
+      const addCombined=(h,c,p)=>{const key=`${h},${c}`;combined.set(key,(combined.get(key)||0)+p);};
       for (const [key, probability] of distribution) {
         const [hits, criticals] = key.split(",").map(Number);
-        const add = (h, c, p) => {
-          if (p <= 0) return;
-          const nextKey = `${h},${c}`;
-          next.set(nextKey, (next.get(nextKey) || 0) + probability * p);
-        };
-        add(hits, criticals, probabilities.miss);
-        add(hits + 1, criticals, probabilities.hit);
-        add(hits, criticals + 1, probabilities.critical);
+        if (criticals <= 0) { addCombined(hits,criticals,probability); continue; }
+        for (const [extraKey, extraProbability] of extra) {
+          const [extraHits, extraCriticals]=extraKey.split(",").map(Number);
+          addCombined(hits+extraHits,criticals+extraCriticals,probability*extraProbability);
+        }
       }
-      distribution = next;
+      distribution=combined;
     }
 
     const hp = Math.max(1, Number(target.hp) || 1);
@@ -56,15 +80,17 @@
     const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
     const activeShields = totalShields - inactiveShields;
     const objectiveBonus = weapon.effect === "objectiveBonus" && state.objectives.some(objective => engine.distance(target, objective) <= 1) ? 1 : 0;
+    const adjacentBonus=weapon.effect==="adjacentDamage2"&&engine.distance(unit,target)===1?2:0;
     const rescuedBonus = Math.max(0, state.rescuedGarrisons?.[unit.team] || 0);
     let expectedIncoming = 0;
     let expectedTaken = 0;
     let usefulDamage = 0;
     let killChance = 0;
+    let criticalChance = 0;
 
     for (const [key, probability] of distribution) {
       const [hits, criticals] = key.split(",").map(Number);
-      let incoming = hits + criticals + objectiveBonus;
+      let incoming = hits + criticals + objectiveBonus+adjacentBonus;
       if (criticals > 0) {
         if (weapon.critical === "damage2") incoming += 2;
         if (weapon.critical === "damage1") incoming += 1;
@@ -77,9 +103,10 @@
       expectedTaken += probability * taken;
       usefulDamage += probability * Math.min(hp, taken);
       if (taken >= hp) killChance += probability;
+      if (criticals > 0) criticalChance += probability;
     }
 
-    return { dice, accuracy, critFloor, expectedIncoming, expectedTaken, usefulDamage, killChance, activeShields };
+    return { dice, accuracy, critFloor, expectedIncoming, expectedTaken, usefulDamage, killChance, criticalChance, activeShields };
   }
 
   function expectedAttackDamage(state, unit, target, weapon, engine) {
@@ -98,7 +125,15 @@
     if (target.statuses?.fracture && stats.expectedTaken >= 3) score += 18;
     if (weapon.effect === "destroyUpgrade" && sumUpgrades(target)) score += 10 + sumUpgrades(target) * 2;
     if (weapon.effect === "shieldBreak" && target.upgrades?.shield) score += 8;
-    if (["slow", "fracture", "push2"].includes(weapon.critical)) score += 5;
+    if (weapon.effect === "disableAllShields" && target.upgrades?.shield) score += 7 + target.upgrades.shield * 7;
+    if (["slow", "fracture", "push2", "push1Slow"].includes(weapon.critical)) score += 5 + stats.criticalChance * 5;
+    if (weapon.critical === "disarm") {
+      const threat=Math.max(0,...(target.weapons||[]).map(enemyWeapon=>enemyWeapon.strength||0));
+      score += stats.criticalChance * (8 + threat * 1.4);
+    }
+    if (weapon.critical === "repeatAtTimeline0") score += stats.criticalChance * (12 + stats.usefulDamage * 5);
+    if (weapon.critical === "fractureRepeatTimeline0") score += stats.criticalChance * (18 + stats.usefulDamage * 5);
+    if (weapon.critical === "extraDice2") score += 4; // damage expectation already includes the conditional dice
     return { score, ...stats };
   }
 
@@ -135,13 +170,18 @@
     }
   }
 
-  function twinBusterPattern(unit, rotation, engine) {
+  function twinBusterPattern(unit, rotation, engine, weapon=null) {
     const source={x:unit.q,z:unit.r-(unit.q-(unit.q&1))/2};source.y=-source.x-source.z;
-    const base=[
+    const full=[
       {x:0,y:1,z:-1},{x:0,y:2,z:-2},{x:0,y:3,z:-3},
       {x:1,y:0,z:-1},{x:1,y:1,z:-2},{x:1,y:2,z:-3},
       {x:2,y:0,z:-2},{x:2,y:1,z:-3},{x:3,y:0,z:-3}
     ];
+    const base=weapon?.aoe==="warEdge"
+      ?[full[0],full[1],full[3],full[4],full[6]]
+      :weapon?.aoe==="breastFire"
+        ?[full[0],full[1],full[2],full[4],full[5],full[7]]
+        :full;
     const rotate=offset=>{let value={...offset};for(let i=0;i<rotation;i++)value={x:-value.z,y:-value.x,z:-value.y};return value;};
     return base.map(offset=>{const value=rotate(offset);const x=source.x+value.x,z=source.z+value.z;return {q:x,r:z+(x-(x&1))/2};}).filter(hex=>engine.inBounds(hex.q,hex.r));
   }
@@ -149,14 +189,17 @@
   function attacksFrom(state, unit, data, engine) {
     const choices = [];
     for (const weapon of unit.weapons) {
-      if(weapon.aoe==="twinBuster"){
+      if(weapon.aoe){
         const engagedIds=new Set((engine.engagedTargets?.(state,unit)||[]).map(target=>target.id));
         for(let rotation=0;rotation<6;rotation+=1){
-          const cells=new Set(twinBusterPattern(unit,rotation,engine).map(hex=>engine.key(hex.q,hex.r)));
+          const cells=new Set(twinBusterPattern(unit,rotation,engine,weapon).map(hex=>engine.key(hex.q,hex.r)));
           const targets=[...state.units.filter(target=>target.zone==="board"&&target.team!==unit.team),...(state.garrisons||[]).filter(target=>target.team!==unit.team)]
             .filter(target=>cells.has(engine.key(target.q,target.r))&&engine.hasTwinBusterLine(state,unit,target));
           if(!targets.length||(engagedIds.size&&!targets.some(target=>engagedIds.has(target.id))))continue;
+          const priorAoeExploit=unit.aoeExploitWeakness;
+          unit.aoeExploitWeakness=unit.id==="gundam-epyon"&&weapon.aoe==="warEdge"&&targets.some(target=>target.weapons&&Object.values(target.statuses||{}).some(Boolean));
           const evaluations=targets.map(target=>({target,isGarrison:!target.weapons,...attackScore(state,unit,target,weapon,engine,!target.weapons)}));
+          unit.aoeExploitWeakness=priorAoeExploit;
           const target=evaluations.slice().sort((a,b)=>b.score-a.score)[0]?.target;
           // attackScore includes the Timeline cost. For one AoE roll the cost is paid
           // once, not once per target, so add back the duplicated penalties.
@@ -177,6 +220,19 @@
 
   function chooseAttack(state, unit, data, engine) {
     return attacksFrom(state, unit, data, engine)[0] || null;
+  }
+
+  function tacticAttacksFrom(state,unit,data,engine){
+    if(state.activation?.tacticUsed?.[unit.team]||state.activation?.actionUsed)return [];
+    const cards=(state.hands?.[unit.team]||[]).map(id=>data.tactics.find(card=>card.id===id)).filter(card=>card?.timing==="ATTACK"&&(!card.unitOnly||card.unitOnly===unit.id));
+    const original=unit.weapons;
+    const choices=[];
+    for(const card of cards){
+      unit.weapons=[card.weapon];
+      attacksFrom(state,unit,data,engine).forEach(choice=>choices.push({...choice,tactic:card,score:choice.score+6}));
+    }
+    unit.weapons=original;
+    return choices.sort((a,b)=>b.score-a.score);
   }
 
   function pickupValue(state, unit, q, r) {
@@ -227,8 +283,8 @@
     }
     const threats = simulatedState.units.filter(enemy => enemy.team !== unit.team && enemy.zone === "board").filter(enemy =>
       enemy.weapons.some(weapon => {
-        const range=Number.isFinite(weapon.range)?weapon.range:weapon.aoe==="twinBuster"?3:0;
-        return engine.distance(enemy, probe) <= range && (weapon.aoe==="twinBuster" ? engine.hasTwinBusterLine(simulatedState,enemy,probe) : (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe)));
+        const range=Number.isFinite(weapon.range)?weapon.range:weapon.aoe?3:0;
+        return engine.distance(enemy, probe) <= range && (weapon.aoe ? engine.hasTwinBusterLine(simulatedState,enemy,probe) : (weapon.ignoreLos || engine.hasLineOfSight(simulatedState, enemy, probe)));
       })
     );
     score -= threats.length * (unit.hp <= unit.maxHp * 0.4 ? 9 : 3);
@@ -287,7 +343,9 @@
       "drive-them-back": canReachEnemy(state, unit, 2, data, engine, false) ? 46 : -Infinity,
       "sudden-pressure": suddenPressureTargets ? suddenPressureTargets * 30 : -Infinity,
       "breaking-line": visibleEnemyUnits.length ? 44 + Math.max(...visibleEnemyUnits.map(sumUpgrades)) * 4 : -Infinity,
-      "crimson-execution": unit.id === "chars-zaku" && canReachEnemy(state, unit, data.rules.dash.distance + 1, data, engine) ? 76 : -Infinity
+      "crimson-execution": ["chars-zaku","red-comet-zaku"].includes(unit.id) && canReachEnemy(state, unit, data.rules.dash.distance + 1, data, engine) ? 76 : -Infinity,
+      "berserk": unit.id==="eva-01"&&unit.hp>1&&unit.hp<=5?88:-Infinity,
+      "jet-scrander": unit.id==="mazinger-z"&&state.units.some(enemy=>enemy.team!==unit.team&&enemy.zone==="board")?48:-Infinity
       ,"renewed-power": attacks.length ? 54 : 20
     };
     return scores[card.id] ?? -Infinity;
@@ -368,7 +426,7 @@
     return false;
   }
 
-  const api = { attacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, chooseUpgrade, shouldUseResponse };
+  const api = { attacksFrom, tacticAttacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, chooseUpgrade, shouldUseResponse };
   root.GA_AI = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

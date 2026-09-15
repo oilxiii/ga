@@ -9,10 +9,10 @@ function test(name, fn) {
   catch (error) { console.error(`✗ ${name}\n  ${error.message}`); process.exitCode = 1; }
 }
 
-test("data pack contains 9 units and 20 unique tactics", () => {
-  assert.equal(D.units.length, 9);
-  assert.equal(D.tactics.length, 20);
-  assert.equal(new Set(D.tactics.map(x => x.id)).size, 20);
+test("data pack contains 15 units and 25 unique tactics", () => {
+  assert.equal(D.units.length, 15);
+  assert.equal(D.tactics.length, 25);
+  assert.equal(new Set(D.tactics.map(x => x.id)).size, 25);
 });
 
 test("all 29 real card images are present", () => {
@@ -21,38 +21,55 @@ test("all 29 real card images are present", () => {
   }
 });
 
-test("all 20 tactics use high-resolution PNG cards", () => {
-  assert.ok(D.tactics.every(card=>card.card.startsWith("assets/cards/tactic-")&&card.card.endsWith(".png")));
-  assert.ok(D.tactics.every(card=>fs.statSync(path.join(__dirname,"..",card.card)).size>500000));
+test("all tactics use supplied high-resolution card images", () => {
+  assert.ok(D.tactics.every(card=>card.card.startsWith("assets/cards/tactic-")&&/\.(png|jpg)$/i.test(card.card)));
+  assert.ok(D.tactics.every(card=>fs.statSync(path.join(__dirname,"..",card.card)).size>100000));
 });
 
-test("all nine units use separate map icons", () => {
-  assert.equal(new Set(D.units.map(unit => unit.icon)).size, 9);
+test("all fifteen units use separate map icons", () => {
+  assert.equal(new Set(D.units.map(unit => unit.icon)).size, 15);
   for (const unit of D.units) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", unit.icon)), unit.icon);
     assert.ok(unit.icon.startsWith("assets/icons/"), unit.icon);
   }
 });
 
+test("v89 production images are right-sized without losing referenced cards", () => {
+  const items=[...D.units,...D.tactics];
+  const cards=[...new Set(items.map(item=>item.card))];
+  assert.equal(cards.length,40);
+  assert.ok(cards.every(file=>file.endsWith(".jpg")&&fs.existsSync(path.join(__dirname,"..",file))));
+  const cardBytes=cards.reduce((total,file)=>total+fs.statSync(path.join(__dirname,"..",file)).size,0);
+  assert.ok(cardBytes<13*1024*1024,`referenced card payload is ${cardBytes} bytes`);
+  assert.equal(fs.readdirSync(path.join(__dirname,"..","assets","cards")).filter(file=>file.endsWith(".png")).length,0);
+  const pngDimensions=file=>{const bytes=fs.readFileSync(file);return {width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};};
+  for(const file of fs.readdirSync(path.join(__dirname,"..","assets","icons")).filter(file=>file.endsWith(".png"))){
+    const dimensions=pngDimensions(path.join(__dirname,"..","assets","icons",file));
+    assert.ok(Math.max(dimensions.width,dimensions.height)<=384,`${file} exceeds 384px`);
+  }
+  const title=pngDimensions(path.join(__dirname,"..","assets","title","title-screen.png"));
+  assert.ok(Math.max(title.width,title.height)<=1400);
+});
+
 test("Ultimate Team can occupy either match side and receives exactly three fixed Tactics", () => {
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
-  assert.deepEqual(state.units.filter(unit=>unit.team==="fed").map(unit=>unit.id).sort(),["barbatos-lupus-rex","gundam-vidar","wing-zero-ew"]);
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
+  assert.deepEqual(state.units.filter(unit=>unit.team==="fed").map(unit=>unit.id).sort(),["barbatos-lupus-rex","hero-gundam","wing-zero-ew"]);
   assert.deepEqual(state.units.filter(unit=>unit.team==="zeon").map(unit=>unit.id).sort(),["guncannon","gundam","guntank"]);
-  assert.ok(state.units.filter(unit=>unit.team==="fed").every(unit=>unit.originalTeam==="ultimate"));
-  assert.deepEqual(D.tacticDecks.ultimate,["renewed-power","sacrificial-overload","built-to-last"]);
-  assert.deepEqual(new Set([...state.hands.fed,...state.tacticDecks.fed]),new Set(D.tacticDecks.ultimate));
+  assert.ok(state.units.filter(unit=>unit.team==="fed").every(unit=>unit.originalTeam==="white-devil"));
+  assert.deepEqual(D.tacticDecks["white-devil"],["epic-shot","renewed-power","sacrificial-overload"]);
+  assert.deepEqual(new Set([...state.hands.fed,...state.tacticDecks.fed]),new Set(D.tacticDecks["white-devil"]));
   assert.equal(state.hands.fed.length,3);
   state.phase=2;
   E.dealTacticHand(state,"fed",()=>0.1);
   assert.equal(state.hands.fed.length,3,"Ultimate Team never draws additional Phase 2 Tactics");
-  state.hands={fed:["built-to-last"],zeon:["built-to-last"]};
-  E.retireTacticCard(state,"fed","built-to-last");
-  assert.ok(state.usedTactics.has("fed:built-to-last"));
-  assert.ok(!state.usedTactics.has("zeon:built-to-last"),"shared Tactics are consumed only for their owning side");
+  state.hands={fed:["renewed-power"],zeon:["renewed-power"]};
+  E.retireTacticCard(state,"fed","renewed-power");
+  assert.ok(state.usedTactics.has("fed:renewed-power"));
+  assert.ok(!state.usedTactics.has("zeon:renewed-power"),"shared Tactics are consumed only for their owning side");
 });
 
 test("Ultimate Team core combat rules match Zero System and Fight to the End", () => {
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   const barbatos=state.units.find(unit=>unit.id==="barbatos-lupus-rex");
   const target=state.units.find(unit=>unit.id==="gundam");
@@ -69,7 +86,7 @@ test("Ultimate Team core combat rules match Zero System and Fight to the End", (
 });
 
 test("Twin Buster ignores normal piece LOS and never targets a Base", () => {
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   const target=state.units.find(unit=>unit.id==="gundam");
   const blocker=state.units.find(unit=>unit.id==="guncannon");
@@ -101,7 +118,7 @@ test("core movement and rescue costs match the rulebook", () => {
 test("Advance is Timeline-free in both normal movement and Slow-clearing flow", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.equal(D.rules.advance.timeline,0);
-  assert.match(source,/startMove\(D\.rules\.advance\.distance\+unit\.upgrades\.speed,D\.rules\.advance\.timeline,"Advance"/);
+  assert.match(source,/startMove\(D\.rules\.advance\.distance\+unit\.upgrades\.speed\+\(unit\.movementBonus\|\|0\),D\.rules\.advance\.timeline,"Advance"/);
   assert.match(source,/unit\.statuses\.slow=false; state\.activation\.advanced=true; payTimeline\(unit,D\.rules\.advance\.timeline\)/);
 });
 
@@ -274,7 +291,7 @@ test("downhill is free but climbing back up still costs elevation movement", () 
 });
 
 test("Hover ignores elevation cost only for Wing Zero, not Barbatos", () => {
-  const s=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const s=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
   Object.values(s.board).forEach(hex=>{hex.elevation=0;});
   const wing=s.units.find(unit=>unit.id==="wing-zero-ew");
   const barbatos=s.units.find(unit=>unit.id==="barbatos-lupus-rex");
@@ -487,7 +504,7 @@ test("UI requires confirmation and Char Kick only follows Dash", () => {
   assert.match(source,/movementType==="dash"/);
   assert.match(source,/type:"char-kick"/);
   assert.match(source,/D\.rules\.advance\.distance\+unit\.upgrades\.speed/);
-  assert.match(source,/D\.rules\.dash\.distance\+\(unit\.id==="chars-zaku"\?1:0\)/);
+  assert.match(source,/\["chars-zaku","red-comet-zaku"\]\.includes\(unit\.id\)/);
   assert.match(source,/"Crimson Dash"/);
   assert.match(source,/D\.rules\.dash\.distance\+1,0,"Crimson Dash"/);
   assert.match(source,/ไม่ทำลาย Upgrade/);
@@ -520,15 +537,29 @@ test("Char Kick uses a damage-or-back decision before committing the Dash", () =
 
 
 
-test("base and Garrison palettes follow the selected faction rather than board side", () => {
+test("base and Garrison use only red/blue with ZEON and E.F.S.F. color priority", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function factionPalette\(faction,\{garrison=false\}=\{\}\)/);
-  assert.match(source,/if\(faction==="zeon"\)return "red"/);
-  assert.match(source,/if\(faction==="ultimate"\)return garrison\?"green":"blue"/);
-  assert.match(source,/const faction=factionForSide\(base\.team\);[\s\S]*?const palette=factionPalette\(faction\)/);
-  assert.match(source,/const faction=factionForSide\(garrison\.team\);[\s\S]*?const palette=factionPalette\(faction,\{garrison:true\}\)/);
+  assert.match(source,/function sidePalette\(team\) \{ return E\.matchSidePalette\(state\?\.factions\|\|matchFactions,team\); \}/);
+  assert.match(source,/const palette=sidePalette\(base\.team\)/);
+  assert.match(source,/const palette=sidePalette\(garrison\.team\)/);
   assert.doesNotMatch(source,/base\.team==="fed"\?"blue":"red"/);
   assert.doesNotMatch(source,/garrison\.team==="fed"\?"blue":"red"/);
+  assert.doesNotMatch(source,/garrison-green/);
+});
+
+test("all six faction-side assignments obey the two-color priority matrix", () => {
+  const matchups=[
+    [{fed:"zeon",zeon:"fed"},"red","blue"],
+    [{fed:"fed",zeon:"zeon"},"blue","red"],
+    [{fed:"white-devil",zeon:"zeon"},"blue","red"],
+    [{fed:"zeon",zeon:"white-devil"},"red","blue"],
+    [{fed:"white-devil",zeon:"fed"},"red","blue"],
+    [{fed:"fed",zeon:"white-devil"},"blue","red"]
+  ];
+  for(const [factions,fedColor,zeonColor] of matchups){
+    assert.equal(E.matchSidePalette(factions,"fed"),fedColor);
+    assert.equal(E.matchSidePalette(factions,"zeon"),zeonColor);
+  }
 });
 
 test("battlefield UI uses the compact online title, switchable command placement, and collapsible log", () => {
@@ -544,7 +575,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v74<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v89<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -570,7 +601,7 @@ test("persistent LOS inspection stays independent from Command and movement prev
   assert.match(source,/let losInspection = \{ enabled:false \}/);
   assert.match(source,/function renderLosInspection/);
   assert.match(source,/E\.lineOfSightDetails\(state,source,target/);
-  assert.match(source,/const maximumRange=Math\.max\(0,\.\.\.\(source\.weapons\|\|\[\]\)\.map\(weaponRange\)\)/);
+  assert.match(source,/const maximumRange=Math\.max\(0,\.\.\.inspectionWeapons\.map\(weaponRange\)\)/);
   assert.match(source,/\.\.\.E\.livingEnemies\(state,source\),[\s\S]{0,100}\.\.\.state\.garrisons\.filter\(garrison=>garrison\.team!==source\.team\)/);
   assert.match(source,/E\.distance\(source,target\)<=maximumRange/);
   assert.match(source,/details\.paths\.find\(candidate=>candidate\.clear\)\|\|details\.paths\[0\]/);
@@ -601,8 +632,8 @@ test("every combat dice roll uses the centered animated d10 reveal", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   assert.match(source,/function showDiceRoll/);
-  assert.match(source,/showDiceRoll\(result,weapon\.name/);
-  assert.match(source,/showDiceRoll\(result,`RETURN FIRE/);
+  assert.match(source,/showAttackDiceRoll\(result,weapon,weapon\.name/);
+  assert.match(source,/showAttackDiceRoll\(result,weapon,`RETURN FIRE/);
   assert.match(source,/showDiceRoll\(lastDice,"SATURATED FIRE"/);
   assert.match(css,/\.dice-roll-overlay/);
   assert.match(css,/\.rolling-d10\.revealed\.critical/);
@@ -634,7 +665,7 @@ test("attack roll classifies hit and critical dice", () => {
   assert.equal(result.damage,6);
 });
 
-test("all eighteen weapons preserve the Unit Card critical effects", () => {
+test("all thirty unit weapons preserve the established and new card critical effects", () => {
   const expected={
     "beam-saber":"gainStrength","beam-rifle":"damage2",
     "gc-rifle":"slow","low-recoil-240":"dashRescueTimeline0",
@@ -647,8 +678,8 @@ test("all eighteen weapons preserve the Unit Card critical effects", () => {
     "rex-claws":"slow","tail-blade":"damage1"
   };
   const weapons=D.units.flatMap(unit=>unit.weapons);
-  assert.equal(weapons.length,18);
-  for(const weapon of weapons)assert.equal(weapon.critical,expected[weapon.id],weapon.id);
+  assert.equal(weapons.length,30);
+  for(const [id,critical] of Object.entries(expected))assert.equal(weapons.find(weapon=>weapon.id===id)?.critical,critical,id);
 });
 
 test("Beam Saber Critical grants Gundam Strength after Combat Damage against units and Garrisons", () => {
@@ -789,7 +820,8 @@ test("After-Combat-Damage Critical follow-ups resolve before post-combat Respons
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
   assert.ok(finish.indexOf("resolveAfterCombatCritical")<finish.indexOf("openPostCombatResponses"));
-  assert.match(source,/beginAdjustableCharDash\(attacker,0,"Machine Gun Critical Dash"/);
+  assert.match(source,/const criticalLabel=`\$\{weapon\.name\} Critical`/);
+  assert.match(source,/beginAdjustableCharDash\(attacker,0,`\$\{criticalLabel\} Dash`/);
 });
 
 test("Guncannon Cannon Critical performs a Timeline 0 Dash then optional Rescue", () => {
@@ -965,39 +997,63 @@ test("Engagement reduces movement by 1 only for adjacent enemy units or Garrison
   assert.equal(E.reachable(s,unit,3).has(E.key(5,2)),false,"enemy Garrison Engagement also applies -1 movement");
 });
 
-test("Engagement target priority only uses same-elevation adjacent threats", () => {
+test("Encounter trigger is same-elevation, but attack priority includes every adjacent enemy", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(x=>x.id==="gundam");
   const engaged=s.units.find(x=>x.id==="chars-zaku");
-  const distant=s.units.find(x=>x.id==="zaku-line");
+  const lowerAdjacent=s.units.find(x=>x.id==="zaku-line");
   attacker.zone="board";attacker.q=5;attacker.r=5;
   engaged.zone="board";engaged.q=6;engaged.r=5;
-  distant.zone="board";distant.q=5;distant.r=3;
+  lowerAdjacent.zone="board";lowerAdjacent.q=5;lowerAdjacent.r=4;
   s.garrisons=[];
   Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  s.board[E.key(lowerAdjacent.q,lowerAdjacent.r)].elevation=1;
   const weapon=attacker.weapons.find(x=>x.id==="beam-rifle");
-  assert.deepEqual(E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id),["chars-zaku"]);
+  assert.deepEqual(
+    E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id).sort(),
+    ["chars-zaku","zaku-line"].sort(),
+    "once Encounter is active, every adjacent enemy remains a legal attack target even at another elevation"
+  );
 
   s.board[E.key(engaged.q,engaged.r)].elevation=1;
-  const ids=E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id);
-  assert.ok(ids.includes("zaku-line"),"a different-elevation adjacent enemy does not force target priority");
+  assert.equal(E.engagedTargets(s,attacker).length,0,"different-elevation adjacent enemies alone do not trigger Encounter");
 
   engaged.q=10;engaged.r=10;
+  lowerAdjacent.q=10;lowerAdjacent.r=9;
   s.garrisons=[{id:"enemy-g",team:"zeon",q:6,r:5,hp:1,maxHp:1}];
   s.board[E.key(6,5)].elevation=0;
   assert.equal(E.engagedTargets(s,attacker).map(x=>x.id).includes("enemy-g"),true);
   assert.deepEqual(
     E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id),
     ["enemy-g"],
-    "when Engaged only with a Garrison, that Garrison is the forced legal target and distant units are excluded"
+    "when only an adjacent enemy Garrison is present, it remains the forced target"
   );
+});
+
+test("Rival Char can use Bazooka on any adjacent enemy while Encounter is active", () => {
+  const s=E.setupGame(()=>0.5,{fed:"rival",zeon:"fed"});
+  const char=s.units.find(unit=>unit.id==="red-comet-zaku");
+  const gundam=s.units.find(unit=>unit.id==="gundam");
+  const guncannon=s.units.find(unit=>unit.id==="guncannon");
+  char.zone="board";char.q=5;char.r=5;
+  gundam.zone="board";gundam.q=6;gundam.r=5;
+  guncannon.zone="board";guncannon.q=5;guncannon.r=4;
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  s.board[E.key(guncannon.q,guncannon.r)].elevation=1;
+  s.garrisons=[];
+  assert.deepEqual(E.engagedTargets(s,char).map(target=>target.id),["gundam"]);
+  const bazooka=char.weapons.find(weapon=>weapon.id==="red-comet-bazooka");
+  const axe=char.weapons.find(weapon=>weapon.id==="red-comet-heat-hawk");
+  const expected=["guncannon","gundam"].sort();
+  assert.deepEqual(E.legalWeaponTargets(s,char,bazooka).map(target=>target.id).sort(),expected,"Bazooka is not disabled by Encounter");
+  assert.deepEqual(E.legalWeaponTargets(s,char,axe).map(target=>target.id).sort(),expected,"Heat Hawk uses the same adjacent target priority");
 });
 
 test("the attack UI uses engine legal targets for Engaged units and Garrisons", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/const targets=E\.legalWeaponTargets\(state,unit,weapon\)/);
   assert.doesNotMatch(source,/const garrisonTargets=state\.garrisons\.filter/);
-  assert.match(source,/ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่ติดกันและอยู่ระดับเดียวกันก่อน/);
+  assert.match(source,/ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่อยู่ติดกันก่อน/);
 });
 
 test("AI attack generation consumes engine legal Garrison targets without a duplicate overlay", () => {
@@ -1217,8 +1273,8 @@ test("an AI Unit destroyed by a Response releases the AI turn lock", () => {
 
 test("attack Damage opts into Fracture while direct effects remain direct", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/);
-  assert.match(source,/E\.applyDamage\(attacker,result\.damage,\{sourceType:"attack"\}\)/);
+  assert.match(source,/E\.applyDamage\(defender,reducedAttackDamage\(attacker,defender,damage\),\{sourceType:"attack"\}\)/);
+  assert.match(source,/E\.applyDamage\(attacker,reducedAttackDamage\(returningUnit,attacker,result\.damage\),\{sourceType:"attack"\}\)/);
   const movementResponse=source.match(/function resolveMovementResponses\([\s\S]*?\n  \}/)?.[0]||"";
   assert.match(movementResponse,/damageUnit\(enforcer,unit,3,"Iron Grip"\)/);
   assert.doesNotMatch(movementResponse,/E\.applyDamage\(unit,3,\{sourceType:"attack"\}\)/);
@@ -1232,13 +1288,29 @@ test("Burst Attack validates a target before spending Energy and Iron Grip requi
   assert.match(source,/enforcer&&unit\.team!==enforcer\.team/);
 });
 
-test("AI waits for human choices and resolves hidden AI declines without a tell", () => {
+test("v88 AI keeps declined Responses private but reveals committed Responses before resolving", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.doesNotMatch(source,/พิจารณา Response: \$\{aiCard\.name\}/);
   assert.doesNotMatch(source,/AI · กำลังพิจารณา Response/);
-  assert.match(source,/if\(A\.shouldUseResponse\(aiCard,context\)\)onPlay\(aiCard\);[\s\S]{0,40}else onSkip\(\)/);
+  assert.match(source,/if\(A\.shouldUseResponse\(aiCard,context\)\)showAiTacticCard\(aiCard,\(\)=>onPlay\(aiCard\)\);[\s\S]{0,40}else onSkip\(\)/);
   assert.match(source,/attempt\+\(aiOwned\?1:0\)/);
   assert.match(source,/modal\?\.classList\.contains\("show"\)[\s\S]{0,160}AI_PACE\.poll/);
+});
+
+test("v88 every AI Tactic type pauses on a centered card until the player closes it", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const reveal=source.match(/function showAiTacticCard[\s\S]*?function ensureModal/)?.[0]||"";
+  const command=source.match(/function aiUseTactic[\s\S]*?function aiAbilityScore/)?.[0]||"";
+  const primary=source.match(/function aiTakePrimary[\s\S]*?function aiUseAnnihilateFollowUp/)?.[0]||"";
+  assert.match(reveal,/class="modal-card tactic-confirm-modal ai-tactic-reveal"/);
+  assert.match(reveal,/class="modal-card-image" src="\$\{card\.card\}"/);
+  assert.match(reveal,/id="continue-ai-tactic"/);
+  assert.match(reveal,/id="close-ai-tactic"/);
+  assert.match(reveal,/lockResolutionModal\(modal,"#continue-ai-tactic,#close-ai-tactic"\)/);
+  assert.ok(reveal.indexOf("closeModal();renderAll();onContinue();")>reveal.indexOf("const proceed"));
+  assert.ok(command.indexOf("showAiTacticCard(card")<command.indexOf("useCommandTactic(card)"));
+  assert.match(primary,/const beginChosenAttack=\(\)=>\{[\s\S]*?beginAttack\(attack\.weapon/);
+  assert.match(primary,/showAiTacticCard\(attack\.tactic,beginChosenAttack\)/);
 });
 
 test("AI pacing, active-unit focus, and Encounter overlays remain enabled", () => {
@@ -1263,7 +1335,7 @@ test("clicking another allied or enemy map Unit opens its full Unit Card", () =>
   const clickHandler=source.match(/function handleHexClick\(q,r,event=null\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(clickHandler,/classList\?\.contains\("unit-node"\)\)event\.stopPropagation\(\)/);
   assert.match(clickHandler,/else if\(clicked\)\{[\s\S]{0,180}showUnitCard\(clicked\)/);
-  assert.match(source,/function showUnitCard\(unit\)[\s\S]{0,400}unit\.card/);
+  assert.match(source,/function showUnitCard\(unit,\{inspection=false\}=\{\}\)[\s\S]{0,700}unit\.card/);
 });
 
 test("human movement keeps a draft, while Char Dash commits through Char Kick or an explicit no-target confirmation", () => {
@@ -1287,7 +1359,7 @@ test("human movement keeps a draft, while Char Dash commits through Char Kick or
   assert.match(commit,/E\.pickupAt\(state,unit\)/);
   assert.match(commit,/payTimeline\(unit,draft\.cost\)/);
   assert.match(commit,/skipCharKick/);
-  assert.match(source,/if\(unit\.id==="chars-zaku"\)beginAdjustableCharDash\(unit,D\.rules\.dash\.timeline,"Dash",null,\{primaryAction:true\}\)/);
+  assert.match(source,/if\(\["chars-zaku","red-comet-zaku"\]\.includes\(unit\.id\)\)beginAdjustableCharDash\(unit,D\.rules\.dash\.timeline,"Dash",null,\{primaryAction:true\}\)/);
   const adjustable=source.match(/function beginAdjustableMovement\(unit,allowance,cost,label,movementType,primaryAction\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.doesNotMatch(adjustable,/reachable\.set\(E\.key\(unit\.q,unit\.r\),0\)/,"a Move or Dash cannot legally finish in its starting hex");
 });
@@ -1304,7 +1376,7 @@ test("ordinary Move and Dash cannot stay in place, while optional Critical Dashe
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const movement=source.match(/function startMoveFor\(unit,allowance,cost,label,afterMove,options=\{\}\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(movement,/const allowStay=options\.allowStay\?\?false/);
-  assert.match(source,/"Machine Gun Critical Dash"[\s\S]{0,220}\{allowStay:true,returnMenu:"main"/);
+  assert.match(source,/`\$\{criticalLabel\} Dash`[\s\S]{0,320}\{allowStay:true,returnMenu:"main"/);
   assert.match(source,/"240mm Critical Dash"[\s\S]{0,240}\{allowStay:true,returnMenu:"main"/);
 });
 
@@ -1411,9 +1483,9 @@ test("finishAttack separates pre-damage and After Combat Damage Critical effects
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const finish=source.match(/function finishAttack\([\s\S]*?\n  \}/)?.[0]||"";
   assert.match(finish,/weapon\.criticalTiming!=="afterCombatDamage"\) applyCritical/);
-  assert.match(finish,/E\.applyDamage\(defender,damage,\{sourceType:"attack"\}\)/);
+  assert.match(finish,/E\.applyDamage\(defender,reducedAttackDamage\(attacker,defender,damage\),\{sourceType:"attack"\}\)/);
   assert.match(finish,/resolveAfterCombatCritical\(attacker,defender,weapon,result/);
-  assert.ok(finish.indexOf('E.applyDamage(defender,damage,{sourceType:"attack"})')<finish.indexOf('resolveAfterCombatCritical(attacker,defender,weapon,result'));
+  assert.ok(finish.indexOf('E.applyDamage(defender,reducedAttackDamage(attacker,defender,damage),{sourceType:"attack"})')<finish.indexOf('resolveAfterCombatCritical(attacker,defender,weapon,result'));
 });
 
 test("Return Fire separates pre-damage and After Combat Damage Critical effects", () => {
@@ -1514,9 +1586,9 @@ test("all attack paths pay Timeline before rolling and keep card-specific after-
   }
 });
 
-test("Unit Card weapon ranges and Timeline costs match all nine supplied cards", () => {
+test("original Unit Card weapon ranges and Timeline costs remain unchanged", () => {
   const actual=Object.fromEntries(D.units.flatMap(unit=>unit.weapons.map(weapon=>[weapon.id,[weapon.timeline,weapon.range,weapon.strength]])));
-  assert.deepEqual(actual,{
+  const expected={
     "beam-saber":[2,1,2],"beam-rifle":[4,4,5],
     "gc-rifle":[2,3,2],"low-recoil-240":[3,3,4],
     "bop-missile":[2,3,2],"low-recoil-120":[4,4,4],
@@ -1526,7 +1598,8 @@ test("Unit Card weapon ranges and Timeline costs match all nine supplied cards",
     "wing-beam-saber":[2,1,4],"twin-buster-rifle":[4,"SP",6],
     "vidar-handgun":[3,2,3],"buret-saber":[4,1,8],
     "rex-claws":[2,1,3],"tail-blade":[4,2,7]
-  });
+  };
+  for(const [id,stats] of Object.entries(expected))assert.deepEqual(actual[id],stats,id);
 });
 
 test("Ultimate Team commands and follow-up attacks preserve their printed conditions", () => {
@@ -1572,28 +1645,26 @@ test("capture effects offer every adjacent Objective and AI prefers one it does 
   assert.match(ai,/objective\.owner === unit\.team \? 12 : objective\.owner \? 125 : 105/);
 });
 
-test("rules copy describes the normal Phase 2 draw and Secret Team exception", () => {
+test("rules copy describes the normal Phase 2 draw and all special-team exceptions", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(html,/Secret Team ไม่มีการจั่วเพิ่ม/);
-  assert.match(source,/Secret Team มีเพียง 3 ใบตลอดเกมและไม่จั่วเพิ่ม/);
+  assert.match(html,/ทีมพิเศษมี 3 ใบตลอดเกม/);
+  assert.match(source,/White Devil, The Rival และ Secret มี 3 ใบตลอดเกม/);
   assert.doesNotMatch(html,/ทันทีเมื่อ Unit ทั้ง 3 ของฝ่ายผ่าน TL10/);
-  assert.match(source,/การใช้ Response ใน Activation ของคู่ต่อสู้ไม่ล็อก Tactic ใน Activation ถัดไป/);
+  assert.match(source,/ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation/);
 });
 
-test("neutral Objectives are yellow while Ultimate Team uses its independent green palette", () => {
+test("neutral Objectives are yellow and match visuals use only the red/blue side palette", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
-  assert.match(source,/factionForSide\(base\.team\)/);
-  assert.match(source,/factionForSide\(garrison\.team\)/);
-  assert.match(source,/const palette=factionPalette\(faction\)/);
-  assert.match(source,/const palette=factionPalette\(faction,\{garrison:true\}\)/);
-  assert.match(source,/f\.faction==="ultimate"&&f\.type!=="garrison"\?"ultimate-token":""/);
-  assert.match(source,/id="ultimate-token-green"/);
-  assert.match(css,/\.feature-token\.ultimate-token/);
-  assert.match(css,/filter: url\(#ultimate-token-green\)/);
-  assert.match(css,/--ultimate: #35D56F/);
-  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-green.png")));
+  assert.match(css,/\.objective-flag\.neutral \.objective-cloth \{[\s\S]*fill: #e6b91d;/);
+  assert.match(source,/const SIDE_COLORS = Object\.freeze\(\{ blue:"#36b7ff", red:"#ff405a" \}\)/);
+  assert.match(source,/function sideColor\(team\) \{ return SIDE_COLORS\[sidePalette\(team\)\]; \}/);
+  assert.match(source,/document\.documentElement\.style\.setProperty\("--fed",fedColor\)/);
+  assert.match(source,/document\.documentElement\.style\.setProperty\("--zeon",zeonColor\)/);
+  assert.doesNotMatch(source,/ultimate-token-green|garrison-green|#35D56F/i);
+  assert.doesNotMatch(css,/ultimate-token-green|#35D56F|53,213,111/i);
+  assert.equal(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-green.png")),false);
 });
 
 test("Tactic hand capacity follows the selected faction deck size", () => {
@@ -1657,7 +1728,7 @@ test("1 Player keeps the human Tactic hand visible during AI movement and Iron G
 
 
 test("Hover ignores elevation cost in the engine for both human and AI movement", () => {
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"fed"});
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   wing.zone="board"; wing.q=0; wing.r=0;
   // Artificially make one adjacent hex two levels higher. Hover should still pay only 1 movement point.
@@ -1688,11 +1759,15 @@ test("reopening an adjustable movement draft restores the unit to the original h
   assert.match(block,/unit\.q=draft\.origin\.q; unit\.r=draft\.origin\.r; unit\.zone=draft\.origin\.zone/);
 });
 
-test("Ultimate Garrison uses a dedicated green-border token without whole-image tint", () => {
+test("Secret Team takes the remaining red or blue token color in every matchup", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/if\(faction==="ultimate"\)return garrison\?"green":"blue"/);
-  assert.match(source,/f\.faction==="ultimate"&&f\.type!=="garrison"\?"ultimate-token":""/);
-  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-green.png")));
+  const engine=fs.readFileSync(path.join(__dirname,"..","engine.js"),"utf8");
+  assert.match(engine,/const opposingSide=team==="fed"\?"zeon":"fed"/);
+  assert.match(engine,/if\(opposingFaction==="zeon"\)return "blue"/);
+  assert.match(engine,/if\(opposingFaction==="fed"\)return "red"/);
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-blue.png")));
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-red.png")));
+  assert.equal(fs.existsSync(path.join(__dirname,"..","assets","tokens","garrison-green.png")),false);
 });
 
 
@@ -1725,7 +1800,7 @@ test("Twin Buster human aiming exposes all six directions even when every enemy 
 
   // Reproduce the board position from the reported screenshot: Wing at the L2 crown,
   // Guncannon two hexes north on L1, with L2 terrain at (7,5) in between.
-  const state=E.setupGame(()=>0.5,{fed:"fed",zeon:"ultimate"});
+  const state=E.setupGame(()=>0.5,{fed:"fed",zeon:"white-devil"});
   state.units.forEach(unit=>{unit.zone="reserve";});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   const guncannon=state.units.find(unit=>unit.id==="guncannon");
@@ -1742,7 +1817,7 @@ test("Twin Buster human aiming exposes all six directions even when every enemy 
 });
 
 test("Twin Buster is blocked only by terrain higher than Wing and still hits a target standing on that high terrain", () => {
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"zeon"});
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"zeon"});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   const target=state.units.find(unit=>unit.id==="chars-zaku");
   state.units.forEach(unit=>{unit.zone="reserve";});
@@ -1773,7 +1848,7 @@ test("Twin Buster keeps all six fixed rotations at map edges and resolves elevat
   assert.match(begin,/Array\.from\(\{length:6\}/,"Twin Buster directions must not come from filtered map neighbors");
   assert.doesNotMatch(begin,/E\.neighbors\(attacker\.q,attacker\.r\)\.map/);
 
-  const state=E.setupGame(()=>0.5,{fed:"ultimate",zeon:"zeon"});
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"zeon"});
   const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
   const a=state.units.find(unit=>unit.id==="chars-zaku");
   const b=state.units.find(unit=>unit.id==="zaku-line");
@@ -1822,13 +1897,17 @@ test("v74 targeting FX has a wall-clock failsafe and the AI watchdog fully clear
   assert.match(wait,/clearAttackTargetingFx\(\);mode=null;pendingAttack=null/);
 });
 
-test("Response windows trap focus and inert the underlying game UI", () => {
+test("Response and mid-resolution windows trap focus and inert the underlying game UI", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const response=source.match(/function openResponse[\s\S]*?function scheduleAiCallback/)?.[0]||"";
   assert.match(response,/lockResponseModal\(modal\)/);
-  assert.match(response,/shell\.inert=true/);
-  assert.match(response,/dataset\.responseLock/);
-  assert.match(source,/game-modal\.show\[data-response-lock='true'\]/);
+  assert.match(source,/function lockResolutionModal/);
+  assert.match(source,/shell\.inert=true/);
+  assert.match(source,/dataset\.modalLock/);
+  assert.match(source,/game-modal\.show\[data-modal-lock='true'\]/);
+  assert.match(source,/offerNewtypeReroll[\s\S]*?lockResolutionModal\(modal\)/);
+  assert.match(source,/offerGuncannonCriticalRescue[\s\S]*?lockResolutionModal\(modal\)/);
+  assert.match(source,/Return Fire[\s\S]*?lockResolutionModal\(modal\)/);
   assert.match(source,/event\.key==="Tab"/);
   assert.match(source,/event\.key==="Escape"\)\{event\.preventDefault\(\);return;/);
 });
@@ -1870,7 +1949,7 @@ test("Wing LOS inspector uses Twin Buster terrain rules and never shows RNaN", (
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const los=source.match(/function renderLosInspection[\s\S]*?function blockedForEveryInRangeWeapon/)?.[0]||"";
   const button=source.match(/function renderLosButton[\s\S]*?function toggleLosInspection/)?.[0]||"";
-  assert.match(los,/weapon\.aoe==="twinBuster"\?E\.hasTwinBusterLine/);
+  assert.match(los,/usesSpecialAoeLine\(weapon\)\?E\.hasTwinBusterLine/);
   assert.match(los,/twinBusterClear/);
   assert.match(button,/map\(weaponRange\)/);
   assert.doesNotMatch(button,/weapon=>weapon\.range\|\|0/);
@@ -1904,4 +1983,325 @@ test("dice and sound animations do not consume gameplay Math.random", () => {
   assert.match(dice,/visualRandom\(\)/);
   assert.doesNotMatch(dice,/Math\.random/);
   assert.doesNotMatch(sfx,/Math\.random/);
+});
+
+test("v76 registers five complete factions with three distinct units each",()=>{
+  assert.deepEqual(D.factionOrder,["fed","zeon","white-devil","rival","secret"]);
+  for(const faction of D.factionOrder)assert.equal(D.units.filter(unit=>unit.team===faction).length,3,faction);
+  assert.deepEqual(D.units.filter(unit=>unit.team==="white-devil").map(unit=>unit.id).sort(),["barbatos-lupus-rex","hero-gundam","wing-zero-ew"]);
+  assert.deepEqual(D.units.filter(unit=>unit.team==="rival").map(unit=>unit.id).sort(),["gundam-epyon","gundam-vidar","red-comet-zaku"]);
+  assert.deepEqual(D.units.filter(unit=>unit.team==="secret").map(unit=>unit.id).sort(),["eva-01","mazinger-z","mechazawa"]);
+});
+
+test("the three new factions start with exactly three fixed Tactics and never draw again",()=>{
+  for(const faction of ["white-devil","rival","secret"]){
+    assert.equal(D.tacticDecks[faction].length,3);
+    const state=E.setupGame(()=>.5,{fed:faction,zeon:"fed"});
+    assert.equal(state.hands.fed.length,3);
+    state.phase=2;E.dealTacticHand(state,"fed",()=>.5);
+    assert.equal(state.hands.fed.length,3,faction);
+  }
+});
+
+test("unit-locked Attack Tactics belong to their printed pilots",()=>{
+  assert.equal(D.tactics.find(card=>card.id==="epic-shot").unitOnly,"hero-gundam");
+  assert.equal(D.tactics.find(card=>card.id==="war-edge").unitOnly,"gundam-epyon");
+  assert.equal(D.tactics.find(card=>card.id==="god-drill").unitOnly,"mechazawa");
+});
+
+test("all printed SP attacks share special AoE targeting and preserve their footprints",()=>{
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  for(const id of ["war-edge","god-drill"]){
+    const weapon=D.tactics.find(card=>card.id===id).weapon;
+    assert.ok(weapon.aoe);
+    assert.equal(weapon.range,"SP");
+  }
+  const breast=D.units.find(unit=>unit.id==="mazinger-z").weapons.find(weapon=>weapon.id==="breast-fire");
+  assert.equal(breast.range,"SP");
+  assert.equal(breast.aoe,"breastFire");
+  assert.match(source,/\["twinBuster","warEdge","godDrill","breastFire"\]\.includes/);
+  assert.match(source,/fullPattern\[0\],fullPattern\[1\],fullPattern\[2\],fullPattern\[4\],fullPattern\[5\],fullPattern\[7\]/);
+  assert.match(source,/E\.hasTwinBusterLine\(state,attacker,hex\)/);
+  assert.match(source,/criticalEffectsActive\(result\)&&weapon\.critical==="fracture"\)applyDebuff\(target,"fracture"\)/);
+  assert.doesNotMatch(source,/twinBusterTargets[\s\S]{0,500}featureCoordinates\.bases/);
+});
+
+test("Hero Gundam Vulcan Critical adds two dice to the same attack result",()=>{
+  const state=E.setupGame(()=>.5,{fed:"white-devil",zeon:"fed"});
+  const hero=state.units.find(unit=>unit.id==="hero-gundam"),target=state.units.find(unit=>unit.id==="gundam");
+  Object.assign(hero,{zone:"board",q:5,r:5});Object.assign(target,{zone:"board",q:5,r:4});
+  const weapon=hero.weapons.find(item=>item.id==="hero-vulcan");
+  const result=E.attackResultFromDice(state,hero,target,weapon,[9,1,1]);
+  E.addAttackDice(state,hero,target,weapon,result,2,()=>.9);
+  assert.equal(result.dice.length,5);assert.equal(result.criticals,3);
+
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/const previousDiceCount=lastDice\.dice\.length;/);
+  assert.match(source,/appendDiceRoll\(lastDice,previousDiceCount,/);
+  assert.match(source,/const newNodes=\[\.\.\.grid\.querySelectorAll\("\.rolling-d10"\)\]\.slice\(startIndex\);/);
+  assert.match(source,/diceRollInterval=setInterval\(\(\)=>newNodes\.forEach/);
+  assert.match(source,/keepVulcanDiceOpen\(weapon,result\)/);
+});
+
+test("Epyon gains Strength against abnormal targets and ignores elevation movement cost",()=>{
+  const state=E.setupGame(()=>.5,{fed:"rival",zeon:"fed"});
+  const epyon=state.units.find(unit=>unit.id==="gundam-epyon"),target=state.units.find(unit=>unit.id==="gundam");
+  Object.assign(epyon,{zone:"board",q:5,r:5});Object.assign(target,{zone:"board",q:5,r:4});
+  const weapon=epyon.weapons[1];
+  const normal=E.rollAttack(state,epyon,target,weapon,()=>.5).dice.length;
+  target.statuses.slow=true;
+  assert.equal(E.rollAttack(state,epyon,target,weapon,()=>.5).dice.length,normal+2);
+  const reachable=E.reachable(state,epyon,1);assert.ok(reachable instanceof Map);
+});
+
+test("EVA-01 ignores Encounter and Berserk upgrades are removed on defeat",()=>{
+  const state=E.setupGame(()=>.5,{fed:"secret",zeon:"fed"});
+  const eva=state.units.find(unit=>unit.id==="eva-01"),enemy=state.units.find(unit=>unit.id==="gundam");
+  Object.assign(eva,{zone:"board",q:5,r:5,hp:0,berserkActive:true,upgrades:{shield:3,speed:3,strength:3}});Object.assign(enemy,{zone:"board",q:5,r:4});
+  assert.deepEqual(E.engagedTargets(state,eva),[]);
+  E.defeatUnit(state,eva,enemy.team);
+  assert.deepEqual(eva.upgrades,{shield:0,speed:0,strength:0});
+});
+
+test("Mazin Power, Breast Fire, Rocket Punch and Super Alloy Z are wired",()=>{
+  const state=E.setupGame(()=>.5,{fed:"secret",zeon:"fed"});
+  const mazinger=state.units.find(unit=>unit.id==="mazinger-z"),target=state.units.find(unit=>unit.id==="gundam");
+  Object.assign(mazinger,{zone:"board",q:5,r:5,critFloorOverride:6});Object.assign(target,{zone:"board",q:5,r:4});
+  const breast=mazinger.weapons.find(weapon=>weapon.id==="breast-fire");
+  assert.equal(breast.range,"SP");assert.equal(breast.aoe,"breastFire");
+  const result=E.attackResultFromDice(state,mazinger,target,breast,[6]);
+  assert.equal(result.criticals,1);assert.equal(result.damage,3);
+  const rocket=mazinger.weapons.find(weapon=>weapon.id==="rocket-punch");
+  assert.equal(rocket.ignoreLos,true);assert.equal(rocket.range,3);
+  const eva=state.units.find(unit=>unit.id==="eva-01");
+  assert.equal(eva.weapons.find(weapon=>weapon.id==="positron-rifle").timeline,4);
+  const mechazawa=state.units.find(unit=>unit.id==="mechazawa");
+  assert.equal(mechazawa.maxHp,10);assert.equal(mechazawa.vp,4);
+  assert.equal(mazinger.upgrades.shield,0);
+  E.beginDeploy(state,mazinger);assert.equal(mazinger.upgrades.shield,1);
+  mazinger.zone="reserve";E.beginDeploy(state,mazinger);assert.equal(mazinger.upgrades.shield,2,"every deployment grants another Shield");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ai=fs.readFileSync(path.join(__dirname,"..","ai.js"),"utf8");
+  assert.match(source,/Super Alloy Z: Mazinger Z ได้รับ Shield Upgrade 1 จากการ Deploy/);
+  assert.doesNotMatch(source,/Super Alloy Z: ลด Damage/);
+  assert.doesNotMatch(ai,/target\.id==="mazinger-z"&&sumUpgrades/);
+});
+
+test("Rocket Punch ignores blocked Line of Sight for Units and Garrisons",()=>{
+  const state=E.setupGame(()=>.5,{fed:"secret",zeon:"fed"});
+  Object.values(state.board).forEach(hex=>{hex.elevation=0;});
+  const mazinger=state.units.find(unit=>unit.id==="mazinger-z");
+  const target=state.units.find(unit=>unit.id==="gundam");
+  const blocker=state.units.find(unit=>unit.id==="guncannon");
+  Object.assign(mazinger,{zone:"board",q:2,r:2});
+  Object.assign(target,{zone:"board",q:4,r:3});
+  const middle=E.line(mazinger,target)[1];
+  Object.assign(blocker,{zone:"board",team:"zeon",q:middle.q,r:middle.r});
+  state.board[E.key(middle.q,middle.r)].elevation=2;
+  const blockedGarrison={id:"blocked-garrison",team:"zeon",q:4,r:2,hp:1,maxHp:1};
+  state.garrisons=[blockedGarrison];
+  const garrisonMiddle=E.line(mazinger,blockedGarrison)[1];
+  state.board[E.key(garrisonMiddle.q,garrisonMiddle.r)].elevation=2;
+  const rocket=mazinger.weapons.find(weapon=>weapon.id==="rocket-punch");
+  assert.equal(E.hasLineOfSight(state,mazinger,target),false);
+  assert.equal(E.hasLineOfSight(state,mazinger,blockedGarrison),false);
+  const legalIds=E.legalWeaponTargets(state,mazinger,rocket).map(item=>item.id);
+  assert.ok(legalIds.includes(target.id));
+  assert.ok(legalIds.includes(blockedGarrison.id));
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/weapon\.ignoreLos\?" · IGNORE LOS"/);
+  assert.match(source,/IGNORE LINE OF SIGHT — เลือก Unit หรือ Garrison ศัตรู/);
+});
+
+test("v83 team select groups four public teams and keeps Secret classified",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  for(const faction of D.factionOrder)assert.match(html,new RegExp(`data-faction="${faction}"`));
+  for(const icon of ["team-white-devil.png","team-rival.png"])assert.match(html,new RegExp(icon));
+  assert.match(html,/id="team-group-classic"[^>]*>[\s\S]*?CLASSIC/);
+  assert.match(html,/id="team-group-starter01"[^>]*>[\s\S]*?STARTER 01/);
+  const drawer=html.match(/<div id="secret-team-drawer"[\s\S]*?<\/div>/)?.[0]||"";
+  assert.match(drawer,/data-faction="secret"/);
+  assert.doesNotMatch(drawer,/data-faction="white-devil"|data-faction="rival"/);
+  assert.match(drawer,/class="secret-team-question"[^>]*>\?<\/span>/);
+  assert.doesNotMatch(drawer,/team-secret\.png/);
+});
+
+
+test("v79 unit HUD exposes compact effect icons and per-side Garrison record", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(source,/class="active-unit-pane"/);
+  assert.match(source,/class="garrison-hud-pane"/);
+  assert.match(source,/destroyedGarrisons\?\.\[unit\.team\]/);
+  assert.match(source,/rescuedGarrisons\?\.\[unit\.team\]/);
+  assert.match(source,/E\.engagedTargets\(state,unit\)\.length/);
+  assert.match(source,/type:"encounter"/);
+  assert.match(css,/\.hud-effect\.effect-encounter/);
+  assert.match(css,/\.active-hud-inner \{ display:grid; grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);/);
+  assert.match(css,/\.garrison-record-grid/);
+  assert.match(css,/\.hud-effect/);
+});
+
+test("v79 tracks destroyed Garrisons separately from rescued Garrisons", () => {
+  const state=E.setupGame(()=>0.5);
+  assert.deepEqual(state.destroyedGarrisons,{fed:0,zeon:0});
+  assert.deepEqual(state.rescuedGarrisons,{fed:0,zeon:0});
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/state\.destroyedGarrisons\[scoringTeam\]=\(state\.destroyedGarrisons\[scoringTeam\]\|\|0\)\+1/);
+});
+
+
+test("v87 Hacking System queues only when Mechazawa destroys or rescues a Garrison", () => {
+  const engine=fs.readFileSync(path.join(__dirname,"..","engine.js"),"utf8");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(engine,/hackingPending: 0/);
+  assert.match(source,/function hackingUnitForTeam\(team\)/);
+  assert.match(source,/candidate\.id==="mechazawa"&&candidate\.team===team&&candidate\.zone==="board"/);
+  assert.match(source,/function queueHackingSystem\(team\)/);
+  assert.match(source,/source\?\.id==="mechazawa"&&garrison\.team!==source\.team\)queueHackingSystem\(source\.team\)/);
+  assert.match(source,/E\.recordGarrisonRescue\(state,unit\);\s*if\(unit\.id==="mechazawa"\)queueHackingSystem\(unit\.team\)/);
+  assert.match(source,/const pending=Math\.max\(0,Number\(unit\?\.hackingPending\)\|\|0\)/);
+  assert.match(source,/const consumeTrigger=\(\)=>\{unit\.hackingPending=Math\.max\(0,\(unit\.hackingPending\|\|0\)-1\);\}/);
+  assert.match(source,/const continuePending=\(\)=>offerHackingSystem\(triggerUnit,onComplete\)/);
+  const finish=source.match(/function finishAttack[\s\S]*?function criticalEffectsActive/)?.[0]||"";
+  assert.match(finish,/offerHackingSystem\(attacker/);
+});
+
+test("v87 Motorcycle is a separate two-hex move that remains usable after Move or Dash", () => {
+  const data=fs.readFileSync(path.join(__dirname,"..","data.js"),"utf8");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ability=source.match(/else if\(unit\.id==="mechazawa"\)\{[\s\S]*?\n    \}/)?.[0]||"";
+  assert.match(data,/name: "Motorcycle", energy: 1, text: "เคลื่อนที่ได้อีกสูงสุด 2 ช่อง แม้จะ Move หรือ Dash ไปแล้ว"/);
+  assert.match(ability,/startMoveFor\(unit,2,0,"Motorcycle"/);
+  assert.match(ability,/afterUnitMove\(unit,"motorcycle"/);
+  assert.doesNotMatch(ability,/movementBonus\s*\+=\s*2/);
+  assert.doesNotMatch(ability,/activation\.(advanced|actionUsed)/);
+});
+
+test("v80 Progressive Knife repeats once but every Critical still applies Fracture", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const critical=source.match(/function resolveAfterCombatCritical[\s\S]*?function applyCritical/)?.[0]||"";
+  assert.match(critical,/weapon\.critical==="fractureRepeatTimeline0"/);
+  assert.match(critical,/applyDebuff\(defender,"fracture"\)/);
+  assert.match(critical,/if\(!attacker\.progressiveRepeatUsed\)/);
+  assert.match(critical,/การโจมตีซ้ำไม่สร้างการโจมตีครั้งที่ 3/);
+});
+
+test("v80 No Escape obeys normal Line of Sight", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ability=source.match(/else if\(unit\.id==="gundam-epyon"\)[\s\S]*?else if\(unit\.id==="eva-01"\)/)?.[0]||"";
+  assert.match(ability,/No Escape: เลือก Unit ศัตรูภายใน Range 2 และ Line of Sight/);
+  assert.doesNotMatch(ability,/ignoreLos:true/);
+});
+
+test("v80 Checkmate lets a human choose which surviving Upgrade is destroyed", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const checkmate=source.match(/function offerCheckmateUpgrade[\s\S]*?function finishAttack/)?.[0]||"";
+  assert.match(checkmate,/data-checkmate-upgrade/);
+  assert.match(checkmate,/A\.chooseUpgrade\(defender,false\)/);
+  assert.match(checkmate,/lockResolutionModal\(modal\)/);
+  assert.match(source,/if\(!defeated\)offerCheckmateUpgrade\(attacker,defender,continueAfterCheckmate\)/);
+});
+
+test("v80 War Edge applies Exploit Weakness to the shared roll when any Unit in its AoE is abnormal", () => {
+  const state=E.setupGame(()=>0.5,{fed:"rival",zeon:"fed"});
+  const epyon=state.units.find(unit=>unit.id==="gundam-epyon");
+  const target=state.units.find(unit=>unit.id==="gundam");
+  Object.assign(epyon,{zone:"board",q:5,r:5,aoeExploitWeakness:true});
+  Object.assign(target,{zone:"board",q:5,r:4});
+  const weapon=D.tactics.find(card=>card.id==="war-edge").weapon;
+  const result=E.attackResultFromDice(state,epyon,target,weapon,[4,4,4,4,4,4,4,4,4,4]);
+  assert.equal(result.dice.length,10);
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/weapon\.aoe==="warEdge"&&targets\.some/);
+});
+
+test("v80 weapon-specific pull and Critical Dash logs use the real weapon name", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/function beginPullToward\(attacker,defender,onComplete=\(\)=>\{\},label="Tail Blade"\)/);
+  assert.match(source,/const criticalLabel=`\$\{weapon\.name\} Critical`/);
+  assert.doesNotMatch(source,/addLog\("Machine Gun Critical:/);
+});
+
+test("v83 legacy build sync expectations follow the current build", () => {
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  assert.match(html,/>v89<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=89`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v89/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v89/);
+});
+
+
+test("v81 Hacking System offers USE or SKIP without consuming the trigger before choice", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const hacking=source.match(/function offerHackingSystem[\s\S]*?function offerEscapeFromSide7/)?.[0]||"";
+  assert.match(hacking,/id="use-hacking"/);
+  assert.match(hacking,/id="skip-hacking"/);
+  assert.match(hacking,/const consumeTrigger=/);
+  assert.match(hacking,/onCancel:\(\)=>offerHackingSystem\(unit,onComplete\)/);
+  assert.match(hacking,/RESPONSE \/\/ GARRISON EVENT/);
+});
+
+test("v81 Annihilate is unavailable and costs nothing when Rex Claws has no legal target", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/const annihilateUnavailable=.*legalWeaponTargets/);
+  const ability=source.match(/else if\(unit\.id==="barbatos-lupus-rex"\)\{[\s\S]*?\n    \}/)?.[0]||"";
+  assert.match(ability,/const legalTargets=rex\?E\.legalWeaponTargets/);
+  assert.match(ability,/ไม่มีเป้าหมาย Rex Claws ที่โจมตีได้ — ไม่เสีย Energy หรือ Command/);
+  assert.ok(ability.indexOf('if(!rex||!legalTargets.length)') < ability.indexOf('spend();beginAttack'));
+});
+
+test("v81 active HUD exposes Checkmate, Mazin Power, and Frenzied Charge temporary states", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const effects=source.match(/function unitMapEffects[\s\S]*?function renderUnitEffectBadges/)?.[0]||"";
+  assert.match(effects,/tempAccuracy > 0/);
+  assert.match(effects,/destroyUpgradeAfterAttack/);
+  assert.match(effects,/critFloorOverride/);
+  assert.match(effects,/heroBeamSaberBonus > 0/);
+});
+
+test("v81 cancelling Alaya-Vijnana Exertion rolls back its self-damage and command state", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ability=source.match(/else if\(unit\.id==="barbatos-lupus-rex"&&slot===2\)[\s\S]*?else if\(unit\.id==="barbatos-lupus-rex"\)/)?.[0]||"";
+  assert.match(ability,/const before=\{hp:unit\.hp,inactiveShields:unit\.inactiveShields\|\|0,energy:unit\.energy,commandUsed:state\.activation\.commandUsed\}/);
+  assert.match(ability,/unit\.hp=before\.hp/);
+  assert.match(ability,/unit\.inactiveShields=before\.inactiveShields/);
+  assert.match(ability,/state\.activation\.commandUsed=before\.commandUsed/);
+  assert.match(ability,/onCancel:rollback/);
+});
+
+test("v89 browser cache tags and docs are synchronized to the build", () => {
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  assert.match(html,/>v89<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=89`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v89/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v89/);
+});
+
+
+test("v83 classified Secret Team icon has animated noise treatment", () => {
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(css,/\.secret-team-question::before/);
+  assert.match(css,/@keyframes secret-noise-shift/);
+  assert.match(css,/@keyframes secret-noise-scan/);
+  assert.match(css,/prefers-reduced-motion:reduce/);
+});
+
+
+test("v84 timeline icons inspect either side without changing the active unit", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const timeline=source.match(/function renderTimeline\(\)[\s\S]*?function hexPoints/)?.[0]||"";
+  assert.match(timeline,/data-timeline-unit-id/);
+  assert.match(timeline,/state\.units\.find\(candidate=>candidate\.id===button\.dataset\.timelineUnitId\)/);
+  assert.match(timeline,/showUnitCard\(unit,\{inspection:true\}\)/);
+  assert.doesNotMatch(timeline,/activeUnitId\s*=/);
+});
+
+test("v84 unit inspection reuses the live HUD status renderer and focus lock", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/function unitHudHtml\(unit,\{showAi=false\}=\{\}\)/);
+  const inspect=source.match(/function showUnitCard\(unit,\{inspection=false\}=\{\}\)[\s\S]*?function showRules/)?.[0]||"";
+  assert.match(inspect,/unitHudHtml\(unit\)/);
+  assert.match(inspect,/lockResolutionModal\(modal,"\.modal-close"\)/);
+  assert.match(inspect,/TIMELINE \/\/ UNIT DATA/);
 });
