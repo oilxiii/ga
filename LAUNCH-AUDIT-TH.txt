@@ -1,4 +1,13 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta06
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta07
+
+BETA07 UPDATE
+- Pull is up to 1: ผู้เล่นและ AI เลือก Pull 0 ได้ และการโจมตียัง Resolve ต่อ
+- Pull ระยะติดกันไม่พยายามดึงเข้า Hex ของผู้ดึง จึงไม่เกิด Collision Damage ผิดกฎ
+- Pre-Attack Pull และ Critical Push รองรับ Garrison
+- Board edge หยุด forced movement โดยไม่มี Collision Damage
+- Cache/build tag: beta07
+- ผลทดสอบ Beta07: Core 218 + AI 28 = 246 tests ผ่านทั้งหมด
+
 
 BETA06 UPDATE
 - P1: บล็อก Tactic ระหว่าง attack targeting / pending attack / dice resolution โดยตรวจ state จริงทั้ง render และ click handler

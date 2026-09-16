@@ -1,4 +1,7 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams Beta06
+GUNDAM ASSEMBLE // ONLINE — Five Teams Beta07
+- Beta07 Forced Movement Rules Sync: Pull/Push เป็น "up to" ตาม Rulebook; Pull เลือก 0 ได้ทั้งผู้เล่นและ AI, เป้าหมายที่ติดผู้ดึงไม่ชนช่องของผู้ดึง, Unit และ Garrison ใช้ forced-movement flow ร่วมกันสำหรับ Pre-Attack Pull/Critical Push, และขอบสนามหยุดการเคลื่อนที่โดยไม่เกิด Collision Damage.
+- Regression suite Beta07: Core 218 + AI 28 = 246 tests; เพิ่มเคส Pull 0, adjacent Pull, Garrison forced movement และ board-edge stop.
+
 
 - Beta06 Stability / Rules Fix: ปิดการใช้ Tactic แทรกระหว่าง Attack resolution; Lock Down / Breaking the Line ปิด X แล้ว Status บังคับยัง Resolve; Crimson Execution ถูกใช้ทิ้งก่อน Movement Response จึงไม่ค้างในมือเมื่อ Iron Grip ทำลาย Char; AoE shared roll แสดงลูกเต๋าแบบกลางและคำนวณ HIT/MISS แยกตามเป้าหมาย; ล้าง temporary Activation effects เมื่อ active Unit ถูกทำลาย; Jump ห้ามผ่าน enemy Base; AoE kill FX เก็บตำแหน่งก่อนส่ง Unit เข้า Reserve; Hot-seat PASS CONTROL ล็อก game shell/focus; คง mobile Unit Card modal safety จาก Beta05.
 - Regression suite Beta06: Core 214 + AI 28 = 242 tests.

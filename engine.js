@@ -240,8 +240,14 @@
   }
 
 
+  function forcedMoveTargetOnBoard(state,target) {
+    if(!state||!target)return false;
+    if(target.zone==="board")return true;
+    return (state.garrisons||[]).some(garrison=>garrison.id===target.id);
+  }
+
   function pushDirectionOptions(state, source, target) {
-    if (!state || !source || !target || target.zone !== "board") return [];
+    if (!state || !source || !target || !forcedMoveTargetOnBoard(state,target)) return [];
     const currentDistance=distance(source,target);
     const targetCube=oddqToCube(target.q,target.r);
     return neighbors(target.q,target.r)
@@ -257,12 +263,15 @@
   }
 
   function pullDirectionOptions(state, source, target) {
-    if (!state || !source || !target || target.zone !== "board") return [];
+    if (!state || !source || !target || !forcedMoveTargetOnBoard(state,target)) return [];
     const currentDistance=distance(source,target);
     const targetCube=oddqToCube(target.q,target.r);
     return neighbors(target.q,target.r)
       .map(([q,r])=>({q,r,d:distance(source,{q,r})}))
-      .filter(candidate=>candidate.d<currentDistance)
+      // Pull is "up to" the printed distance and never moves the target into the
+      // pulling model's own hex. At distance 1 this leaves no legal Pull step,
+      // so the attack simply continues without movement or Collision Damage.
+      .filter(candidate=>candidate.d<currentDistance && !(candidate.q===source.q&&candidate.r===source.r))
       .map(candidate=>{
         const cube=oddqToCube(candidate.q,candidate.r);
         return {
@@ -273,7 +282,7 @@
   }
 
   function forcedPushStep(state, target, direction) {
-    if (!state || !target || target.zone !== "board" || !direction) return { type:"blocked", reason:"invalid" };
+    if (!state || !target || !forcedMoveTargetOnBoard(state,target) || !direction) return { type:"blocked", reason:"invalid" };
     const currentCube=oddqToCube(target.q,target.r);
     const destinationCube={
       x:currentCube.x+direction.x,
@@ -281,7 +290,8 @@
       z:currentCube.z+direction.z
     };
     const [q,r]=cubeToOddq(destinationCube);
-    if(!inBounds(q,r))return {type:"collision",reason:"edge",q:target.q,r:target.r};
+    // The board edge stops forced movement; it is not a collision and causes no Damage.
+    if(!inBounds(q,r))return {type:"blocked",reason:"edge",q:target.q,r:target.r};
     const currentElevation=elevationAt(state,target.q,target.r);
     const destinationElevation=elevationAt(state,q,r);
     if(destinationElevation>currentElevation)return {type:"collision",reason:"terrain",q,r};

@@ -578,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta06<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta07<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -692,7 +692,7 @@ test("Beam Saber Critical grants Gundam Strength after Combat Damage against uni
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/function resolveAfterCombatCritical/);
   assert.match(source,/weapon\.critical==="gainStrength"\)\{applyAttackerCritical/);
-  assert.match(source,/resolveAfterCombatCritical\(attacker,surrogate,weapon,result/);
+  assert.match(source,/resolveAfterCombatCritical\(attacker,garrison,weapon,result/);
 });
 
 test("critical bonus damage applies only to the card's intended target", () => {
@@ -2283,10 +2283,10 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta06<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta06`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta06/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta06/);
+  assert.match(html,/>Beta07<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta07`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta07/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta07/);
 });
 
 
@@ -2358,10 +2358,10 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta06<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta06`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta06/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta06/);
+  assert.match(html,/>Beta07<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta07`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta07/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta07/);
 });
 
 
@@ -2497,8 +2497,8 @@ test("Beta04 Secret Team stat update matches latest unit cards",()=>{
   assert.ok(fs.existsSync(path.join(__dirname,"..",eva.card)));
   assert.ok(fs.existsSync(path.join(__dirname,"..",mazinger.card)));
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/Beta06/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta06"));
+  assert.match(html,/Beta07/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta07"));
 });
 
 test("Beta02 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
@@ -2541,12 +2541,12 @@ test("Beta02 Secret Team theme is listed and auto-selected only at match launch"
   const launch=game.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
   assert.match(launch,/Object\.values\(matchFactions\)\.includes\("secret"\)\)BGM\.select\("secret"\)/);
   assert.equal((game.match(/BGM\.select\("secret"\)/g)||[]).length,1,"automatic Secret selection must happen only at launch");
-  assert.match(html,/Beta06/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta06"));
+  assert.match(html,/Beta07/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta07"));
 });
 
 
-test("Beta06 mobile Unit Card modal stays closable and blocks pull-to-refresh",()=>{
+test("Beta07 mobile Unit Card modal stays closable and blocks pull-to-refresh",()=>{
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(css,/body\.modal-open\s*\{[^}]*overflow:\s*hidden;[^}]*overscroll-behavior:\s*none;/s);
@@ -2560,7 +2560,7 @@ test("Beta06 mobile Unit Card modal stays closable and blocks pull-to-refresh",(
 });
 
 
-test("Beta06 blocks Tactics while an attack is still resolving",()=>{
+test("Beta07 blocks Tactics while an attack is still resolving",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(game,/function attackResolutionBusy\(\)[\s\S]*attackTargetingBusy[\s\S]*pendingAttack[\s\S]*diceAnimationTimer/);
   const handler=game.match(/function handleTactic\(id\)[\s\S]*?function commandTacticIssue/)?.[0]||"";
@@ -2568,13 +2568,13 @@ test("Beta06 blocks Tactics while an attack is still resolving",()=>{
   assert.match(handler,/!busyAttack/);
 });
 
-test("Beta06 mandatory Lock Down and Breaking the Line status cannot be skipped with X",()=>{
+test("Beta07 mandatory Lock Down and Breaking the Line status cannot be skipped with X",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const choose=game.match(/function chooseUpgradeToDestroy[\s\S]*?function openResponse/)?.[0]||"";
   assert.match(choose,/\.modal-close"\)\.addEventListener\("click",\(\)=>apply\(null\)\)/);
 });
 
-test("Beta06 Crimson Execution is retired before movement Responses can defeat Char",()=>{
+test("Beta07 Crimson Execution is retired before movement Responses can defeat Char",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const commit=game.match(/function commitMovementDraft[\s\S]*?function startMoveFor/)?.[0]||"";
   assert.match(commit,/if\(draft\.onCommit\)draft\.onCommit\(\);[\s\S]*afterUnitMove/);
@@ -2584,14 +2584,14 @@ test("Beta06 Crimson Execution is retired before movement Responses can defeat C
   assert.match(use,/moved=>\{commitCard\(\);afterUnitMove/);
 });
 
-test("Beta06 AoE dice display is neutral when target thresholds differ",()=>{
+test("Beta07 AoE dice display is neutral when target thresholds differ",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(game,/master\.sharedThreshold=true/);
   assert.match(game,/SHARED ATTACK ROLL/);
   assert.match(game,/HIT \/ MISS คำนวณแยกตามแต่ละเป้าหมาย/);
 });
 
-test("Beta06 defeated active units clear all activation-only HUD effects",()=>{
+test("Beta07 defeated active units clear all activation-only HUD effects",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const clear=game.match(/function clearActivationTemporaryEffects[\s\S]*?function finishDefeatedActiveActivation/)?.[0]||"";
   for(const field of ["tempStrength","tempAccuracy","movementBonus","critFloorOverride","heroBeamSaberBonus","destroyUpgradeAfterAttack","critBoost","nextAttackDiscount","lastShotBonus"])assert.match(clear,new RegExp(field));
@@ -2599,7 +2599,7 @@ test("Beta06 defeated active units clear all activation-only HUD effects",()=>{
   assert.match(defeated,/clearActivationTemporaryEffects\(unit\)/);
 });
 
-test("Beta06 Jump can bypass lower enemies but never an enemy Base",()=>{
+test("Beta07 Jump can bypass lower enemies but never an enemy Base",()=>{
   const state=E.setupGame(()=>0.25,{fed:"white-devil",zeon:"zeon"});
   const jumper=state.units.find(u=>u.team==="fed");
   Object.assign(jumper,{zone:"board",q:1,r:2});
@@ -2614,13 +2614,13 @@ test("Beta06 Jump can bypass lower enemies but never an enemy Base",()=>{
   assert.match(engine,/\(isEnemyUnit \|\| isEnemyGarrison\) && !jumpsOverEnemy/);
 });
 
-test("Beta06 AoE damage FX preserves the victim hex before defeat clears coordinates",()=>{
+test("Beta07 AoE damage FX preserves the victim hex before defeat clears coordinates",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const aoe=game.match(/function resolveTwinBusterAttack[\s\S]*?function resolveGarrisonAttack/)?.[0]||"";
   assert.match(aoe,/const impact=\{q:target\.q,r:target\.r\};[\s\S]*E\.defeatUnit\(state,target,attacker\.team\)[\s\S]*playDamageFeedback\(\{to:impact/);
 });
 
-test("Beta06 hot-seat PASS CONTROL makes the game shell inert and traps keyboard focus",()=>{
+test("Beta07 hot-seat PASS CONTROL makes the game shell inert and traps keyboard focus",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const pass=game.match(/function setPassControlLock[\s\S]*?function advanceTimeline/)?.[0]||"";
   assert.match(pass,/shell\.inert=!!locked/);
@@ -2629,4 +2629,61 @@ test("Beta06 hot-seat PASS CONTROL makes the game shell inert and traps keyboard
   const keys=game.match(/document\.addEventListener\("keydown"[\s\S]*?initTitle/)?.[0]||"";
   assert.match(keys,/pass-overlay\.show/);
   assert.match(keys,/event\.key==="Tab"/);
+});
+
+
+test("Beta07 Pull is up to 1: players and AI may choose 0 without cancelling the attack",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const ai=fs.readFileSync(path.join(__dirname,"..","ai.js"),"utf8");
+  assert.match(game,/id="stop-pull"/);
+  assert.match(game,/Pull 0/);
+  assert.match(game,/canStop:true,stopCallback:/);
+  assert.match(game,/A\.choosePullDirection\?\./);
+  assert.match(ai,/function choosePullDirection/);
+  assert.match(ai,/scored\.push\(\{score:0,stop:true\}\)/);
+});
+
+test("Beta07 adjacent Pull never treats the puller's own hex as a Collision",()=>{
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"rival"});
+  const source=state.units.find(unit=>unit.id==="barbatos-lupus-rex");
+  const target=state.units.find(unit=>unit.id==="gundam-epyon");
+  Object.values(state.board).forEach(hex=>{hex.elevation=0;});
+  Object.assign(source,{zone:"board",q:5,r:5});
+  Object.assign(target,{zone:"board",q:5,r:4});
+  assert.equal(E.distance(source,target),1);
+  assert.deepEqual(E.pullDirectionOptions(state,source,target),[],"distance-1 target cannot be Pulled into the puller's occupied hex");
+});
+
+test("Beta07 forced movement accepts Garrisons and Pull/Push direction helpers move them",()=>{
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"rival"});
+  const source=state.units.find(unit=>unit.id==="barbatos-lupus-rex");
+  Object.assign(source,{zone:"board",q:5,r:5});
+  const garrison={id:"beta07-garrison",team:"zeon",q:5,r:3,hp:3,maxHp:3};
+  state.garrisons=[garrison];
+  Object.values(state.board).forEach(hex=>{hex.elevation=0;});
+  const pulls=E.pullDirectionOptions(state,source,garrison);
+  const pushes=E.pushDirectionOptions(state,source,garrison);
+  assert.ok(pulls.length>0,"Garrison should expose Pull choices");
+  assert.ok(pushes.length>0,"Garrison should expose Push choices");
+  assert.ok(["move","collision","blocked"].includes(E.forcedPushStep(state,garrison,pulls[0].direction).type));
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const garrisonAttack=game.match(/function resolveGarrisonAttack[\s\S]*?\n  function damageGarrison/)?.[0]||"";
+  assert.match(garrisonAttack,/weapon\.preAttack==="pull1"/);
+  assert.match(garrisonAttack,/beginPullToward\(attacker,garrison/);
+  assert.match(garrisonAttack,/applyCritical\(attacker,garrison,weapon,result,dealDamageAndFinish\)/);
+  const push=game.match(/function beginPushDirection[\s\S]*?\n  function availablePostCombat/)?.[0]||"";
+  assert.match(push,/targetIsGarrison/);
+  assert.match(push,/damageGarrison\(source,target,2,"Push Collision"\)/);
+});
+
+test("Beta07 board edge stops Push/Pull without Collision Damage",()=>{
+  const state=E.setupGame(()=>0.5);
+  const target=state.units.find(unit=>unit.id==="gundam");
+  Object.assign(target,{zone:"board",q:0,r:0});
+  // Cube direction (-1,+1,0) from odd-q (0,0) exits the board.
+  const step=E.forcedPushStep(state,target,{x:-1,y:1,z:0});
+  assert.equal(step.type,"blocked");
+  assert.equal(step.reason,"edge");
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.doesNotMatch(game,/ชนขอบสนาม — รับ Damage/);
 });

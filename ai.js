@@ -440,6 +440,26 @@
     return scored.sort((a,b)=>b.score-a.score||a.q-b.q||a.r-b.r)[0]||null;
   }
 
+
+  function choosePullDirection(state, source, target, options, engine) {
+    // Pull is optional (up to 1). Include an explicit score-0 "do not move" choice
+    // so the AI never has to cause a harmful Collision merely because Pull exists.
+    const scored=(options||[]).map(option=>{
+      const step=engine.forcedPushStep(state,target,option.direction);
+      let score=0;
+      if(step.type==="move")score=2;
+      else if(step.type==="collision"){
+        score=18;
+        if(step.unit)score+=step.unit.team===source.team?-80:90+(step.unit.vp||0)*8;
+        else if(step.garrison)score+=step.garrison.team===source.team?-70:80;
+        else if(step.base||step.reason==="terrain")score+=28;
+      }
+      return {...option,score};
+    });
+    scored.push({score:0,stop:true});
+    return scored.sort((a,b)=>b.score-a.score||(a.q??999)-(b.q??999)||(a.r??999)-(b.r??999))[0]||{score:0,stop:true};
+  }
+
   function chooseUpgrade(target, defensive = false) {
     if (defensive) {
       if (target.hp <= target.maxHp * 0.5) return "shield";
@@ -469,7 +489,7 @@
     return false;
   }
 
-  const api = { attacksFrom, tacticAttacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, chooseUpgrade, shouldUseResponse };
+  const api = { attacksFrom, tacticAttacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, choosePullDirection, chooseUpgrade, shouldUseResponse };
   root.GA_AI = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
