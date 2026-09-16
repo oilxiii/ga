@@ -578,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta04<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta05<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2281,10 +2281,10 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta04<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta04`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta04/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta04/);
+  assert.match(html,/>Beta05<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta05`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta05/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta05/);
 });
 
 
@@ -2356,10 +2356,10 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta04<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta04`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta04/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta04/);
+  assert.match(html,/>Beta05<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta05`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta05/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta05/);
 });
 
 
@@ -2495,8 +2495,8 @@ test("Beta04 Secret Team stat update matches latest unit cards",()=>{
   assert.ok(fs.existsSync(path.join(__dirname,"..",eva.card)));
   assert.ok(fs.existsSync(path.join(__dirname,"..",mazinger.card)));
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/Beta04/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta04"));
+  assert.match(html,/Beta05/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta05"));
 });
 
 test("Beta02 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
@@ -2539,6 +2539,20 @@ test("Beta02 Secret Team theme is listed and auto-selected only at match launch"
   const launch=game.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
   assert.match(launch,/Object\.values\(matchFactions\)\.includes\("secret"\)\)BGM\.select\("secret"\)/);
   assert.equal((game.match(/BGM\.select\("secret"\)/g)||[]).length,1,"automatic Secret selection must happen only at launch");
-  assert.match(html,/Beta04/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta04"));
+  assert.match(html,/Beta05/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta05"));
+});
+
+
+test("Beta05 mobile Unit Card modal stays closable and blocks pull-to-refresh",()=>{
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(css,/body\.modal-open\s*\{[^}]*overflow:\s*hidden;[^}]*overscroll-behavior:\s*none;/s);
+  assert.match(css,/#game-modal\.overlay\s*\{[^}]*place-items:\s*start center;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;/s);
+  assert.match(css,/#game-modal \.unit-card-modal \.modal-close\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/s);
+  assert.match(css,/#game-modal \.modal-card\s*\{[^}]*max-height:\s*calc\(100dvh/s);
+  const lock=game.match(/function lockResolutionModal[\s\S]*?function lockResponseModal/)?.[0]||"";
+  const release=game.match(/function releaseResolutionModalLock[\s\S]*?function closeModal/)?.[0]||"";
+  assert.match(lock,/document\.body\.classList\.add\("modal-open"\)/);
+  assert.match(release,/document\.body\.classList\.remove\("modal-open"\)/);
 });

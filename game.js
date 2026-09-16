@@ -3144,7 +3144,7 @@
   function lockResolutionModal(modal,preferredSelector="button,[href],[tabindex]:not([tabindex='-1'])") {
     if(!modal)return;
     if(modal.dataset.modalLock!=="true")responseModalRestoreFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
-    modal.dataset.modalLock="true";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
+    modal.dataset.modalLock="true";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");document.body.classList.add("modal-open");
     const shell=$(".game-shell");if(shell)shell.inert=true;
     requestAnimationFrame(()=>{const focusable=modal.querySelector(preferredSelector)||modal.querySelector("button,[href],[tabindex]:not([tabindex='-1'])");focusable?.focus?.({preventScroll:true});});
   }
@@ -3155,7 +3155,7 @@
   }
   function releaseResolutionModalLock(modal) {
     if(!modal||modal.dataset.modalLock!=="true")return;
-    delete modal.dataset.modalLock;delete modal.dataset.responseLock;
+    delete modal.dataset.modalLock;delete modal.dataset.responseLock;document.body.classList.remove("modal-open");
     const shell=$(".game-shell");if(shell&&!document.body.classList.contains("title-active"))shell.inert=false;
     const restore=responseModalRestoreFocus;responseModalRestoreFocus=null;
     if(restore?.isConnected&&!restore.closest?.("[inert]"))restore.focus?.({preventScroll:true});

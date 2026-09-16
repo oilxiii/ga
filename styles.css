@@ -32,6 +32,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
 /* Title screen */
 body.title-active { overflow: hidden; }
+body.modal-open { overflow: hidden; overscroll-behavior: none; }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; border: 0 !important; }
 .title-screen {
   position: fixed;
@@ -533,13 +534,13 @@ body.title-active { overflow: hidden; }
 .tactic-card.used { filter: grayscale(1); opacity: .28; cursor: default; }
 .tactic-card:not(.legal):not(.used) { opacity: .55; }
 
-.overlay { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; padding: 20px; background: rgba(0,5,10,.82); backdrop-filter: blur(8px); }
+.overlay { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; padding: 20px; background: rgba(0,5,10,.82); backdrop-filter: blur(8px); overscroll-behavior: contain; }
 .overlay.show { display: grid; }
 .pass-card, .modal-card { width: min(520px, 100%); padding: 28px; border: 1px solid rgba(102,206,255,.45); background: linear-gradient(145deg, #102b40, #050e18 68%); box-shadow: 0 30px 80px rgba(0,0,0,.65), inset 0 0 35px rgba(71,190,243,.06); clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 28px 100%, 0 calc(100% - 28px)); }
 .pass-card h2, .modal-card h2 { margin: 6px 0; font-size: clamp(1.35rem, 4vw, 2.2rem); }
 .pass-card p, .modal-card p { color: #afc1d2; line-height: 1.55; }
 .primary-btn { min-width: 180px; padding: 10px 18px; border-color: #65d9ff; background: linear-gradient(180deg, #197aa2, #0b4562); }
-.modal-card { position: relative; max-height: 88vh; overflow: auto; }
+.modal-card { position: relative; max-height: 88vh; max-height: 88dvh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .modal-close {
   position: absolute;
   z-index: 12;
@@ -2566,4 +2567,40 @@ body.title-active { overflow: hidden; }
   .faction-select.secret-revealed .faction-select-panel { max-height: calc(100dvh - 16px); padding-block: 15px 12px; }
   .faction-select-panel > p { margin-bottom: 12px; }
   .faction-option { min-height: 92px; }
+}
+
+/* Beta05 mobile modal safety: keep inspection controls reachable and prevent pull-to-refresh. */
+@media (max-width: 680px) {
+  #game-modal.overlay {
+    place-items: start center;
+    overflow-y: auto;
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  #game-modal .modal-card {
+    width: 100%;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overscroll-behavior-y: contain;
+  }
+  #game-modal .unit-card-modal {
+    width: 100%;
+    padding: 10px;
+  }
+  #game-modal .unit-card-modal .modal-close {
+    position: sticky;
+    top: 0;
+    margin: 0 0 -38px auto;
+    z-index: 40;
+  }
+  #game-modal .unit-card-modal .modal-card-image.unit-sheet {
+    width: 100%;
+    max-height: none;
+    margin-top: 0;
+  }
 }

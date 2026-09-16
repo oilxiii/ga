@@ -1,4 +1,4 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta04
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta05
 
 BETA04 UPDATE
 - คืน Unit Card ของ Mechazawa จากภาพล่าสุดที่ผู้ใช้ส่งมา
@@ -7,8 +7,9 @@ BETA04 UPDATE
 - ไม่เปลี่ยนกฎ Hacking System: ซ่อม Damage 1 ต่อ Garrison trigger
 - อัปเดต build/cache tag เป็น beta04
 
-AUDIT UPDATE Beta04
-- ผลทดสอบ Beta04: Core 205 + AI 28 = 233 tests ผ่านทั้งหมด
+AUDIT UPDATE Beta05
+- Beta05: แก้ mobile Unit Card modal ให้ scroll ภายใน viewport, sticky close button และป้องกัน pull-to-refresh/page reload
+- ผลทดสอบ Beta05: Core 206 + AI 28 = 234 tests ผ่านทั้งหมด
 - ตรวจ JavaScript syntax และ decode ภาพ assets ผ่านทั้งหมด
 
 BETA03 UPDATE
