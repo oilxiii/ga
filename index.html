@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=89">
+  <link rel="stylesheet" href="styles.css?v=95">
 </head>
 <body class="title-active">
   <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
@@ -29,12 +29,14 @@
                 <div class="faction-group-title" id="team-group-classic"><span>01</span><strong>CLASSIC</strong></div>
                 <div class="faction-options faction-group-options">
                   <button type="button" class="faction-option fed" data-faction="fed">
-                    <img src="assets/icons/gundam.png" alt="">
-                    <strong>E.F.S.F.</strong><span>EARTH FEDERATION</span>
+                    <span class="faction-option-art"><img src="assets/icons/gundam.png" alt=""></span>
+                    <span class="faction-option-copy"><strong>E.F.S.F.</strong><span>EARTH FEDERATION</span><em>UNIT DATA // VERIFIED</em></span>
+                    <i class="faction-option-action" aria-hidden="true">SELECT</i>
                   </button>
                   <button type="button" class="faction-option zeon" data-faction="zeon">
-                    <img src="assets/icons/chars-zaku.png" alt="">
-                    <strong>ZEON</strong><span>PRINCIPALITY OF ZEON</span>
+                    <span class="faction-option-art"><img src="assets/icons/chars-zaku.png" alt=""></span>
+                    <span class="faction-option-copy"><strong>ZEON</strong><span>PRINCIPALITY OF ZEON</span><em>UNIT DATA // VERIFIED</em></span>
+                    <i class="faction-option-action" aria-hidden="true">SELECT</i>
                   </button>
                 </div>
               </section>
@@ -42,12 +44,14 @@
                 <div class="faction-group-title" id="team-group-starter01"><span>02</span><strong>STARTER 01</strong></div>
                 <div class="faction-options faction-group-options">
                   <button type="button" class="faction-option white-devil" data-faction="white-devil">
-                    <img src="assets/icons/team-white-devil.png" alt="">
-                    <strong>WHITE DEVIL</strong><span>HERO UNIT TEAM</span>
+                    <span class="faction-option-art"><img src="assets/icons/team-white-devil.png" alt=""></span>
+                    <span class="faction-option-copy"><strong>WHITE DEVIL</strong><span>HERO UNIT TEAM</span><em>UNIT DATA // VERIFIED</em></span>
+                    <i class="faction-option-action" aria-hidden="true">SELECT</i>
                   </button>
                   <button type="button" class="faction-option rival" data-faction="rival">
-                    <img src="assets/icons/team-rival.png" alt="">
-                    <strong>THE RIVAL</strong><span>RIVAL UNIT TEAM</span>
+                    <span class="faction-option-art"><img src="assets/icons/team-rival.png" alt=""></span>
+                    <span class="faction-option-copy"><strong>THE RIVAL</strong><span>RIVAL UNIT TEAM</span><em>UNIT DATA // VERIFIED</em></span>
+                    <i class="faction-option-action" aria-hidden="true">SELECT</i>
                   </button>
                 </div>
               </section>
@@ -55,8 +59,9 @@
             <button id="secret-team-toggle" class="secret-team-toggle" type="button" aria-expanded="false" aria-controls="secret-team-drawer" aria-label="เปิด Secret Team" title="มีบางอย่างซ่อนอยู่">›</button>
             <div id="secret-team-drawer" class="secret-team-drawer" aria-hidden="true">
               <button type="button" class="faction-option secret-team-option" data-faction="secret" tabindex="-1">
-                <span class="secret-team-question" aria-hidden="true">?</span>
-                <strong>SECRET TEAM</strong><span>CLASSIFIED // SIGNAL LOST</span>
+                <span class="faction-option-art"><span class="secret-team-question" aria-hidden="true">?</span></span>
+                <span class="faction-option-copy"><strong>SECRET TEAM</strong><span>UNKNOWN SIGNAL</span><em>DATA LOCK // ENCRYPTED</em></span>
+                <i class="faction-option-action" aria-hidden="true">SELECT</i>
               </button>
             </div>
           </div>
@@ -77,7 +82,7 @@
         <div id="zeon-score" class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> <b id="zeon-team-name">ZEON</b></span></div>
       </section>
       <div class="topbar-actions">
-        <span class="build-version" title="Game build version">v89</span>
+        <span class="build-version" title="Game build version">v95</span>
         <button id="sound-btn" class="icon-btn" type="button" aria-label="เลือกเพลงและเสียง" title="เลือกเพลงและเสียง" aria-pressed="false">🔊</button>
         <button id="restart-btn" class="icon-btn" type="button" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
       </div>
@@ -126,9 +131,9 @@
     </div>
   </div>
 
-  <script src="data.js?v=89"></script>
-  <script src="engine.js?v=89"></script>
-  <script src="ai.js?v=89"></script>
-  <script src="game.js?v=89"></script>
+  <script src="data.js?v=95"></script>
+  <script src="engine.js?v=95"></script>
+  <script src="ai.js?v=95"></script>
+  <script src="game.js?v=95"></script>
 </body>
 </html>

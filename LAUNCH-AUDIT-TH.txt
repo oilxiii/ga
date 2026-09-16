@@ -1,11 +1,46 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v89
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v95
 
-AUDIT UPDATE v89
+
+AUDIT UPDATE v95
+- แก้ Team Select card layout จาก text/pseudo-element ที่แชร์พื้นที่เดียวกัน เป็น artwork + copy + meta + action badge แยกส่วน ป้องกันข้อความซ้อนกัน.
+- <=760px การ์ดทีมเรียง 1 คอลัมน์; <=430px ลด artwork/type scale เพิ่มเติมโดยยังคงชื่อทีมและ Unit Data อ่านได้.
+- SECRET CHANNEL และ logic การเลือกทีมเดิมไม่เปลี่ยน.
+- ผลทดสอบ v95: Core 194 + AI 24 = 218 tests ผ่านทั้งหมด.
+
+AUDIT UPDATE v94
+- ปรับ Team Select UI เป็น tactical deployment roster: การ์ดทีมทรง cockpit HUD, accent สีฝ่าย, CLASSIC / STARTER 01 เป็น archive groups และ Secret เป็น SECRET CHANNEL ด้านล่าง.
+- ขั้นเลือกคู่แข่งยังใช้ opponent-step สีแดง และ logic การเลือกทีม/Secret drawer เดิมไม่เปลี่ยน.
+- Responsive layout รองรับ desktop / tablet / mobile และ reduced-motion.
+- ผลทดสอบ v94: Core 193 + AI 24 = 217 tests ผ่านทั้งหมด.
+
+
+V90 FIX SCOPE
+- Pull: เพิ่มทิศ Pull ที่ต้องใกล้ source ขึ้น และใช้ forced-movement collision rule เดียวกับ Push สำหรับพื้นที่สูง/Unit/Garrison/Base (Collision Damage 2).
+- Engagement: single-target attack ขณะ Engaged เลือกได้เฉพาะ Unit/Garrison ที่ Engage จริง (ติดกัน + Elevation เดียวกัน); ไม่จำกัดอาวุธยิง/ประชิด; SP AoE ต้องครอบ Engaging target อย่างน้อย 1 จุด.
+- LOS Inspector: native weapons และ Attack Tactics ใช้ source เดียวกันสำหรับ maximum range, LOS และ blocked styling.
+- Tactic modal: focus lock + aria-modal + inert background.
+- Asset cleanup: ลบ legacy card-006..041, team-secret.png, unit-icons.png และ reference Sleeping Leviathan ที่ไม่ถูก runtime อ้างถึง.
+
+AUDIT UPDATE v92
+- หลังจบแมตช์ ปุ่มผลการแข่งขันกลับไปหน้า Title แทนการ reset เล่นซ้ำด้วยทีมเดิม.
+- เคลียร์ timer/effect/modal/match state เดิม, ซ่อน game shell, คืน Title screen และสลับจาก Battle BGM กลับเป็น Title BGM.
+- Match ใหม่ต้องเลือกโหมดและทีมใหม่จากหน้า Title ตาม flow ปกติ.
+- ผลทดสอบ v92: Core 193 + AI 24 = 217 tests ผ่านทั้งหมด.
+
+AUDIT UPDATE v91
+- Command usage เปลี่ยนจาก boolean ต่อยูนิต เป็น object keyed ตาม Command ability id.
+- Vidar สามารถใช้ Hunter's Edge และ Alaya-Vijnana Type E System อย่างละ 1 ครั้งใน Activation เดียวกันได้ หากเงื่อนไขครบ.
+- Barbatos สามารถใช้ Alaya-Vijnana Exertion และ Annihilate อย่างละ 1 ครั้งใน Activation เดียวกันได้; AI Annihilate follow-up ไม่ถูก Exertion บล็อกอีก.
+- Cancel Alaya-Vijnana Exertion restore snapshot ของ commandUsed ก่อนเริ่ม Exertion จึงไม่คืน Command อื่นที่ใช้ไปแล้ว.
+- Regression tests เพิ่มสำหรับ per-ability Command quota และ AI command separation.
+- ผลทดสอบ v91: Core 192 + AI 24 = 216 tests ผ่านทั้งหมด.
+
+AUDIT UPDATE v90
 - ลดขนาดโฟลเดอร์เกมจาก 71 MB เหลือ 24 MB หรือลดลงประมาณ 66% โดยไม่แตะข้อมูลกฎหรือ AI.
 - ภาพการ์ด PNG ที่ไม่มี Alpha ถูกแปลงเป็น JPEG คุณภาพสูง; Unit Card ขนาดเกินจำเป็นจำกัดด้านยาวไว้ที่ 1,800 px ส่วน Tactic Card ขนาดปกติคงความละเอียดต้นฉบับ.
 - ไอคอนบนสนามและหน้าเลือกทีมจำกัดด้านยาวไว้ที่ 384 px ซึ่งยังสูงกว่าขนาดแสดงจริงหลายเท่า; Title Art แบบโปร่งใสคง PNG และจำกัดด้านยาวไว้ที่ 1,400 px.
 - ตรวจยืนยันว่าการ์ดที่ระบบอ้างถึงครบ 40 ภาพ, ไม่มี path เสีย และขนาดรวมของภาพการ์ดที่ใช้งานจริงไม่เกิน 13 MB.
-- ผลทดสอบ v89: Core 186 + AI 23 = 209 tests ผ่านทั้งหมด.
+- ผลทดสอบ v90: Core 190 + AI 23 = 213 tests ผ่านทั้งหมด.
 
 วันที่ตรวจ: 16 กันยายน 2026
 

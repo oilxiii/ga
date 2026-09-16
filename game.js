@@ -40,6 +40,15 @@
   const AI_WATCHDOG_ATTEMPTS = 12;
 
   function activeUnit() { return state.units.find(unit => unit.id === state.activeUnitId); }
+  function commandUsageMap() {
+    const activation=state?.activation;
+    if(!activation)return {};
+    if(!activation.commandUsed||typeof activation.commandUsed!=="object"||Array.isArray(activation.commandUsed))activation.commandUsed={};
+    return activation.commandUsed;
+  }
+  function commandAbilityUsed(ability) { return !!(ability?.id&&commandUsageMap()[ability.id]); }
+  function canUseCommandAbility(unit,ability) { return !!ability&&!commandAbilityUsed(ability)&&unit.energy>=Math.max(0,ability.energy||0); }
+  function markCommandAbilityUsed(ability) { if(ability?.id)commandUsageMap()[ability.id]=true; }
   function factionForSide(team) { return state?.factions?.[team] || matchFactions[team] || team; }
   function teamMeta(team) { return D.teams[factionForSide(team)] || D.teams[team]; }
   function teamName(team) { return teamMeta(team).name; }
@@ -216,6 +225,12 @@
       const promise=track.play();
       if(promise?.catch)promise.catch(()=>{});
     }
+    function stop() {
+      tracks.forEach(track=>{
+        track.pause();
+        track.currentTime=0;
+      });
+    }
     function select(next) {
       selection=sources[next]?next:"off";
       pauseOthers(selection);
@@ -229,7 +244,7 @@
       if(!muted)start();
     }
     function getSelection(){ return selection; }
-    return { start, select, setMuted, getSelection };
+    return { start, stop, select, setMuted, getSelection };
   })();
 
   const TitleBGM = (() => {
@@ -758,6 +773,55 @@
     pickups.filter(event=>event.type==="upgrade").forEach((event,index)=>queueUnitStateFx(unit,"upgrade",`+${event.upgrade.toUpperCase()}`,45+index*140));
   }
 
+  function returnToTitle() {
+    gameEpoch+=1;
+    if(aiThinkingTimer){clearTimeout(aiThinkingTimer);aiThinkingTimer=null;}
+    aiBusy=false;
+    aiPerforming=false;
+    aiPreferredTargetKey=null;
+    aiResponsePending=false;
+    aiEffectPending=false;
+    if(activationResumeTimer){clearTimeout(activationResumeTimer);activationResumeTimer=null;}
+    if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
+    if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
+    clearAttackTargetingFx();
+    document.querySelectorAll(".attack-targeting-fx,.combat-shot-fx,.unit-state-fx").forEach(node=>node.remove());
+    $("#dice-roll-overlay")?.classList.remove("show");
+    $("#pass-overlay")?.classList.remove("show");
+    closeModal();
+    hidePhaseTransition();
+    state=null;
+    lastDice=null;
+    mode=null;
+    pendingAttack=null;
+    movementDraft=null;
+    losInspection={ enabled:false };
+    menuOpen=false;
+    menuView="main";
+    transitionBusy=false;
+    matchMode="hotseat";
+    humanTeam=null;
+    aiTeam=null;
+    matchFactions={ fed:"fed", zeon:"zeon" };
+    BGM.stop();
+    const screen=$("#title-screen");
+    const factionSelect=$("#faction-select");
+    const gameShell=$(".game-shell");
+    factionSelect?.classList.remove("show","opponent-step","secret-revealed");
+    factionSelect?.setAttribute("aria-hidden","true");
+    $("#secret-team-toggle")?.setAttribute("aria-expanded","false");
+    $("#secret-team-drawer")?.setAttribute("aria-hidden","true");
+    document.querySelectorAll("#secret-team-drawer [data-faction]").forEach(button=>button.tabIndex=-1);
+    $("#title-one-player")?.removeAttribute("inert");
+    $("#title-two-player")?.removeAttribute("inert");
+    if(gameShell){gameShell.inert=true;gameShell.setAttribute("aria-hidden","true");}
+    document.body.classList.add("title-active");
+    screen?.classList.remove("leaving");
+    screen?.classList.add("show");
+    TitleBGM.start();
+    $("#title-one-player")?.focus();
+  }
+
   function resetGame() {
     gameEpoch+=1;
     if(aiThinkingTimer){clearTimeout(aiThinkingTimer);aiThinkingTimer=null;}
@@ -799,7 +863,7 @@
       }
     }
     state.activeUnitId = unit.id;
-    state.activation = { advanced: false, actionUsed: false, commandUsed: false, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 };
+    state.activation = { advanced: false, actionUsed: false, commandUsed: {}, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 };
     const reactivatedShields = E.reactivateShields(unit);
     if (reactivatedShields > 0) addLog(`${unit.name}: Shield Upgrade ${reactivatedShields} ชิ้นกลับมา Active`);
     unit.tempStrength = 0;
@@ -1093,7 +1157,7 @@
 
   function blockedForEveryInRangeWeapon(source,target) {
     const distance=E.distance(source,target);
-    const weapons=(source.weapons||[]).filter(weapon=>distance<=weaponRange(weapon));
+    const weapons=inspectionWeaponsFor(source).filter(weapon=>distance<=weaponRange(weapon));
     return !weapons.some(weapon=>weapon.ignoreLos||(usesSpecialAoeLine(weapon)?E.hasTwinBusterLine(state,source,target):E.hasLineOfSight(state,source,target)));
   }
 
@@ -1119,7 +1183,7 @@
   function renderBoard() {
     const size = 27, x0 = 72, y0 = 32, dx = size*1.5, dy = Math.sqrt(3)*size;
     const active = activeUnit();
-    const losMaximumRange=active?Math.max(0,...(active.weapons||[]).map(weaponRange)):0;
+    const losMaximumRange=active?Math.max(0,...inspectionWeaponsFor(active).map(weaponRange)):0;
     const encounterTargets=active?E.engagedTargets(state,active):[];
     const hasEncounter=encounterTargets.length>0;
     let defs = "";
@@ -1182,7 +1246,7 @@
 
   function unitHudHtml(unit,{showAi=false}={}) {
     const effects=[...unitMapEffects(unit)];
-    if(unit.zone!=="reserve"&&E.engagedTargets(state,unit).length)effects.push({type:"encounter",kind:"status",text:"E",title:"Encounter — Move -1 และต้องโจมตีศัตรูที่อยู่ติดกันก่อน"});
+    if(unit.zone!=="reserve"&&E.engagedTargets(state,unit).length)effects.push({type:"encounter",kind:"status",text:"E",title:"Engagement — Move -1 และการโจมตีต้องมีเป้าหมายที่กำลัง Engage อย่างน้อย 1 ตัว"});
     if(unit.berserkActive)effects.push({type:"berserk",kind:"temporary",text:"BZK",title:"Berserk Active"});
     if(unit.movementBonus>0)effects.push({type:"move-bonus",kind:"temporary",text:`M+${unit.movementBonus}`,title:`Move Bonus +${unit.movementBonus} ใน Activation นี้`});
     const effectHtml=effects.map(effect=>{
@@ -1310,8 +1374,8 @@
       item(adjustingDash?"ปรับตำแหน่ง Dash":"Dash",adjustingDash?"เลือกใหม่ในพื้นที่เดิม":`${dashDistance} HEX · TL${D.rules.dash.timeline}`,"dash",a.actionUsed&&!adjustingDash),
       item("Energize","+1 ENERGY · TL2","energize",a.actionUsed),
       item("Rescue","GARRISON · TL2","rescue",a.actionUsed||!hasOwnGarrisonInRange(unit)),
-      item(unit.command.name,unit.command.energy?`⚡${unit.command.energy}`:"COMMAND","ability",a.commandUsed||unit.energy<(unit.command.energy||0)||annihilateUnavailable),
-      unit.command2?item(unit.command2.name,unit.command2.energy?`⚡${unit.command2.energy}`:"COMMAND","ability2",a.commandUsed||unit.energy<(unit.command2.energy||0)):"",
+      item(unit.command.name,unit.command.energy?`⚡${unit.command.energy}`:"COMMAND","ability",commandAbilityUsed(unit.command)||unit.energy<(unit.command.energy||0)||annihilateUnavailable),
+      unit.command2?item(unit.command2.name,unit.command2.energy?`⚡${unit.command2.energy}`:"COMMAND","ability2",commandAbilityUsed(unit.command2)||unit.energy<(unit.command2.energy||0)):"",
       item("Tactic",`${state.hands[unit.team].filter(id=>!isUsed(id,unit.team)).length} CARDS`,"tactics"),
       item("Unit Card","INFO","info"),
       item("Wait",a.actionUsed?"END":"PRIMARY ACTION REQUIRED","end",!a.actionUsed,"danger")
@@ -1928,7 +1992,7 @@
       :weapon.effect==="splash"
       ? `${weapon.name}: เลือกเป้าหมายหลัก — หลัง Combat Damage ศัตรูทุกตัวที่ติดกับเป้าหมายจะรับ Damage 0 (Critical = 1)`
       : `${weapon.name}: เลือกยูนิตหรือ Garrison สีแดง`;
-    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,onDeclare:options.onDeclare,onComplete:options.onComplete,required:!!options.required,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่อยู่ติดกันก่อน`:normalHint};
+    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,onDeclare:options.onDeclare,onComplete:options.onComplete,required:!!options.required,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องเลือก Unit หรือ Garrison ที่กำลัง Engage ยูนิตนี้เป็นเป้าหมาย`:normalHint};
     menuOpen=true;
     renderAll();
     return true;
@@ -2186,18 +2250,50 @@
   }
 
   function beginPullToward(attacker,defender,onComplete=()=>{},label="Tail Blade") {
-    const current=E.distance(attacker,defender);
-    const candidates=E.neighbors(defender.q,defender.r)
-      .map(([q,r])=>({q,r}))
-      .filter(hex=>E.inBounds(hex.q,hex.r)&&E.distance(attacker,hex)<current&&!E.unitAt(state,hex.q,hex.r)&&!E.garrisonAt(state,hex.q,hex.r)&&!E.baseAt(hex.q,hex.r));
-    if(!candidates.length){addLog(`${label}: ไม่มีช่องว่างที่ดึงเป้าหมายเข้ามาได้`);onComplete();return true;}
-    const moveTarget=hex=>{
-      defender.q=hex.q;defender.r=hex.r;
-      addLog(`${label}: ดึง ${defender.name} เข้ามา 1 ช่อง`);
-      renderAll();afterUnitMove(defender,"pull",onComplete,true);
+    const options=E.pullDirectionOptions(state,attacker,defender);
+    if(!options.length){addLog(`${label}: ไม่มี Hex ที่ใกล้ผู้ดึงขึ้น — หยุด Pull`);onComplete();return true;}
+    const finish=()=>{mode=null;menuOpen=false;renderAll();onComplete();};
+    const collide=step=>{
+      const targetPos={q:defender.q,r:defender.r};
+      const pulledDamage=E.applyDamage(defender,2,{sourceType:"collision"});
+      if(step.unit){
+        const collidedUnit=step.unit;
+        const to={q:collidedUnit.q,r:collidedUnit.r};
+        const collisionDamage=E.applyDamage(collidedUnit,2,{sourceType:"collision"});
+        const scoringTeam=collidedUnit.team===attacker.team?defender.team:attacker.team;
+        const defeated=E.defeatUnit(state,collidedUnit,scoringTeam);
+        addLog(`${label}: ${defender.name} ชน ${collidedUnit.name} — ${defender.name} รับ Damage ${pulledDamage.taken}, ${collidedUnit.name} รับ Damage ${collisionDamage.taken}`);
+        playDamageFeedback({to,targetUnitId:collidedUnit.id,destroyed:defeated});
+      }else if(step.garrison){
+        const info=damageGarrison(attacker,step.garrison,2,"Pull Collision");
+        addLog(`${label}: ${defender.name} ชน Garrison — ${defender.name} รับ Damage ${pulledDamage.taken}, Garrison รับ Damage ${info.damage}`);
+        playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
+      }else if(step.base){
+        addLog(`${label}: ${defender.name} ชน Base ฝ่าย ${teamMeta(step.base.team).short} — รับ Damage ${pulledDamage.taken}`);
+      }else if(step.reason==="edge"){
+        addLog(`${label}: ${defender.name} ชนขอบสนาม — รับ Damage ${pulledDamage.taken}`);
+      }else{
+        addLog(`${label}: ${defender.name} ชนพื้นที่สูง — รับ Damage ${pulledDamage.taken}`);
+      }
+      const pulledDefeated=E.defeatUnit(state,defender,attacker.team);
+      playDamageFeedback({to:targetPos,targetUnitId:defender.id,destroyed:pulledDefeated});
+      finish();
     };
-    if(isAiTeam(attacker.team)){moveTarget(candidates[0]);return true;}
-    mode={type:"pull-target",unitId:attacker.id,targets:new Set(candidates.map(hex=>E.key(hex.q,hex.r))),hint:`${label}: เลือกช่องสีแดงเพื่อดึงเป้าหมายเข้ามา 1 ช่อง`,callback:moveTarget,required:true};
+    const choose=hex=>{
+      const option=options.find(candidate=>candidate.q===hex.q&&candidate.r===hex.r);
+      if(!option){finish();return;}
+      const step=E.forcedPushStep(state,defender,option.direction);
+      if(step.type==="collision"){collide(step);return;}
+      if(step.type!=="move"){finish();return;}
+      defender.q=step.q;defender.r=step.r;
+      addLog(`${label}: ดึง ${defender.name} เข้ามา 1 ช่อง`);
+      mode=null;menuOpen=false;renderAll();afterUnitMove(defender,"pull",onComplete,true);
+    };
+    if(isAiTeam(attacker.team)){
+      const safe=options.find(option=>E.forcedPushStep(state,defender,option.direction).type==="move");
+      choose(safe||options[0]);return true;
+    }
+    mode={type:"pull-target",unitId:attacker.id,targets:new Set(options.map(hex=>E.key(hex.q,hex.r))),hint:`${label}: เลือก Hex ที่ใกล้ผู้ดึงขึ้น 1 ช่อง · ถ้าชนพื้นที่สูง/Unit/Garrison/Base จะเกิด Collision Damage`,callback:choose,required:true};
     menuOpen=true;renderAll();return true;
   }
 
@@ -2616,8 +2712,8 @@
   function useUnitAbility(unit,slot=1) {
     const ability=slot===2?unit.command2:unit.command;
     const energyCost=Math.max(0,ability?.energy||0);
-    if (!ability||unit.energy<energyCost||state.activation.commandUsed) return;
-    const spend=()=>{unit.energy-=energyCost;state.activation.commandUsed=true;};
+    if (!canUseCommandAbility(unit,ability)) return;
+    const spend=()=>{unit.energy-=energyCost;markCommandAbilityUsed(ability);};
     if (unit.id==="gundam") {
       const allies=state.units.filter(x=>x.team===unit.team&&x.zone==="board"&&E.distance(unit,x)<=3&&E.hasLineOfSight(state,unit,x)&&totalUpgrades(x)<=1);
       if (!allies.length) { addLog("White Base Unity: ไม่มีพันธมิตรใน Range 3 และ Line of Sight");menuOpen=true;renderAll();return; }
@@ -2649,9 +2745,9 @@
       spend();unit.critFloorOverride=6;addLog("Mazin Power: ผลทอย 6–8 เป็น Critical จนจบ Activation");
     }
     else if(unit.id==="mechazawa"){
-      const before={energy:unit.energy,commandUsed:state.activation.commandUsed};
+      const before={energy:unit.energy,commandUsed:{...commandUsageMap()}};
       const rollback=()=>{
-        unit.energy=before.energy;state.activation.commandUsed=before.commandUsed;
+        unit.energy=before.energy;state.activation.commandUsed={...before.commandUsed};
         addLog("Motorcycle: ยกเลิกการเคลื่อนที่ — คืน Energy และ Command");
         menuOpen=true;menuView="main";renderAll();
       };
@@ -2693,12 +2789,12 @@
     else if(unit.id==="barbatos-lupus-rex"&&slot===2){
       const legalMove=E.reachable(state,unit,2);
       if(!legalMove.size){addLog("Alaya-Vijnana Exertion: ไม่มีช่องเคลื่อนที่ที่ถูกกติกา");menuOpen=true;renderAll();return;}
-      const before={hp:unit.hp,inactiveShields:unit.inactiveShields||0,energy:unit.energy,commandUsed:state.activation.commandUsed};
+      const before={hp:unit.hp,inactiveShields:unit.inactiveShields||0,energy:unit.energy,commandUsed:{...commandUsageMap()}};
       const rollback=()=>{
         unit.hp=before.hp;
         unit.inactiveShields=before.inactiveShields;
         unit.energy=before.energy;
-        state.activation.commandUsed=before.commandUsed;
+        state.activation.commandUsed={...before.commandUsed};
         menuOpen=true;menuView="main";
         addLog("Alaya-Vijnana Exertion: ยกเลิกการเคลื่อนที่ — คืน Damage/Shield และ Command");
         renderAll();
@@ -3125,7 +3221,7 @@
   }
 
   function aiUsePreMoveAbility(unit,onComplete) {
-    if(unit?.id!=="mechazawa"||state.activation.commandUsed||unit.energy<(unit.command?.energy||0)){onComplete();return;}
+    if(unit?.id!=="mechazawa"||!canUseCommandAbility(unit,unit.command)){onComplete();return;}
     const choice=aiMotorcycleChoice(unit);
     if(!choice){onComplete();return;}
     aiPreferredTargetKey=E.key(choice.q,choice.r);
@@ -3171,41 +3267,47 @@
     });
   }
 
-  function aiAbilityScore(unit) {
-    if(state.activation.commandUsed||unit.energy<(unit.command.energy||0))return -Infinity;
-    if(unit.id==="gundam")return state.units.some(target=>target.team===unit.team&&target.zone==="board"&&E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target)&&totalUpgrades(target)<=1)?42:-Infinity;
-    if(unit.id==="guncannon")return E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target))?48:-Infinity;
-    if(unit.id==="guntank")return E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)<=4&&E.hasLineOfSight(state,unit,target)).length*24;
-    if(unit.id==="chars-zaku")return A.attacksFrom(state,unit,D,E).some(choice=>choice.weapon.id===unit.weapons[0].id)?58:-Infinity;
-    if(unit.id==="zaku-line"){
-      const damaged=E.livingEnemies(state,unit).filter(target=>target.hp<target.maxHp);
-      const reachable=E.reachable(state,unit,5,{ignoreElevation:true});
-      return [...reachable.keys()].some(value=>{const [q,r]=E.fromKey(value);return damaged.some(target=>E.distance({q,r},target)<E.distance(unit,target));})?38:-Infinity;
-    }
-    if(unit.id==="zaku-enforcer")return adjacentObjectives(unit).some(objective=>objective.owner!==unit.team)?95:-Infinity;
-    if(unit.id==="wing-zero-ew")return A.attacksFrom(state,unit,D,E).length?62:-Infinity;
+  function aiAbilityChoice(unit) {
+    const command1=unit.command;
+    const command2=unit.command2;
+    const can1=canUseCommandAbility(unit,command1);
+    const can2=canUseCommandAbility(unit,command2);
     if(unit.id==="gundam-vidar"){
-      if(state.objectives.filter(objective=>objective.owner===unit.team).length>=2)return 55;
-      return E.livingEnemies(state,unit).some(target=>E.distance(unit,target)===1)?52:-Infinity;
+      if(can2&&state.objectives.filter(objective=>objective.owner===unit.team).length>=2)return {slot:2,score:55};
+      if(can1&&E.livingEnemies(state,unit).some(target=>E.distance(unit,target)===1))return {slot:1,score:52};
+      return null;
     }
     if(unit.id==="barbatos-lupus-rex"){
       const rexReady=A.attacksFrom(state,unit,D,E).some(choice=>choice.weapon.id==="rex-claws");
-      return !rexReady&&unit.hp>3&&E.livingEnemies(state,unit).length?40:-Infinity;
+      return can2&&!rexReady&&unit.hp>3&&E.livingEnemies(state,unit).length?{slot:2,score:40}:null;
     }
-    if(unit.id==="hero-gundam")return E.livingEnemies(state,unit).length?44:-Infinity;
-    if(unit.id==="red-comet-zaku")return A.attacksFrom(state,unit,D,E).length?56:-Infinity;
-    if(unit.id==="gundam-epyon")return E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=2&&E.hasLineOfSight(state,unit,target)&&!Object.values(target.statuses||{}).some(Boolean))?48:-Infinity;
-    if(unit.id==="eva-01")return unit.upgrades.shield===0?46:-Infinity;
-    if(unit.id==="mazinger-z")return A.attacksFrom(state,unit,D,E).length?55:-Infinity;
-    if(unit.id==="mechazawa")return aiMotorcycleChoice(unit)?40:-Infinity;
-    return -Infinity;
+    if(!can1)return null;
+    if(unit.id==="gundam")return state.units.some(target=>target.team===unit.team&&target.zone==="board"&&E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target)&&totalUpgrades(target)<=1)?{slot:1,score:42}:null;
+    if(unit.id==="guncannon")return E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=3&&E.hasLineOfSight(state,unit,target))?{slot:1,score:48}:null;
+    if(unit.id==="guntank"){const score=E.livingEnemies(state,unit).filter(target=>E.distance(unit,target)<=4&&E.hasLineOfSight(state,unit,target)).length*24;return score?{slot:1,score}:null;}
+    if(unit.id==="chars-zaku")return A.attacksFrom(state,unit,D,E).some(choice=>choice.weapon.id===unit.weapons[0].id)?{slot:1,score:58}:null;
+    if(unit.id==="zaku-line"){
+      const damaged=E.livingEnemies(state,unit).filter(target=>target.hp<target.maxHp);
+      const reachable=E.reachable(state,unit,5,{ignoreElevation:true});
+      return [...reachable.keys()].some(value=>{const [q,r]=E.fromKey(value);return damaged.some(target=>E.distance({q,r},target)<E.distance(unit,target));})?{slot:1,score:38}:null;
+    }
+    if(unit.id==="zaku-enforcer")return adjacentObjectives(unit).some(objective=>objective.owner!==unit.team)?{slot:1,score:95}:null;
+    if(unit.id==="wing-zero-ew")return A.attacksFrom(state,unit,D,E).length?{slot:1,score:62}:null;
+    if(unit.id==="hero-gundam")return E.livingEnemies(state,unit).length?{slot:1,score:44}:null;
+    if(unit.id==="red-comet-zaku")return A.attacksFrom(state,unit,D,E).length?{slot:1,score:56}:null;
+    if(unit.id==="gundam-epyon")return E.livingEnemies(state,unit).some(target=>E.distance(unit,target)<=2&&E.hasLineOfSight(state,unit,target)&&!Object.values(target.statuses||{}).some(Boolean))?{slot:1,score:48}:null;
+    if(unit.id==="eva-01")return unit.upgrades.shield===0?{slot:1,score:46}:null;
+    if(unit.id==="mazinger-z")return A.attacksFrom(state,unit,D,E).length?{slot:1,score:55}:null;
+    if(unit.id==="mechazawa")return aiMotorcycleChoice(unit)?{slot:1,score:40}:null;
+    return null;
   }
 
-  function aiUseAbility(unit,onComplete) {
-    if(aiAbilityScore(unit)<38){onComplete();return;}
-    let slot=1;
-    if(unit.id==="gundam-vidar"&&state.objectives.filter(objective=>objective.owner===unit.team).length>=2)slot=2;
-    if(unit.id==="barbatos-lupus-rex")slot=2;
+  function aiAbilityScore(unit) { return aiAbilityChoice(unit)?.score??-Infinity; }
+
+  function aiUseAbility(unit,onComplete,chainDepth=0) {
+    const choice=aiAbilityChoice(unit);
+    if(!choice||choice.score<38){onComplete();return;}
+    const slot=choice.slot;
     const ability=slot===2?unit.command2:unit.command;
     if(unit.id==="mechazawa"){
       const choice=aiMotorcycleChoice(unit);
@@ -3214,7 +3316,10 @@
     }
     addLog(`AI · ใช้ Command ${ability.name}`);renderAll();
     useUnitAbility(unit,slot);
-    aiWaitForSettled(unit,onComplete);
+    aiWaitForSettled(unit,()=>{
+      if(unit.id==="gundam-vidar"&&chainDepth<1&&aiAbilityChoice(unit)?.score>=38){aiUseAbility(unit,onComplete,chainDepth+1);return;}
+      onComplete();
+    });
   }
 
   function aiTakePrimary(unit) {
@@ -3265,7 +3370,7 @@
   }
 
   function aiUseAnnihilateFollowUp(unit) {
-    if(unit?.id!=="barbatos-lupus-rex"||!unit.attackedWithRexClaws||state.activation.commandUsed||unit.energy<1){aiFinishTurn(unit);return;}
+    if(unit?.id!=="barbatos-lupus-rex"||!unit.attackedWithRexClaws||!canUseCommandAbility(unit,unit.command)){aiFinishTurn(unit);return;}
     const rex=unit.weapons.find(weapon=>weapon.id==="rex-claws");
     if(!rex||!E.legalWeaponTargets(state,unit,rex).length){aiFinishTurn(unit);return;}
     addLog(`AI · ใช้ Command ${unit.command.name} โจมตี Rex Claws เพิ่มที่ Timeline 0`);renderAll();
@@ -3291,7 +3396,9 @@
   function showCard(card,note="",onConfirm=null) {
     const modal=ensureModal();
     modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><button class="modal-close" aria-label="ปิด">×</button><div class="tactic-confirm-layout"><img class="modal-card-image" src="${card.card}" alt="${card.name}"><div><span class="eyebrow">${card.timing}${card.trigger?` // ${card.trigger}`:""}</span><h2>${card.name}</h2><p>${card.text}</p>${note?`<p class="chip ${onConfirm?"good":"bad"}">${note}</p>`:""}<div class="modal-actions">${onConfirm?`<button class="primary-btn" id="confirm-tactic">Confirm ใช้การ์ด</button>`:""}<button class="action-btn" id="close-tactic">กลับ</button></div></div></div></div>`;
-    modal.classList.add("show");modal.querySelector(".modal-close").addEventListener("click",closeModal);modal.querySelector("#close-tactic").addEventListener("click",closeModal);
+    modal.classList.add("show");
+    lockResolutionModal(modal,"#confirm-tactic,#close-tactic,.modal-close");
+    modal.querySelector(".modal-close").addEventListener("click",closeModal);modal.querySelector("#close-tactic").addEventListener("click",closeModal);
     if(onConfirm)modal.querySelector("#confirm-tactic").addEventListener("click",()=>{closeModal();onConfirm();});
   }
 
@@ -3312,7 +3419,7 @@
 
   function showResult() {
     const modal=ensureModal();const title=`${teamName(state.winner)} WINS`;
-    modal.innerHTML=`<div class="modal-card"><span class="eyebrow">MISSION COMPLETE</span><h2>${title}</h2><div class="result-grid"><div>${teamMeta("fed").short}<b>${state.vp.fed}</b>VP</div><div>${teamMeta("zeon").short}<b>${state.vp.zeon}</b>VP</div></div><button class="primary-btn" id="play-again">เล่นใหม่</button></div>`;modal.classList.add("show");modal.querySelector("#play-again").addEventListener("click",()=>{closeModal();resetGame();});
+    modal.innerHTML=`<div class="modal-card"><span class="eyebrow">MISSION COMPLETE</span><h2>${title}</h2><div class="result-grid"><div>${teamMeta("fed").short}<b>${state.vp.fed}</b>VP</div><div>${teamMeta("zeon").short}<b>${state.vp.zeon}</b>VP</div></div><button class="primary-btn" id="play-again">กลับหน้า Title</button></div>`;modal.classList.add("show");modal.querySelector("#play-again").addEventListener("click",returnToTitle);
   }
 
   function renderSoundButton() {

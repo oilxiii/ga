@@ -34,7 +34,7 @@ test("all fifteen units use separate map icons", () => {
   }
 });
 
-test("v89 production images are right-sized without losing referenced cards", () => {
+test("v90 production images are right-sized without losing referenced cards", () => {
   const items=[...D.units,...D.tactics];
   const cards=[...new Set(items.map(item=>item.card))];
   assert.equal(cards.length,40);
@@ -575,7 +575,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v89<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v95<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -997,40 +997,36 @@ test("Engagement reduces movement by 1 only for adjacent enemy units or Garrison
   assert.equal(E.reachable(s,unit,3).has(E.key(5,2)),false,"enemy Garrison Engagement also applies -1 movement");
 });
 
-test("Encounter trigger is same-elevation, but attack priority includes every adjacent enemy", () => {
+test("Engagement attack priority is limited to same-elevation Engaging targets", () => {
   const s=E.setupGame(()=>0.5);
   const attacker=s.units.find(x=>x.id==="gundam");
   const engaged=s.units.find(x=>x.id==="chars-zaku");
-  const lowerAdjacent=s.units.find(x=>x.id==="zaku-line");
+  const higherAdjacent=s.units.find(x=>x.id==="zaku-line");
   attacker.zone="board";attacker.q=5;attacker.r=5;
   engaged.zone="board";engaged.q=6;engaged.r=5;
-  lowerAdjacent.zone="board";lowerAdjacent.q=5;lowerAdjacent.r=4;
+  higherAdjacent.zone="board";higherAdjacent.q=5;higherAdjacent.r=4;
   s.garrisons=[];
   Object.values(s.board).forEach(hex=>{hex.elevation=0;});
-  s.board[E.key(lowerAdjacent.q,lowerAdjacent.r)].elevation=1;
+  s.board[E.key(higherAdjacent.q,higherAdjacent.r)].elevation=1;
   const weapon=attacker.weapons.find(x=>x.id==="beam-rifle");
   assert.deepEqual(
-    E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id).sort(),
-    ["chars-zaku","zaku-line"].sort(),
-    "once Encounter is active, every adjacent enemy remains a legal attack target even at another elevation"
+    E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id),
+    ["chars-zaku"],
+    "while Engaged, a single-target attack must target an enemy that actually Engages the attacker"
   );
 
   s.board[E.key(engaged.q,engaged.r)].elevation=1;
-  assert.equal(E.engagedTargets(s,attacker).length,0,"different-elevation adjacent enemies alone do not trigger Encounter");
+  assert.equal(E.engagedTargets(s,attacker).length,0,"different-elevation adjacent enemies alone do not trigger Engagement");
 
   engaged.q=10;engaged.r=10;
-  lowerAdjacent.q=10;lowerAdjacent.r=9;
+  higherAdjacent.q=10;higherAdjacent.r=9;
   s.garrisons=[{id:"enemy-g",team:"zeon",q:6,r:5,hp:1,maxHp:1}];
   s.board[E.key(6,5)].elevation=0;
   assert.equal(E.engagedTargets(s,attacker).map(x=>x.id).includes("enemy-g"),true);
-  assert.deepEqual(
-    E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id),
-    ["enemy-g"],
-    "when only an adjacent enemy Garrison is present, it remains the forced target"
-  );
+  assert.deepEqual(E.legalWeaponTargets(s,attacker,weapon).map(x=>x.id),["enemy-g"]);
 });
 
-test("Rival Char can use Bazooka on any adjacent enemy while Encounter is active", () => {
+test("Rival Char may use either Bazooka or Heat Hawk on the actual Engaging target", () => {
   const s=E.setupGame(()=>0.5,{fed:"rival",zeon:"fed"});
   const char=s.units.find(unit=>unit.id==="red-comet-zaku");
   const gundam=s.units.find(unit=>unit.id==="gundam");
@@ -1044,16 +1040,15 @@ test("Rival Char can use Bazooka on any adjacent enemy while Encounter is active
   assert.deepEqual(E.engagedTargets(s,char).map(target=>target.id),["gundam"]);
   const bazooka=char.weapons.find(weapon=>weapon.id==="red-comet-bazooka");
   const axe=char.weapons.find(weapon=>weapon.id==="red-comet-heat-hawk");
-  const expected=["guncannon","gundam"].sort();
-  assert.deepEqual(E.legalWeaponTargets(s,char,bazooka).map(target=>target.id).sort(),expected,"Bazooka is not disabled by Encounter");
-  assert.deepEqual(E.legalWeaponTargets(s,char,axe).map(target=>target.id).sort(),expected,"Heat Hawk uses the same adjacent target priority");
+  assert.deepEqual(E.legalWeaponTargets(s,char,bazooka).map(target=>target.id),["gundam"],"ranged weapons remain legal while Engaged");
+  assert.deepEqual(E.legalWeaponTargets(s,char,axe).map(target=>target.id),["gundam"],"melee weapons use the same Engagement target rule");
 });
 
-test("the attack UI uses engine legal targets for Engaged units and Garrisons", () => {
+test("the attack UI uses engine Engagement targets without restricting weapon type", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/const targets=E\.legalWeaponTargets\(state,unit,weapon\)/);
   assert.doesNotMatch(source,/const garrisonTargets=state\.garrisons\.filter/);
-  assert.match(source,/ENGAGED — ต้องโจมตี Unit หรือ Garrison ศัตรูที่อยู่ติดกันก่อน/);
+  assert.match(source,/ENGAGED — ต้องเลือก Unit หรือ Garrison ที่กำลัง Engage ยูนิตนี้เป็นเป้าหมาย/);
 });
 
 test("AI attack generation consumes engine legal Garrison targets without a duplicate overlay", () => {
@@ -1738,7 +1733,7 @@ test("Hover ignores elevation cost in the engine for both human and AI movement"
   assert.equal(reachable.get(E.key(q,r)),1);
 });
 
-test("Alaya-Vijnana Exertion commits the once-per-activation Command before self-damage", () => {
+test("Alaya-Vijnana Exertion commits its own Command usage before self-damage", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const block=source.match(/else if\(unit\.id==="barbatos-lupus-rex"&&slot===2\)[\s\S]*?\n    \}/)?.[0]||"";
   assert.ok(block.indexOf("spend();")>=0 && block.indexOf("spend();") < block.indexOf('damageUnit(unit,unit,3,"Alaya-Vijnana Exertion"'));
@@ -2223,12 +2218,61 @@ test("v80 weapon-specific pull and Critical Dash logs use the real weapon name",
   assert.doesNotMatch(source,/addLog\("Machine Gun Critical:/);
 });
 
-test("v83 legacy build sync expectations follow the current build", () => {
+test("v90 Pull moves only closer, collides with higher terrain or occupied hexes, and applies Collision Damage", () => {
+  const s=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"rival"});
+  const source=s.units.find(unit=>unit.id==="barbatos-lupus-rex");
+  const target=s.units.find(unit=>unit.id==="gundam-epyon");
+  source.zone="board";source.q=5;source.r=5;
+  target.zone="board";target.q=5;target.r=3;
+  Object.values(s.board).forEach(hex=>{hex.elevation=0;});
+  const options=E.pullDirectionOptions(s,source,target);
+  assert.ok(options.length>0);
+  for(const option of options)assert.ok(E.distance(source,option)<E.distance(source,target),"every Pull choice is closer to the source");
+  const option=options[0];
+  s.board[E.key(option.q,option.r)].elevation=1;
+  assert.equal(E.forcedPushStep(s,target,option.direction).reason,"terrain","Pull cannot climb into higher terrain");
+  s.board[E.key(option.q,option.r)].elevation=0;
+  const blocker=s.units.find(unit=>unit.id==="hero-gundam");
+  blocker.zone="board";blocker.q=option.q;blocker.r=option.r;
+  const collision=E.forcedPushStep(s,target,option.direction);
+  assert.equal(collision.type,"collision");
+  assert.equal(collision.unit?.id,blocker.id);
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const pull=game.match(/function beginPullToward[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(pull,/E\.applyDamage\(defender,2,\{sourceType:"collision"\}\)/);
+  assert.match(pull,/damageGarrison\(attacker,step\.garrison,2,"Pull Collision"\)/);
+  assert.match(pull,/E\.defeatUnit\(state,defender,attacker\.team\)/);
+});
+
+test("v90 LOS Inspector uses Attack Tactics for both range and blocked-target styling", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/function blockedForEveryInRangeWeapon[\s\S]*?inspectionWeaponsFor\(source\)/);
+  assert.match(source,/const losMaximumRange=active\?Math\.max\(0,\.\.\.inspectionWeaponsFor\(active\)\.map\(weaponRange\)\):0/);
+  assert.match(source,/const inspectionWeapons=inspectionWeaponsFor\(source\)/);
+});
+
+test("v90 Tactic card confirmation is a real focus-locked modal", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const block=source.match(/function showCard\(card,note="",onConfirm=null\)[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(block,/lockResolutionModal\(modal,"#confirm-tactic,#close-tactic,\.modal-close"\)/);
+});
+
+test("v90 release removes unused legacy card/reference assets while keeping runtime assets", () => {
+  for(let i=6;i<=41;i++)assert.equal(fs.existsSync(path.join(__dirname,"..","assets","cards",`card-${String(i).padStart(3,"0")}.jpg`)),false,`legacy card-${String(i).padStart(3,"0")}.jpg removed`);
+  for(const old of ["assets/icons/team-secret.png","assets/icons/unit-icons.png","assets/reference/sleeping-leviathan.png"]){
+    assert.equal(fs.existsSync(path.join(__dirname,"..",old)),false,`${old} removed`);
+  }
+  for(const live of ["assets/cards/unit-mazinger-z.jpg","assets/cards/tactic-god-drill.jpg","assets/tokens/garrison-blue.png","assets/icons/icon-eva-01.png"]){
+    assert.equal(fs.existsSync(path.join(__dirname,"..",live)),true,`${live} retained`);
+  }
+});
+
+test("v95 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>v89<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=89`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v89/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v89/);
+  assert.match(html,/>v95<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=95`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v95/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v95/);
 });
 
 
@@ -2260,24 +2304,63 @@ test("v81 active HUD exposes Checkmate, Mazin Power, and Frenzied Charge tempora
   assert.match(effects,/heroBeamSaberBonus > 0/);
 });
 
-test("v81 cancelling Alaya-Vijnana Exertion rolls back its self-damage and command state", () => {
+test("v91 cancelling Alaya-Vijnana Exertion rolls back only its transactional command snapshot", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const ability=source.match(/else if\(unit\.id==="barbatos-lupus-rex"&&slot===2\)[\s\S]*?else if\(unit\.id==="barbatos-lupus-rex"\)/)?.[0]||"";
-  assert.match(ability,/const before=\{hp:unit\.hp,inactiveShields:unit\.inactiveShields\|\|0,energy:unit\.energy,commandUsed:state\.activation\.commandUsed\}/);
+  assert.match(ability,/const before=\{hp:unit\.hp,inactiveShields:unit\.inactiveShields\|\|0,energy:unit\.energy,commandUsed:\{\.\.\.commandUsageMap\(\)\}\}/);
   assert.match(ability,/unit\.hp=before\.hp/);
   assert.match(ability,/unit\.inactiveShields=before\.inactiveShields/);
-  assert.match(ability,/state\.activation\.commandUsed=before\.commandUsed/);
+  assert.match(ability,/state\.activation\.commandUsed=\{\.\.\.before\.commandUsed\}/);
   assert.match(ability,/onCancel:rollback/);
 });
 
-test("v89 browser cache tags and docs are synchronized to the build", () => {
-  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>v89<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=89`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v89/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v89/);
+test("v91 Command usage is tracked per ability id rather than once per unit activation", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const engine=fs.readFileSync(path.join(__dirname,"..","engine.js"),"utf8");
+  assert.match(source,/commandUsed:\s*\{\}/);
+  assert.match(engine,/commandUsed:\s*\{\}/);
+  assert.match(source,/function commandAbilityUsed\(ability\)/);
+  assert.match(source,/commandUsageMap\(\)\[ability\.id\]/);
+  assert.match(source,/function markCommandAbilityUsed\(ability\)/);
+  assert.match(source,/commandUsageMap\(\)\[ability\.id\]=true/);
+  assert.match(source,/commandAbilityUsed\(unit\.command\)/);
+  assert.match(source,/commandAbilityUsed\(unit\.command2\)/);
+  assert.doesNotMatch(source,/state\.activation\.commandUsed\s*===?\s*true/);
+  assert.doesNotMatch(source,/state\.activation\.commandUsed\s*=\s*true/);
 });
 
+test("v91 Vidar and Barbatos may use both distinct Commands in one activation but not repeat the same Command", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const useAbility=source.match(/function useUnitAbility\(unit,slot=1\)[\s\S]*?function selectEnemy/)?.[0]||"";
+  assert.match(useAbility,/const ability=slot===2\?unit\.command2:unit\.command/);
+  assert.match(useAbility,/if \(!canUseCommandAbility\(unit,ability\)\) return/);
+  assert.match(useAbility,/markCommandAbilityUsed\(ability\)/);
+  const aiFollow=source.match(/function aiUseAnnihilateFollowUp[\s\S]*?function aiFinishTurn/)?.[0]||"";
+  assert.match(aiFollow,/canUseCommandAbility\(unit,unit\.command\)/);
+  const aiChoice=source.match(/function aiAbilityChoice[\s\S]*?function aiAbilityScore/)?.[0]||"";
+  assert.match(aiChoice,/const can1=canUseCommandAbility\(unit,command1\)/);
+  assert.match(aiChoice,/const can2=canUseCommandAbility\(unit,command2\)/);
+});
+
+test("v95 browser cache tags and docs are synchronized to the build", () => {
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  assert.match(html,/>v95<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=95`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v95/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v95/);
+});
+
+
+test("v95 team select uses separate responsive dossier regions without shared text overlays", () => {
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.equal((html.match(/class="faction-option-copy"/g)||[]).length,5);
+  assert.equal((html.match(/class="faction-option-action"/g)||[]).length,5);
+  assert.match(css,/v95 Team Select \/\/ responsive dossier layout/);
+  assert.match(css,/@media \(max-width:760px\)[\s\S]*?\.faction-group-options \{ grid-template-columns:1fr; \}/);
+  assert.match(css,/\.faction-option-copy strong::after \{ display:none !important; content:none !important; \}/);
+  assert.match(css,/\.faction-option-action \{[\s\S]*?position:absolute;[\s\S]*?bottom:10px;/);
+});
 
 test("v83 classified Secret Team icon has animated noise treatment", () => {
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
@@ -2304,4 +2387,19 @@ test("v84 unit inspection reuses the live HUD status renderer and focus lock", (
   assert.match(inspect,/unitHudHtml\(unit\)/);
   assert.match(inspect,/lockResolutionModal\(modal,"\.modal-close"\)/);
   assert.match(inspect,/TIMELINE \/\/ UNIT DATA/);
+});
+
+test("v92 game-over restart returns to Title instead of replaying the same teams", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const result=source.match(/function showResult\(\)[\s\S]*?function renderSoundButton/)?.[0]||"";
+  const back=source.match(/function returnToTitle\(\)[\s\S]*?function resetGame/)?.[0]||"";
+  assert.match(result,/id="play-again">กลับหน้า Title<\/button>/);
+  assert.match(result,/addEventListener\("click",returnToTitle\)/);
+  assert.doesNotMatch(result,/play-again[\s\S]{0,160}resetGame\(\)/);
+  assert.match(back,/state=null/);
+  assert.match(back,/matchFactions=\{ fed:"fed", zeon:"zeon" \}/);
+  assert.match(back,/gameShell\.inert=true/);
+  assert.match(back,/document\.body\.classList\.add\("title-active"\)/);
+  assert.match(back,/screen\?\.classList\.add\("show"\)/);
+  assert.match(back,/TitleBGM\.start\(\)/);
 });

@@ -1,4 +1,10 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams v89
+GUNDAM ASSEMBLE // ONLINE — Five Teams v95
+
+- v95 Team Select UI: ปรับ responsive card structure ใหม่เพื่อแก้ชื่อทีม/UNIT DATA/SELECT ซ้อนกันในหน้าจอแคบ; แยก artwork, team copy, unit-data และ action badge เป็นคนละ layout region พร้อม breakpoint แบบ single-column บน tablet/mobile.
+- v94 Team Select UI: ปรับหน้าเลือกทีมเป็น Mobile Suit tactical roster / deployment HUD โดยคง CLASSIC, STARTER 01 และ Secret drawer (SECRET CHANNEL) พร้อมธีมฟ้า/แดงตามขั้นเลือกทีม.
+- v92 Game Over Flow: ปุ่มหลังจบแมตช์กลับไปหน้า Title และเคลียร์ match state เดิม แทนการเริ่มเกมใหม่ด้วยทีมเดิมทันที.
+- v91 Command Rules Fix: เปลี่ยนการใช้ Command จากโควตา boolean ร่วมทั้งยูนิต เป็นการติดตามแยกตาม Command ability id ตาม Core Rulebook; ยูนิตที่มี Command 2 ความสามารถจึงใช้แต่ละความสามารถได้อย่างละ 1 ครั้งใน Activation เดียวกัน และ rollback ของ Alaya-Vijnana Exertion จะคืนเฉพาะ snapshot ก่อน Exertion โดยไม่ล้าง Command อื่นที่ใช้ไปแล้ว.
+- v90 Rules/UI Cleanup: แก้ Pull ของ Tail Blade / Heat Rod ให้ใช้ทิศที่เข้าใกล้ผู้ดึงจริงและ resolve Collision Damage 2 เมื่อชนพื้นที่สูง, Unit, Garrison หรือ Base; คืนกฎ Engagement ให้ตรง Core Rulebook (เป้าหมายที่ Engage ต้องติดกันและ Elevation เดียวกัน, ไม่จำกัดชนิดอาวุธ, AoE ต้องครอบอย่างน้อย 1 Engaging target); LOS Inspector ใช้ Attack Tactic ในมือสำหรับทั้งระยะและสถานะ blocked; หน้าดู/ยืนยัน Tactic ใช้ focus lock/inert แบบ modal เต็ม; ลบ legacy card/reference assets ที่ไม่มี runtime reference.
 
 - v89 Asset Optimization: ลดขนาดโฟลเดอร์เกมจากประมาณ 71 MB เหลือประมาณ 24 MB (ลดลงราว 66%) โดยแปลงภาพการ์ด PNG ที่ไม่มีความโปร่งใสเป็น JPEG คุณภาพสูง, จำกัดภาพ Unit Card ขนาดใหญ่มากไว้ที่สูงสุด 1,800 px, จำกัดไอคอนบนกระดานไว้ที่ 384 px และลด Title Art เหลือสูงสุด 1,400 px; ไม่แก้กฎเกม, AI, เสียง หรือเอฟเฟกต์.
 

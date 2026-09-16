@@ -253,6 +253,22 @@
       });
   }
 
+  function pullDirectionOptions(state, source, target) {
+    if (!state || !source || !target || target.zone !== "board") return [];
+    const currentDistance=distance(source,target);
+    const targetCube=oddqToCube(target.q,target.r);
+    return neighbors(target.q,target.r)
+      .map(([q,r])=>({q,r,d:distance(source,{q,r})}))
+      .filter(candidate=>candidate.d<currentDistance)
+      .map(candidate=>{
+        const cube=oddqToCube(candidate.q,candidate.r);
+        return {
+          q:candidate.q,r:candidate.r,
+          direction:{x:cube.x-targetCube.x,y:cube.y-targetCube.y,z:cube.z-targetCube.z}
+        };
+      });
+  }
+
   function forcedPushStep(state, target, direction) {
     if (!state || !target || target.zone !== "board" || !direction) return { type:"blocked", reason:"invalid" };
     const currentCube=oddqToCube(target.q,target.r);
@@ -342,7 +358,7 @@
       vp: { fed: 0, zeon: 0 }, rescuedGarrisons: { fed: 0, zeon: 0 }, destroyedGarrisons: { fed: 0, zeon: 0 }, usedTactics: new Set(), hands: { fed: [], zeon: [] }, tacticDecks: { fed: [], zeon: [] }, retiredTactics: { fed: [], zeon: [] }, tacticCycles: { fed: 1, zeon: 1 },
       currentTick: 1, resolvedThisTick: new Set(), log: [], activeUnitId: null,
       timelineSeqCounter: units.length, lastActivatedTeam: null,
-      activation: { advanced: false, actionUsed: false, commandUsed: false, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 }, winner: null
+      activation: { advanced: false, actionUsed: false, commandUsed: {}, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 }, winner: null
     };
     dealTacticHands(state, rng);
     return state;
@@ -408,13 +424,12 @@
     const enemyUnits = livingEnemies(state, unit);
     const enemyGarrisons = (state.garrisons || []).filter(garrison => garrison.team !== unit.team);
     const engaged = engagedTargets(state, unit);
-    // Encounter is TRIGGERED only by a same-elevation adjacent enemy, but once the
-    // unit is Engaged its attack priority is simply "fight something next to you".
-    // Do not hide a different-elevation adjacent enemy (the v76 Char/Guncannon bug).
-    // This keeps the Move -1 trigger elevation-sensitive while allowing every legal
-    // adjacent Unit/Garrison to be chosen with any weapon whose Range reaches it.
-    const adjacentEnemies = [...enemyUnits, ...enemyGarrisons].filter(target => distance(unit, target) === 1);
-    const targetPool = engaged.length ? adjacentEnemies : [...enemyUnits, ...enemyGarrisons];
+    // Core rule: Engagement exists only against adjacent enemies at the same
+    // elevation. While Engaged, a single-target attack must include one of those
+    // Engaging targets. The weapon type is unrestricted: ranged weapons remain
+    // legal if their normal Range/LOS requirements are met. AoE attacks enforce
+    // the same "must include an Engaging target" rule in the AoE selector.
+    const targetPool = engaged.length ? engaged : [...enemyUnits, ...enemyGarrisons];
     return targetPool.filter(target => {
       if (distance(unit, target) > weapon.range) return false;
       return weapon.ignoreLos || hasLineOfSight(state, unit, target);
@@ -637,7 +652,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, resolveDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, resolveDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

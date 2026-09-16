@@ -30,7 +30,7 @@ test("1 Player asks for the human team and then a different AI opponent", () => 
   assert.match(html,/id="secret-team-drawer"[^>]*aria-hidden="true"/);
   assert.match(html,/<strong>WHITE DEVIL<\/strong>/);
   assert.match(html,/<strong>THE RIVAL<\/strong>/);
-  assert.match(html,/<strong>SECRET TEAM<\/strong><span>CLASSIFIED \/\/ SIGNAL LOST<\/span>/);
+  assert.match(html,/<strong>SECRET TEAM<\/strong><span>UNKNOWN SIGNAL<\/span><em>DATA LOCK \/\/ ENCRYPTED<\/em>/);
   assert.match(game,/setSecretRevealed\(false\)/);
   assert.match(game, /button\.disabled=step===2&&button\.dataset\.faction===firstFaction/);
   assert.match(game, /launch\(selectingMode,\{fed:firstFaction,zeon:faction\}\)/);
@@ -319,7 +319,7 @@ test("v80 AI War Edge evaluation uses one shared Exploit Weakness state per dire
   const enemyB=place(state.units.find(unit=>unit.id==="guncannon"),6,4);
   enemyB.statuses.slow=true;
   state.hands.fed=["war-edge"];
-  state.activation={advanced:false,actionUsed:false,commandUsed:false,tacticUsed:{fed:false,zeon:false},timelineSpent:0};
+  state.activation={advanced:false,actionUsed:false,commandUsed:{},tacticUsed:{fed:false,zeon:false},timelineSpent:0};
   const attacks=A.tacticAttacksFrom(state,epyon,D,E).filter(choice=>choice.weapon.aoe==="warEdge");
   assert.ok(attacks.length>0);
   assert.equal(epyon.aoeExploitWeakness,undefined,"temporary shared-roll flag must not leak after evaluation");
@@ -328,13 +328,24 @@ test("v80 AI War Edge evaluation uses one shared Exploit Weakness state per dire
 test("v87 AI treats Motorcycle as an independent move before or after Advance",()=>{
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const preMove=source.match(/function aiUsePreMoveAbility[\s\S]*?function aiAdvance/)?.[0]||"";
-  const abilityScore=source.match(/function aiAbilityScore[\s\S]*?function aiUseAbility/)?.[0]||"";
+  const abilityScore=source.match(/function aiAbilityChoice[\s\S]*?function aiUseAbility/)?.[0]||"";
   const run=source.match(/function runAiTurn[\s\S]*?function showCard/)?.[0]||"";
   assert.match(preMove,/unit\?\.id!=="mechazawa"/);
   assert.match(preMove,/function aiMotorcycleChoice/);
   assert.match(preMove,/E\.reachable\(state,unit,2\)/);
   assert.match(preMove,/useUnitAbility\(unit,1\)/);
-  assert.match(abilityScore,/unit\.id==="mechazawa".*aiMotorcycleChoice\(unit\)\?40:-Infinity/);
+  assert.match(abilityScore,/unit\.id==="mechazawa".*aiMotorcycleChoice\(unit\)\?\{slot:1,score:40\}:null/);
   assert.ok(run.indexOf("aiUsePreMoveAbility")<run.indexOf("aiAdvance"));
   assert.ok(run.indexOf("aiAdvance")<run.indexOf("aiUseAbility"));
+});
+
+
+test("v91 AI command checks are per ability and allow Barbatos Annihilate after Exertion",()=>{
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const choice=source.match(/function aiAbilityChoice[\s\S]*?function aiAbilityScore/)?.[0]||"";
+  assert.match(choice,/const can1=canUseCommandAbility\(unit,command1\)/);
+  assert.match(choice,/const can2=canUseCommandAbility\(unit,command2\)/);
+  const follow=source.match(/function aiUseAnnihilateFollowUp[\s\S]*?function aiFinishTurn/)?.[0]||"";
+  assert.match(follow,/canUseCommandAbility\(unit,unit\.command\)/);
+  assert.doesNotMatch(follow,/state\.activation\.commandUsed/);
 });
