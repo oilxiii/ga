@@ -194,7 +194,8 @@
   const BGM = (() => {
     const sources = {
       song1: "assets/audio/battle-bgm.mp3",
-      song2: "assets/audio/title-bgm.mp3"
+      song2: "assets/audio/title-bgm.mp3",
+      secret: "assets/audio/secret-mazinger-z-bgm.mp3"
     };
     const tracks = new Map();
     let selection = "song1";
@@ -360,7 +361,10 @@
       TitleBGM.stop();
       SFX.unlock();
       SFX.menuConfirm();
-      BGM.start();
+      // Secret Team receives its dedicated theme only once when the match launches.
+      // After this point the player's manual music/off choice is never overridden.
+      if(Object.values(matchFactions).includes("secret"))BGM.select("secret");
+      else BGM.start();
       screen.classList.add("leaving");
       document.body.classList.remove("title-active");
       setTimeout(()=>{
@@ -3463,7 +3467,7 @@
   function showSoundMenu() {
     const modal=ensureModal();
     const current=soundMuted?"off":BGM.getSelection();
-    modal.innerHTML=`<div class="modal-card sound-menu-modal"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">AUDIO</span><h2>เพลงในเกม</h2><p>เลือกเพลงที่จะเล่นระหว่างการต่อสู้ หรือปิดเสียงทั้งหมด</p><div class="sound-choice-list"><button class="action-btn sound-choice ${current==="song1"?"selected":""}" data-sound-choice="song1"><strong>เพลง 1</strong><small>Battle BGM</small></button><button class="action-btn sound-choice ${current==="song2"?"selected":""}" data-sound-choice="song2"><strong>เพลง 2</strong><small>Alternate BGM</small></button><button class="action-btn sound-choice danger ${current==="off"?"selected":""}" data-sound-choice="off"><strong>ปิดเสียง</strong><small>ปิดทั้ง BGM และ Sound Effects</small></button></div></div>`;
+    modal.innerHTML=`<div class="modal-card sound-menu-modal"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">AUDIO</span><h2>เพลงในเกม</h2><p>เลือกเพลงที่จะเล่นระหว่างการต่อสู้ หรือปิดเสียงทั้งหมด</p><div class="sound-choice-list"><button class="action-btn sound-choice ${current==="song1"?"selected":""}" data-sound-choice="song1"><strong>เพลง 1</strong><small>Battle BGM</small></button><button class="action-btn sound-choice ${current==="song2"?"selected":""}" data-sound-choice="song2"><strong>เพลง 2</strong><small>Alternate BGM</small></button><button class="action-btn sound-choice ${current==="secret"?"selected":""}" data-sound-choice="secret"><strong>เพลง Secret</strong><small>Mazinger Z (SRW Z)</small></button><button class="action-btn sound-choice danger ${current==="off"?"selected":""}" data-sound-choice="off"><strong>ปิดเสียง</strong><small>ปิดทั้ง BGM และ Sound Effects</small></button></div></div>`;
     modal.classList.add("show");
     lockResolutionModal(modal,"[data-sound-choice],.modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);

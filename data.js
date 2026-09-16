@@ -141,7 +141,7 @@
     },
     {
       id: "eva-01", team: "secret", name: "EVA-01", model: "EVA-01", role: "Berserk Test Type",
-      hp: 12, vp: 10, tl: 3, card: "assets/cards/unit-eva-01.jpg", portrait: "right",
+      hp: 12, vp: 9, tl: 3, card: "assets/cards/unit-eva-01.jpg", portrait: "right",
       icon: "assets/icons/icon-eva-01.png",
       weapons: [
         { id: "progressive-knife", name: "Progressive Knife", timeline: 3, range: 1, strength: 3, critical: "fractureRepeatTimeline0", criticalTiming: "afterCombatDamage" },
@@ -152,7 +152,7 @@
     },
     {
       id: "mazinger-z", team: "secret", name: "Mazinger Z", model: "MAZINGER Z", role: "Invincible Super Robot",
-      hp: 15, vp: 10, tl: 4, card: "assets/cards/unit-mazinger-z.jpg", portrait: "right",
+      hp: 17, vp: 10, tl: 4, card: "assets/cards/unit-mazinger-z.jpg", portrait: "right",
       icon: "assets/icons/icon-mazinger-z.png",
       weapons: [
         { id: "rocket-punch", name: "Rocket Punch", timeline: 2, range: 3, strength: 3, ignoreLos: true, critical: "damage2" },
@@ -163,7 +163,7 @@
     },
     {
       id: "mechazawa", team: "secret", name: "Mechazawa", model: "MECHAZAWA", role: "Steel Delinquent",
-      hp: 10, vp: 4, tl: 1, card: "assets/cards/unit-mechazawa-v97.jpg", portrait: "right",
+      hp: 10, vp: 4, tl: 1, card: "assets/cards/unit-mechazawa-beta04.jpg", portrait: "right",
       icon: "assets/icons/icon-mechazawa.png",
       weapons: [
         { id: "mechazawa-drill", name: "Drill", timeline: 2, range: 1, strength: 3, critical: "push1Slow" },

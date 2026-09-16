@@ -1,3 +1,38 @@
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta04
+
+BETA04 UPDATE
+- คืน Unit Card ของ Mechazawa จากภาพล่าสุดที่ผู้ใช้ส่งมา
+- เปลี่ยน runtime asset เป็น assets/cards/unit-mechazawa-beta04.jpg เพื่อบังคับ browser/GitHub Pages โหลดไฟล์ใหม่แทนชื่อ cache เก่า
+- Hacking System modal ใช้ unit.card เดียวกับ Unit Card inspector จึงแสดงภาพใหม่นี้โดยตรง
+- ไม่เปลี่ยนกฎ Hacking System: ซ่อม Damage 1 ต่อ Garrison trigger
+- อัปเดต build/cache tag เป็น beta04
+
+AUDIT UPDATE Beta04
+- ผลทดสอบ Beta04: Core 205 + AI 28 = 233 tests ผ่านทั้งหมด
+- ตรวจ JavaScript syntax และ decode ภาพ assets ผ่านทั้งหมด
+
+BETA03 UPDATE
+- Mazinger Z: HP 15 → 17
+- EVA-01: VP 10 → 9
+- อัปเดต Unit Card assets ของ Mazinger Z และ EVA-01 ให้ตรงกับค่าใหม่
+- อัปเดต build/cache tag เป็น beta03
+
+AUDIT UPDATE Beta03
+- ผลทดสอบ Beta03: Core 205 + AI 28 = 233 tests ผ่านทั้งหมด
+
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta02
+
+BETA02 UPDATE
+- เพิ่ม assets/audio/secret-mazinger-z-bgm.mp3
+- แมตช์ที่มี Secret Team อย่างน้อยหนึ่งฝ่ายเลือกเพลง Secret อัตโนมัติเมื่อ Launch เท่านั้น
+- การเปลี่ยนเพลงและปิดเสียงด้วยตนเองยังทำงานตามปกติ และไม่มี auto-select ซ้ำระหว่างแมตช์
+- อัปเดต build/cache tag เป็น beta02
+
+AUDIT UPDATE Beta02
+- Secret Team BGM regression test เพิ่ม 1 เคส
+- ผลทดสอบ Beta02: Core 204 + AI 28 = 232 tests ผ่านทั้งหมด
+- ตรวจ JavaScript syntax และไฟล์เสียงใหม่ด้วย ffprobe ผ่าน
+
 GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta01
 
 
@@ -272,3 +307,5 @@ AUDIT UPDATE v81
 - Annihilate: ตรวจ Rex Claws legal target ก่อนเปิดใช้/ก่อนจ่าย Energy; ปุ่มถูก disable เมื่อโจมตีซ้ำไม่ได้
 - HUD: แสดง ACC/Checkmate, Mazin Power Crit floor และ Frenzied Charge Beam Saber bonus
 - Alaya-Vijnana Exertion: Back ได้ และ rollback HP, Shield state, Energy/Command ไปก่อนกด Command
+
+Beta04: Mechazawa Unit Card asset ถูกเปลี่ยนเป็นชื่อใหม่แบบ cache-safe และ Hacking System ยังคงดึงภาพผ่าน unit.card เดียวกัน

@@ -1,4 +1,10 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams Beta01
+GUNDAM ASSEMBLE // ONLINE — Five Teams Beta04
+
+- Beta04 Mechazawa card asset fix: เปลี่ยน Unit Card เป็นไฟล์ asset ชื่อใหม่ assets/cards/unit-mechazawa-beta04.jpg จากภาพล่าสุด เพื่อให้ Unit Card และ Hacking System modal โหลดภาพเดียวกันและหลีกเลี่ยง cache/missing-asset จากชื่อเดิม.
+- Beta03 Secret Team stat update: Mazinger Z เพิ่ม HP จาก 15 เป็น 17 และ EVA-01 ลด VP จาก 10 เป็น 9 พร้อมอัปเดตภาพ Unit Card ของทั้งสองตัวให้ตรงกับค่าปัจจุบัน.
+
+- Beta02 Secret Team BGM: เพิ่มเพลง Mazinger Z (SRW Z) เข้าเมนูเพลง; เมื่อเริ่มแมตช์ที่มี Secret Team อย่างน้อยหนึ่งฝ่าย เกมจะเลือกเพลงนี้อัตโนมัติครั้งเดียว และหลังเริ่มเกมผู้เล่นยังเปลี่ยนเพลงหรือปิดเสียงได้ตามปกติโดยระบบไม่บังคับกลับมาอีก
+
 
 - Beta01 Stability / AI Combat Audit Fix: ปิดช่อง Pull Collision ที่ฆ่าเป้าหมายแล้วไม่เสีย Primary Action/Timeline โดย commit ค่าโจมตีก่อน Pre-Attack Pull; ป้องกัน active-unit turn lock ถ้าฝ่ายดึงถูก Collision ทำลาย; ปรับ AI combat evaluator ให้ใช้ timing เดียวกับเกมจริงสำหรับ Newtype Instincts, Shield Break, Disarm และ Fracture-before-Shield; delayed Combat/Bazooka FX ตรวจ gameEpoch และ Restart/Title เคลียร์ transient FX เพื่อไม่ให้เอฟเฟกต์จากแมตช์เก่าหลุดเข้ารอบใหม่; เพิ่ม regression tests 6 เคส.
 
@@ -72,8 +78,8 @@ GUNDAM ASSEMBLE // ONLINE — Five Teams Beta01
 - ห้ามย้าย index.html ออกจากโฟลเดอร์นี้เพียงไฟล์เดียว เพราะเกมเรียกใช้ assets ภายในโฟลเดอร์
 - AI ใช้ข้อมูลและกติกาเดียวกับผู้เล่น ไม่อ่านชนิด Mystery Upgrade ก่อนเปิด และไม่เห็นมือ Tactic ของผู้เล่น
 - Newtype Instincts ทอยใหม่ได้เฉพาะลูกที่เป็น Miss ตามข้อความบน Unit Card
-- หน้า Title ใช้เพลง Title ตามเดิม; เมื่อเริ่มเกมจะใช้เพลงที่เลือกจากปุ่มลำโพง (เพลง 1 = Battle BGM, เพลง 2 = Alternate/Title BGM)
-- ปุ่มลำโพงมุมขวาบนเปิดเมนูเลือก เพลง 1 / เพลง 2 / ปิดเสียง; ตัวเลือกปิดเสียงจะปิดทั้ง BGM และ Sound Effects
+- หน้า Title ใช้เพลง Title ตามเดิม; เมื่อเริ่มเกมทั่วไปจะใช้เพลงที่เลือกไว้ และถ้าแมตช์มี Secret Team อย่างน้อยหนึ่งฝ่ายจะเลือกเพลง Secret: Mazinger Z (SRW Z) อัตโนมัติครั้งเดียว
+- ปุ่มลำโพงมุมขวาบนเปิดเมนูเลือก เพลง 1 / เพลง 2 / เพลง Secret / ปิดเสียง; ตัวเลือกปิดเสียงจะปิดทั้ง BGM และ Sound Effects
 - AI เว้นจังหวะก่อนเลือกคำสั่งและกล้องจะติดตาม Unit ของ AI เมื่อเริ่ม Activation
 - ENCOUNTER จะแสดงเหนือเป้าหมายที่ต้องโจมตีก่อน และ MOVE -1 จะแสดงเหนือ Unit ที่ถูกลดระยะเดิน
 - กล้องติดตาม Unit ที่กำลังเล่นทุกฝ่าย; ใน Hot-seat จะเลื่อนหลังผู้เล่นกดพร้อม

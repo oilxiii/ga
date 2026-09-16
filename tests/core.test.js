@@ -578,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta01<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta04<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2279,12 +2279,12 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
   }
 });
 
-test("Beta01 build sync expectations follow the current build", () => {
+test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta01<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta01`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta01/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta01/);
+  assert.match(html,/>Beta04<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta04`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta04/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta04/);
 });
 
 
@@ -2354,12 +2354,12 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
   assert.match(aiChoice,/const can2=canUseCommandAbility\(unit,command2\)/);
 });
 
-test("Beta01 browser cache tags and docs are synchronized to the build", () => {
+test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta01<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta01`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta01/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta01/);
+  assert.match(html,/>Beta04<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta04`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta04/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta04/);
 });
 
 
@@ -2456,11 +2456,14 @@ test("v99 battle log treats log entries as text instead of HTML", () => {
   assert.doesNotMatch(render,/battle-log"\)\.innerHTML/);
 });
 
-test("v97 Mechazawa card uses a cache-safe Damage 1 asset", () => {
+test("Beta04 Mechazawa card uses the restored cache-safe asset", () => {
   const data=fs.readFileSync(path.join(__dirname,"..","data.js"),"utf8");
-  assert.match(data,/card:\s*"assets\/cards\/unit-mechazawa-v97\.jpg"/);
-  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","cards","unit-mechazawa-v97.jpg")));
-  assert.equal(fs.existsSync(path.join(__dirname,"..","assets","cards","unit-mechazawa.jpg")),false,"old cached filename should not remain in the release");
+  assert.match(data,/card:\s*"assets\/cards\/unit-mechazawa-beta04\.jpg"/);
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","cards","unit-mechazawa-beta04.jpg")));
+  assert.equal(fs.existsSync(path.join(__dirname,"..","assets","cards","unit-mechazawa-v97.jpg")),false,"previous cached filename should not remain in the release");
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const hacking=game.match(/function offerHackingSystem[\s\S]*?function offerEscapeFromSide7/)?.[0]||"";
+  assert.match(hacking,/src="\$\{unit\.card\}"/);
 });
 
 test("v97 restart clears transient combat and movement state", () => {
@@ -2481,7 +2484,22 @@ test("v97 utility and result modals use the shared focus lock", () => {
   assert.match(sound,/lockResolutionModal\(modal,"\[data-sound-choice\],\.modal-close"\)/);
 });
 
-test("Beta01 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
+
+test("Beta04 Secret Team stat update matches latest unit cards",()=>{
+  const eva=D.units.find(unit=>unit.id==="eva-01");
+  const mazinger=D.units.find(unit=>unit.id==="mazinger-z");
+  assert.equal(eva.hp,12);
+  assert.equal(eva.vp,9);
+  assert.equal(mazinger.hp,17);
+  assert.equal(mazinger.vp,10);
+  assert.ok(fs.existsSync(path.join(__dirname,"..",eva.card)));
+  assert.ok(fs.existsSync(path.join(__dirname,"..",mazinger.card)));
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  assert.match(html,/Beta04/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta04"));
+});
+
+test("Beta02 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const block=source.match(/function resolveAttack\(attacker,defender,weapon,options=\{\}\)[\s\S]*?\n  function offerCheckmateUpgrade/)?.[0]||"";
   assert.match(block,/attackCommitted/);
@@ -2493,7 +2511,7 @@ test("Beta01 Pull attacks commit Action and Timeline before the Pre-Attack Pull"
   assert.match(block,/if\(committedOptions\.onComplete\)committedOptions\.onComplete\(\)/,"a lethal Pre-Attack effect must resume the caller instead of hanging the turn");
 });
 
-test("Beta01 delayed combat FX are invalidated by Restart or Return to Title",()=>{
+test("Beta02 delayed combat FX are invalidated by Restart or Return to Title",()=>{
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const combat=source.match(/function playDamageFeedback[\s\S]*?function playResolvedAttackFeedback/)?.[0]||"";
   assert.match(combat,/const epoch=gameEpoch/);
@@ -2508,4 +2526,19 @@ test("Beta01 delayed combat FX are invalidated by Restart or Return to Title",()
     assert.match(block,/\.combat-explosion-fx/);
     assert.match(block,/\.bazooka-bonus-fx/);
   }
+});
+
+
+test("Beta02 Secret Team theme is listed and auto-selected only at match launch",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  assert.match(game,/secret:\s*"assets\/audio\/secret-mazinger-z-bgm\.mp3"/);
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","audio","secret-mazinger-z-bgm.mp3")));
+  assert.match(game,/data-sound-choice="secret"/);
+  assert.match(game,/Mazinger Z \(SRW Z\)/);
+  const launch=game.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
+  assert.match(launch,/Object\.values\(matchFactions\)\.includes\("secret"\)\)BGM\.select\("secret"\)/);
+  assert.equal((game.match(/BGM\.select\("secret"\)/g)||[]).length,1,"automatic Secret selection must happen only at launch");
+  assert.match(html,/Beta04/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta04"));
 });
