@@ -215,11 +215,12 @@
 
         const currentElevation = elevationAt(state, q, r);
         const ignoresTerrainElevation = !!options.ignoreElevation || unit.id === "wing-zero-ew" || unit.id === "gundam-epyon";
-        // Jump only affects whether an elevated unit may pass over lower enemy pieces.
-        // It must NOT make later climbs back toward the starting elevation free.
-        // Normal units always pay elevation cost from the CURRENT hex to the next hex;
-        // Wing Zero's Hover is the only built-in unit ability that ignores this cost.
-        const climbCost = ignoresTerrainElevation ? 0 : Math.max(0, nextElevation - currentElevation);
+        // Rule (p.17, Jumping): while jumping, the unit's starting elevation remains
+        // its reference height for the whole movement. Returning from lower terrain
+        // to that starting elevation costs only the entered hex; extra climb cost is
+        // paid only for elevation above the starting elevation.
+        const effectiveCurrentElevation = jumping ? Math.max(currentElevation, startElevation) : currentElevation;
+        const climbCost = ignoresTerrainElevation ? 0 : Math.max(0, nextElevation - effectiveCurrentElevation);
         const next = cost + 1 + climbCost;
         if (next > effectiveAllowance) continue;
         if (visited.has(nk) && visited.get(nk) <= next) continue;
@@ -557,19 +558,21 @@
     // `true` remains available as a concise compatibility shorthand for attack callers.
     const isAttack = options === true || options?.attack === true || options?.sourceType === "attack";
     const incoming = Math.max(0, amount);
+
+    // Rule timing: Fracture modifies Combat Damage before Shield prevention resolves.
+    // Keep `incoming` as the original pre-Fracture amount for callers/logging.
+    const fractured = !!(target.statuses?.fracture && isAttack && incoming >= 3);
+    const damageBeforeShield = incoming + (fractured ? 3 : 0);
+    if (fractured) target.statuses.fracture = false;
+
     const totalShields = Math.max(0, target.upgrades?.shield || 0);
     const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
     const activeShields = Math.max(0, totalShields - inactiveShields);
-    const blocked = Math.min(activeShields, incoming);
+    const blocked = Math.min(activeShields, damageBeforeShield);
     if (blocked) target.inactiveShields = inactiveShields + blocked;
-    const taken = incoming - blocked;
+    const taken = damageBeforeShield - blocked;
     target.hp = Math.max(0, target.hp - taken);
-    if (target.statuses?.fracture && isAttack && taken >= 3) {
-      target.hp = Math.max(0, target.hp - 3);
-      target.statuses.fracture = false;
-      return { incoming, blocked, taken: taken + 3, fractured: true };
-    }
-    return { incoming, blocked, taken, fractured: false };
+    return { incoming, blocked, taken, fractured };
   }
 
   function pickupAt(state, unit) {

@@ -1436,7 +1436,8 @@
   }
 
   function renderLog() {
-    $("#battle-log").innerHTML=state.log.map(item=>`<li>${item}</li>`).join("");
+    const log=$("#battle-log");
+    log.replaceChildren(...state.log.map(item=>{const li=document.createElement("li");li.textContent=String(item);return li;}));
     $("#dice-tray").innerHTML=lastDice?lastDice.dice.map((die,i)=>`<span class="die ${lastDice.results[i]}">${die}</span>`).join(""):"<span class=\"chip\">ยังไม่มี Attack Roll</span>";
   }
 
@@ -3519,6 +3520,16 @@
     // Resolution dialogs have explicit Confirm/Skip controls. Closing one without running
     // its continuation would strand pending combat, so Escape deliberately leaves it open.
     if($("#game-modal")?.classList.contains("show"))return;
+    // Adjustable Advance/Dash keeps a movement draft alive after previewing a destination.
+    // Escape must roll that draft back through the canonical cancel path, otherwise the
+    // previewed hex can be silently committed by the next Action.
+    if(movementDraft&&(!mode||mode.adjustableMovement)){
+      const actor=state.units.find(candidate=>candidate.id===movementDraft.unitId);
+      if(actor&&isAiTeam(actor.team))return;
+      event.preventDefault();
+      cancelMovementDraft();
+      return;
+    }
     if(mode){
       const actor=modeUnit();
       if(actor&&isAiTeam(actor.team))return;

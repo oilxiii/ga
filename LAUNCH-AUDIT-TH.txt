@@ -1,4 +1,18 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v98
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta00
+
+AUDIT UPDATE Beta00
+- Build numbering เปลี่ยนจาก Version 100 เป็น Beta00.
+- Fracture timing: qualifying Combat Damage ตั้งแต่ 3 ขึ้นไปเพิ่ม Damage +3 และ consume Fracture ก่อน Shield prevention; regression case Damage 3 + Shield 1 ต้องรับ 5 Damage.
+- Jumping timing: starting Elevation เป็น reference ตลอดการเคลื่อนที่; L1 -> L0 -> L1 ใช้ 2 Move, ส่วน L1 -> L0 -> L2 ใช้ 3 Move.
+- แก้ test เดิมที่ล็อก interpretation ผิดของ Jumping และเพิ่ม Fracture + Shield regression.
+- ผลทดสอบ Beta00: Core 201 + AI 24 = 225 tests ผ่านทั้งหมด.
+
+AUDIT UPDATE v99
+- Escape rollback: กด ESC ระหว่าง adjustable Advance/Dash preview จะเรียก cancelMovementDraft() ทั้งตอนกำลังเลือก Hex และหลังเลือกปลายทางแล้ว เพื่อคืน Unit ไป origin และคืน actionUsed/advanced ตาม transaction เดิม.
+- Char Kick Back flow คงเดิม เพราะ draft rollback ใช้เฉพาะเมื่อ mode ว่างหรือเป็น adjustable movement selector.
+- Battle Log hardening: renderLog() สร้าง <li> และกำหนด textContent แทนการนำ log string ไปต่อใน innerHTML.
+- ไม่แก้กติกา Damage, Timeline, Tactic, AI หรือ UI อื่น.
+- ผลทดสอบ v99: Core 200 + AI 24 = 224 tests ผ่านทั้งหมด.
 
 AUDIT UPDATE v98
 - Team Select ใช้ viewport เต็มแทนการถูกบีบอยู่ภายใน Title Stage อัตราส่วน 9:16.

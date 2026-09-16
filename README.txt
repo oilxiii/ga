@@ -1,4 +1,8 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams v98
+GUNDAM ASSEMBLE // ONLINE — Five Teams Beta00
+
+- Beta00 Rules Fix: เปลี่ยนเลข build จาก Version เป็น Beta series; แก้ Fracture ให้เพิ่ม Combat Damage +3 ก่อน Shield ป้องกันตามลำดับกฎ และแก้ Jumping ให้ใช้ Elevation เริ่มต้นเป็น reference ตลอดการเคลื่อนที่ โดยกลับขึ้นมาที่ระดับเริ่มต้นไม่เสียค่า climb เพิ่ม แต่ระดับที่สูงกว่าเริ่มต้นยังเสียตามปกติ.
+
+- v99 Escape / Log Hardening: กด ESC ระหว่าง adjustable Advance/Dash preview จะ rollback movementDraft ผ่าน cancelMovementDraft() และคืน Unit/Action state กลับต้นทางอย่างถูกต้องทั้งก่อนและหลังเลือกปลายทาง; Battle Log เปลี่ยนจากการต่อข้อความด้วย innerHTML เป็น DOM + textContent เพื่อกัน HTML injection โดยไม่เปลี่ยนหน้าตาหรือกติกา.
 
 - v98 Team Select UI Rebuild: ย้ายหน้าต่างเลือกทีมออกจากข้อจำกัดกรอบ Title แนวตั้งให้ใช้ viewport จริง, จัด CLASSIC / STARTER 01 เป็นสองคอลัมน์บนคอมและเรียงอ่านง่ายบนแท็บเล็ต/มือถือ, แยกไอคอน ชื่อทีม รายชื่อยูนิต และปุ่ม SELECT/TARGET เป็นคนละพื้นที่ พร้อม drawer ของ Secret Team ที่ไม่ดันหรือซ้อนข้อความ; ไม่เปลี่ยนกติกา ทีม หรือ AI.
 

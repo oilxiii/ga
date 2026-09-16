@@ -278,7 +278,7 @@ test("movement charges one extra point per elevation climbed", () => {
   assert.equal(E.reachable(s,unit,3).has(E.key(6,5)),true);
 });
 
-test("downhill is free but climbing back up still costs elevation movement", () => {
+test("Jumping uses the starting elevation as the movement reference height", () => {
   const s=E.setupGame(()=>0.5);
   const unit=s.units.find(x=>x.id==="gundam");
   unit.zone="board";unit.q=5;unit.r=5;
@@ -286,8 +286,11 @@ test("downhill is free but climbing back up still costs elevation movement", () 
   s.board[E.key(5,5)].elevation=1;
   s.board[E.key(7,5)].elevation=1;
   assert.equal(E.reachable(s,unit,1).has(E.key(6,5)),true,"moving downhill costs only the hex entered");
-  assert.equal(E.reachable(s,unit,2).has(E.key(7,5)),false,"Jump must not make a later climb back to the starting elevation free");
-  assert.equal(E.reachable(s,unit,3).has(E.key(7,5)),true,"the later climb pays +1 elevation movement normally");
+  assert.equal(E.reachable(s,unit,2).has(E.key(7,5)),true,"Jump returns to the starting elevation without an extra climb cost");
+
+  s.board[E.key(7,5)].elevation=2;
+  assert.equal(E.reachable(s,unit,2).has(E.key(7,5)),false,"moving above the starting elevation still costs +1 elevation movement");
+  assert.equal(E.reachable(s,unit,3).has(E.key(7,5)),true,"the extra cost is paid only above the starting elevation");
 });
 
 test("Hover ignores elevation cost only for Wing Zero, not Barbatos", () => {
@@ -575,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v98<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta00<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -874,12 +877,21 @@ test("shield flips face down after absorbing damage and reactivates next activat
   assert.equal(target.upgrades.shield,1);
 });
 
-test("Fracture adds Damage 3 only to a single attack dealing at least three unblocked Damage", () => {
+test("Fracture adds Damage 3 before Shield prevention on an attack dealing at least three Combat Damage", () => {
   const target = {hp:10,upgrades:{shield:0},inactiveShields:0,statuses:{fracture:true}};
   const result = E.applyDamage(target,3,{sourceType:"attack"});
   assert.deepEqual(result,{incoming:3,blocked:0,taken:6,fractured:true});
   assert.equal(target.hp,4);
   assert.equal(target.statuses.fracture,false);
+});
+
+test("Fracture triggers from incoming Combat Damage before Shield prevention", () => {
+  const target = {hp:10,upgrades:{shield:1},inactiveShields:0,statuses:{fracture:true}};
+  const result = E.applyDamage(target,3,{sourceType:"attack"});
+  assert.deepEqual(result,{incoming:3,blocked:1,taken:5,fractured:true});
+  assert.equal(target.hp,5,"3 Combat Damage + Fracture 3 is resolved before Shield prevents 1");
+  assert.equal(target.inactiveShields,1,"the Shield is flipped after preventing the modified Damage");
+  assert.equal(target.statuses.fracture,false,"Fracture is consumed by the qualifying attack");
 });
 
 test("direct, Tactic, and collision Damage do not trigger or consume Fracture", () => {
@@ -1233,7 +1245,7 @@ test("Restart invalidates delayed gameplay callbacks and cache versions stay ali
   assert.match(source,/function scheduleStartActivation/);
   assert.match(source,/if\(epoch!==gameEpoch\|\|state\?\.status!=="playing"\|\|state\.activeUnitId\)return/);
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  const versions=[...html.matchAll(/(?:styles\.css|data\.js|engine\.js|ai\.js|game\.js)\?v=(\d+)/g)].map(match=>match[1]);
+  const versions=[...html.matchAll(/(?:styles\.css|data\.js|engine\.js|ai\.js|game\.js)\?v=([A-Za-z0-9_-]+)/g)].map(match=>match[1]);
   assert.equal(versions.length,5);
   assert.equal(new Set(versions).size,1,"CSS and all four JavaScript resources should share one cache-busting version");
 });
@@ -2267,12 +2279,12 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
   }
 });
 
-test("v98 build sync expectations follow the current build", () => {
+test("Beta00 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>v98<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=98`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v98/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v98/);
+  assert.match(html,/>Beta00<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta00`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta00/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta00/);
 });
 
 
@@ -2342,12 +2354,12 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
   assert.match(aiChoice,/const can2=canUseCommandAbility\(unit,command2\)/);
 });
 
-test("v98 browser cache tags and docs are synchronized to the build", () => {
+test("Beta00 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>v98<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=98`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v98/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v98/);
+  assert.match(html,/>Beta00<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta00`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta00/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta00/);
 });
 
 
@@ -2422,6 +2434,27 @@ test("v92 game-over restart returns to Title instead of replaying the same teams
   assert.match(back,/TitleBGM\.start\(\)/);
 });
 
+
+test("v99 Escape rolls back adjustable movement drafts instead of leaking previews", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const handler=source.match(/document\.addEventListener\("keydown",event=>\{[\s\S]*?\n  \}\);/)?.[0]||"";
+  assert.match(handler,/if\(movementDraft&&\(!mode\|\|mode\.adjustableMovement\)\)/);
+  assert.match(handler,/cancelMovementDraft\(\)/);
+  assert.ok(handler.indexOf('if(movementDraft&&(!mode||mode.adjustableMovement))') < handler.indexOf('if(mode){'),"movement draft rollback must run before generic mode cancellation");
+  const cancel=source.match(/function cancelMovementDraft\(\)[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(cancel,/unit\.q=draft\.origin\.q;unit\.r=draft\.origin\.r;unit\.zone=draft\.origin\.zone/);
+  assert.match(cancel,/draft\.movementType==="dash"&&draft\.primaryAction\)state\.activation\.actionUsed=false/);
+  assert.match(cancel,/draft\.movementType==="advance"\)state\.activation\.advanced=false/);
+});
+
+test("v99 battle log treats log entries as text instead of HTML", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const render=source.match(/function renderLog\(\)[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(render,/document\.createElement\("li"\)/);
+  assert.match(render,/li\.textContent=String\(item\)/);
+  assert.match(render,/replaceChildren/);
+  assert.doesNotMatch(render,/battle-log"\)\.innerHTML/);
+});
 
 test("v97 Mechazawa card uses a cache-safe Damage 1 asset", () => {
   const data=fs.readFileSync(path.join(__dirname,"..","data.js"),"utf8");
