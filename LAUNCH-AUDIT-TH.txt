@@ -1,4 +1,12 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta00
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta01
+
+
+AUDIT UPDATE Beta01
+- Pull attack cost timing: Primary Action และ Timeline ถูก commit ก่อน Pre-Attack Pull; lethal Pull collision จึงไม่สร้าง free kill และถ้าฝ่ายที่กำลัง Active ถูก collision ทำลาย Activation จะจบผ่าน shared defeated-active flow.
+- AI combat parity: evaluator จำลอง Newtype Instincts ก่อน After-Attack-Roll effects, Shield Break ก่อน Combat Damage, Disarm reroll ของ Hit + ปิด Critical effects และ Fracture +3 ก่อน Shield prevention.
+- Combat FX lifecycle: delayed shot/impact/Bazooka callbacks ผูกกับ gameEpoch และ Restart/Return to Title ล้าง transient combat FX ที่กำลังแสดง.
+- Regression coverage เพิ่ม 6 เคสสำหรับบั๊กที่ตรวจพบ.
+- ผลทดสอบ Beta01: Core 203 + AI 28 = 231 tests ผ่านทั้งหมด.
 
 AUDIT UPDATE Beta00
 - Build numbering เปลี่ยนจาก Version 100 เป็น Beta00.

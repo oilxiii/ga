@@ -1,4 +1,6 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams Beta00
+GUNDAM ASSEMBLE // ONLINE — Five Teams Beta01
+
+- Beta01 Stability / AI Combat Audit Fix: ปิดช่อง Pull Collision ที่ฆ่าเป้าหมายแล้วไม่เสีย Primary Action/Timeline โดย commit ค่าโจมตีก่อน Pre-Attack Pull; ป้องกัน active-unit turn lock ถ้าฝ่ายดึงถูก Collision ทำลาย; ปรับ AI combat evaluator ให้ใช้ timing เดียวกับเกมจริงสำหรับ Newtype Instincts, Shield Break, Disarm และ Fracture-before-Shield; delayed Combat/Bazooka FX ตรวจ gameEpoch และ Restart/Title เคลียร์ transient FX เพื่อไม่ให้เอฟเฟกต์จากแมตช์เก่าหลุดเข้ารอบใหม่; เพิ่ม regression tests 6 เคส.
 
 - Beta00 Rules Fix: เปลี่ยนเลข build จาก Version เป็น Beta series; แก้ Fracture ให้เพิ่ม Combat Damage +3 ก่อน Shield ป้องกันตามลำดับกฎ และแก้ Jumping ให้ใช้ Elevation เริ่มต้นเป็น reference ตลอดการเคลื่อนที่ โดยกลับขึ้นมาที่ระดับเริ่มต้นไม่เสียค่า climb เพิ่ม แต่ระดับที่สูงกว่าเริ่มต้นยังเสียตามปกติ.
 

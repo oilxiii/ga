@@ -578,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta00<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta01<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2279,12 +2279,12 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
   }
 });
 
-test("Beta00 build sync expectations follow the current build", () => {
+test("Beta01 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta00<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta00`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta00/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta00/);
+  assert.match(html,/>Beta01<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta01`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta01/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta01/);
 });
 
 
@@ -2354,12 +2354,12 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
   assert.match(aiChoice,/const can2=canUseCommandAbility\(unit,command2\)/);
 });
 
-test("Beta00 browser cache tags and docs are synchronized to the build", () => {
+test("Beta01 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta00<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta00`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta00/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta00/);
+  assert.match(html,/>Beta01<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta01`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams Beta01/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta01/);
 });
 
 
@@ -2479,4 +2479,33 @@ test("v97 utility and result modals use the shared focus lock", () => {
   assert.match(rules,/lockResolutionModal\(modal/);
   assert.match(result,/lockResolutionModal\(modal,"#play-again"\)/);
   assert.match(sound,/lockResolutionModal\(modal,"\[data-sound-choice\],\.modal-close"\)/);
+});
+
+test("Beta01 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const block=source.match(/function resolveAttack\(attacker,defender,weapon,options=\{\}\)[\s\S]*?\n  function offerCheckmateUpgrade/)?.[0]||"";
+  assert.match(block,/attackCommitted/);
+  const spendIndex=block.indexOf("state.activation.actionUsed=true");
+  const pullIndex=block.indexOf('weapon.preAttack==="pull1"');
+  assert.ok(spendIndex>=0&&pullIndex>spendIndex,"attack cost must be committed before Pull resolves");
+  assert.match(block,/payTimeline\(attacker,Math\.max\(0,weapon\.timeline-attacker\.nextAttackDiscount\)\)/);
+  assert.match(block,/attacker\.zone==="reserve"&&finishDefeatedActiveActivation\(attacker,`\$\{weapon\.name\} Pull Collision`\)/,"a Pull collision that defeats the active attacker must end the Activation safely");
+  assert.match(block,/if\(committedOptions\.onComplete\)committedOptions\.onComplete\(\)/,"a lethal Pre-Attack effect must resume the caller instead of hanging the turn");
+});
+
+test("Beta01 delayed combat FX are invalidated by Restart or Return to Title",()=>{
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const combat=source.match(/function playDamageFeedback[\s\S]*?function playResolvedAttackFeedback/)?.[0]||"";
+  assert.match(combat,/const epoch=gameEpoch/);
+  assert.match(combat,/if\(epoch!==gameEpoch\)return/);
+  assert.match(combat,/if\(epoch===gameEpoch\)playDamageFeedback/);
+  const bazooka=combat.match(/function playBazookaCriticalVolley[\s\S]*?\n  \}/)?.[0]||"";
+  assert.ok((bazooka.match(/if\(epoch!==gameEpoch\)return/g)||[]).length>=2,"every delayed Bazooka stage should reject an old game epoch");
+  const reset=source.match(/function resetGame\(\)[\s\S]*?\n  \}/)?.[0]||"";
+  const title=source.match(/function returnToTitle\(\)[\s\S]*?\n  \}/)?.[0]||"";
+  for(const block of [reset,title]){
+    assert.match(block,/\.combat-impact-fx/);
+    assert.match(block,/\.combat-explosion-fx/);
+    assert.match(block,/\.bazooka-bonus-fx/);
+  }
 });

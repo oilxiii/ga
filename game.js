@@ -489,9 +489,10 @@
     setTimeout(()=>node.classList.remove("combat-hit"),420);
   }
 
-  function playDamageFeedback({to,targetUnitId=null,garrison=false,destroyed=false}) {
+  function playDamageFeedback({to,targetUnitId=null,garrison=false,destroyed=false},epoch=gameEpoch) {
     if(!to||to.q==null)return;
     requestAnimationFrame(()=>{
+      if(epoch!==gameEpoch)return;
       spawnImpactFx(to.q,to.r,destroyed,garrison);
       if(destroyed)SFX.explosion();
       else { shakeDamageTarget({targetUnitId,q:to.q,r:to.r,garrison});SFX.hit(); }
@@ -500,9 +501,11 @@
 
   function playCombatFeedback({from,to,targetUnitId=null,garrison=false,destroyed=false}) {
     if(!to||to.q==null)return;
+    const epoch=gameEpoch;
     requestAnimationFrame(()=>{
+      if(epoch!==gameEpoch)return;
       spawnShotFx(from,to);SFX.shot();
-      setTimeout(()=>playDamageFeedback({to,targetUnitId,garrison,destroyed}),115);
+      setTimeout(()=>{if(epoch===gameEpoch)playDamageFeedback({to,targetUnitId,garrison,destroyed},epoch);},115);
     });
   }
 
@@ -520,13 +523,16 @@
   function playBazookaCriticalVolley({from,to,targetUnitId=null,garrison=false,destroyed=false,count=0}) {
     const bonus=Math.max(0,Number(count)||0);
     if(!bonus){playCombatFeedback({from,to,targetUnitId,garrison,destroyed});return;}
+    const epoch=gameEpoch;
     // Let the normal attack land first, then visibly fire one extra shell per rescued Garrison.
     playCombatFeedback({from,to,targetUnitId,garrison,destroyed:false});
     const step=310;
     for(let i=0;i<bonus;i++){
       setTimeout(()=>{
+        if(epoch!==gameEpoch)return;
         spawnShotFx(from,to);SFX.shot();
         setTimeout(()=>{
+          if(epoch!==gameEpoch)return;
           spawnImpactFx(to.q,to.r,false,garrison);
           spawnBazookaBonusFx(to.q,to.r,i+1,bonus);
           SFX.hit();
@@ -534,7 +540,10 @@
       },step*(i+1));
     }
     if(destroyed){
-      setTimeout(()=>{spawnImpactFx(to.q,to.r,true,garrison);SFX.explosion();},step*(bonus+1)+80);
+      setTimeout(()=>{
+        if(epoch!==gameEpoch)return;
+        spawnImpactFx(to.q,to.r,true,garrison);SFX.explosion();
+      },step*(bonus+1)+80);
     }
   }
 
@@ -785,7 +794,7 @@
     if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
     if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
     clearAttackTargetingFx();
-    document.querySelectorAll(".attack-targeting-fx,.combat-shot-fx,.unit-state-fx").forEach(node=>node.remove());
+    document.querySelectorAll(".attack-targeting-fx,.combat-shot-fx,.combat-impact-fx,.combat-explosion-fx,.bazooka-bonus-fx,.unit-state-fx").forEach(node=>node.remove());
     $("#dice-roll-overlay")?.classList.remove("show");
     $("#pass-overlay")?.classList.remove("show");
     closeModal();
@@ -834,7 +843,7 @@
     if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
     if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
     clearAttackTargetingFx();
-    document.querySelectorAll(".attack-targeting-fx").forEach(node=>node.remove());
+    document.querySelectorAll(".attack-targeting-fx,.combat-shot-fx,.combat-impact-fx,.combat-explosion-fx,.bazooka-bonus-fx,.unit-state-fx").forEach(node=>node.remove());
     $("#dice-roll-overlay")?.classList.remove("show");
     closeModal();
     state = E.setupGame(Math.random,matchFactions);
@@ -2302,19 +2311,34 @@
   }
 
   function resolveAttack(attacker,defender,weapon,options={}) {
-    if(weapon.preAttack==="pull1"&&!options.pullResolved){
-      return beginPullToward(attacker,defender,()=>resolveAttack(attacker,defender,weapon,{...options,pullResolved:true}),weapon.name);
-    }
-    const from={q:attacker.q,r:attacker.r};
-    const to={q:defender.q,r:defender.r};
-    playAttackTargetingFx({from,to,team:attacker.team,onComplete:()=>{
-      if(state?.status!=="playing"||attacker.zone!=="board"||defender.zone!=="board")return;
-      if (!options.free) {
+    // Commit the declared attack before any Pre-Attack movement/effect resolves. This
+    // prevents a lethal Pull collision from turning the declared attack into a free kill.
+    const committedOptions=options.attackCommitted?options:{...options,attackCommitted:true};
+    if(!options.attackCommitted){
+      if(!options.free){
         state.activation.actionUsed=true;
         payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));
       }
       attacker.nextAttackDiscount=0;
       if(weapon.id==="rex-claws")attacker.attackedWithRexClaws=true;
+    }
+    if(weapon.preAttack==="pull1"&&!committedOptions.pullResolved){
+      return beginPullToward(attacker,defender,()=>resolveAttack(attacker,defender,weapon,{...committedOptions,pullResolved:true}),weapon.name);
+    }
+    // Pre-Attack effects may defeat either unit. The cost stays committed, but there is
+    // no attack roll to resolve; resume the caller so AI/free-attack chains cannot hang.
+    if(state?.status!=="playing"||attacker.zone!=="board"||defender.zone!=="board"){
+      if(attacker.zone==="reserve"&&finishDefeatedActiveActivation(attacker,`${weapon.name} Pull Collision`))return false;
+      if(committedOptions.onComplete)committedOptions.onComplete();
+      return false;
+    }
+    const from={q:attacker.q,r:attacker.r};
+    const to={q:defender.q,r:defender.r};
+    playAttackTargetingFx({from,to,team:attacker.team,onComplete:()=>{
+      if(state?.status!=="playing"||attacker.zone!=="board"||defender.zone!=="board"){
+        if(committedOptions.onComplete)committedOptions.onComplete();
+        return;
+      }
       const result=E.rollAttack(state,attacker,defender,weapon);
       lastDice=result;
       pendingAttack={attacker,defender,weapon,result,reductions:{},continuation:options.onComplete||null};

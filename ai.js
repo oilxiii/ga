@@ -58,8 +58,25 @@
       return dist;
     };
     let distribution = rollDistribution(dice);
-    // Vulcan Cannons adds exactly two dice if the initial roll contains a Critical.
-    // Model that conditional roll instead of valuing the weapon as a plain S3 attack.
+
+    // Runtime order: Newtype Instincts resolves immediately after the initial roll.
+    // The AI always rerolls one Miss when Gundam has one, so model that exact choice.
+    if (unit.id === "gundam") {
+      const rerolled = new Map();
+      const add=(h,c,p)=>{if(p<=0)return;const key=`${h},${c}`;rerolled.set(key,(rerolled.get(key)||0)+p);};
+      for (const [key, probability] of distribution) {
+        const [hits, criticals] = key.split(",").map(Number);
+        const misses=dice-hits-criticals;
+        if(misses<=0){add(hits,criticals,probability);continue;}
+        add(hits,criticals,probability*probabilities.miss);
+        add(hits+1,criticals,probability*probabilities.hit);
+        add(hits,criticals+1,probability*probabilities.critical);
+      }
+      distribution=rerolled;
+    }
+
+    // Vulcan Cannons adds exactly two dice if the post-Newtype roll contains a Critical.
+    // It resolves before Disarm, matching offerWeaponAfterRollEffect -> resolveDisarmReroll.
     if (weapon.critical === "extraDice2") {
       const extra = rollDistribution(2);
       const combined = new Map();
@@ -75,10 +92,31 @@
       distribution=combined;
     }
 
+    const disarmed=!!unit.statuses?.disarm;
+    if(disarmed){
+      // Disarm rerolls every Hit after attacker After-Attack-Roll effects have resolved.
+      // Existing Criticals stay, while each Hit is independently rerolled with the same
+      // accuracy/critical thresholds. Critical effects are disabled for this attack below.
+      const resolved=new Map();
+      const addResolved=(h,c,p)=>{const key=`${h},${c}`;resolved.set(key,(resolved.get(key)||0)+p);};
+      for(const [key,probability] of distribution){
+        const [hits,criticals]=key.split(",").map(Number);
+        const reroll=rollDistribution(hits);
+        for(const [rerollKey,rerollProbability] of reroll){
+          const [rerolledHits,rerolledCriticals]=rerollKey.split(",").map(Number);
+          addResolved(rerolledHits,criticals+rerolledCriticals,probability*rerollProbability);
+        }
+      }
+      distribution=resolved;
+    }
+
     const hp = Math.max(1, Number(target.hp) || 1);
     const totalShields = Math.max(0, target.upgrades?.shield || 0);
     const inactiveShields = Math.min(totalShields, Math.max(0, target.inactiveShields || 0));
     const activeShields = totalShields - inactiveShields;
+    // Shield Break destroys one Shield token before Combat Damage. destroyUpgradeToken
+    // effectively removes an active Shield first when one exists.
+    const effectiveActiveShields = weapon.effect === "shieldBreak" ? Math.max(0, activeShields - 1) : activeShields;
     const objectiveBonus = weapon.effect === "objectiveBonus" && state.objectives.some(objective => engine.distance(target, objective) <= 1) ? 1 : 0;
     const adjacentBonus=weapon.effect==="adjacentDamage2"&&engine.distance(unit,target)===1?2:0;
     const rescuedBonus = Math.max(0, state.rescuedGarrisons?.[unit.team] || 0);
@@ -87,26 +125,31 @@
     let usefulDamage = 0;
     let killChance = 0;
     let criticalChance = 0;
+    let fractureChance = 0;
 
     for (const [key, probability] of distribution) {
       const [hits, criticals] = key.split(",").map(Number);
+      const criticalEffectsActive=criticals>0&&!disarmed;
       let incoming = hits + criticals + objectiveBonus+adjacentBonus;
-      if (criticals > 0) {
+      if (criticalEffectsActive) {
         if (weapon.critical === "damage2") incoming += 2;
         if (weapon.critical === "damage1") incoming += 1;
         if (weapon.critical === "criticalDamageUpTo4") incoming += Math.min(4, criticals);
         if (weapon.critical === "rescuedGarrisonDamage") incoming += rescuedBonus;
       }
-      let taken = Math.max(0, incoming - activeShields);
-      if (target.statuses?.fracture && taken >= 3) taken += 3;
+      // Engine timing: Fracture modifies qualifying Combat Damage before Shield prevention.
+      const fractured=!!(target.statuses?.fracture&&incoming>=3);
+      const damageBeforeShield=incoming+(fractured?3:0);
+      const taken = Math.max(0, damageBeforeShield - effectiveActiveShields);
       expectedIncoming += probability * incoming;
       expectedTaken += probability * taken;
       usefulDamage += probability * Math.min(hp, taken);
       if (taken >= hp) killChance += probability;
-      if (criticals > 0) criticalChance += probability;
+      if (criticalEffectsActive) criticalChance += probability;
+      if (fractured) fractureChance += probability;
     }
 
-    return { dice, accuracy, critFloor, expectedIncoming, expectedTaken, usefulDamage, killChance, criticalChance, activeShields };
+    return { dice, accuracy, critFloor, expectedIncoming, expectedTaken, usefulDamage, killChance, criticalChance, fractureChance, activeShields:effectiveActiveShields };
   }
 
   function expectedAttackDamage(state, unit, target, weapon, engine) {

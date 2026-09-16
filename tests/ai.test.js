@@ -349,3 +349,81 @@ test("v91 AI command checks are per ability and allow Barbatos Annihilate after 
   assert.match(follow,/canUseCommandAbility\(unit,unit\.command\)/);
   assert.doesNotMatch(follow,/state\.activation\.commandUsed/);
 });
+
+test("Beta01 AI resolves Fracture before Shield prevention",()=>{
+  const state=E.setupGame(()=>0.5);
+  state.garrisons=[];
+  state.units.forEach(unit=>{unit.zone="reserve";unit.q=null;unit.r=null;});
+  const attacker=place(state.units.find(unit=>unit.id==="guncannon"),5,5);
+  const target=place(state.units.find(unit=>unit.id==="chars-zaku"),5,4);
+  attacker.tempAccuracy=100;
+  attacker.upgrades.strength=0;
+  target.hp=target.maxHp=20;
+  target.statuses.fracture=true;
+  target.upgrades.shield=1;
+  target.inactiveShields=0;
+  const weapon={id:"fracture-order-test",name:"Fracture Order",range:1,strength:1,timeline:0,effect:"adjacentDamage2"};
+  attacker.weapons=[weapon];
+  const choice=A.attacksFrom(state,attacker,D,E)[0];
+  assert.ok(choice);
+  // Natural 1: incoming 2 -> Shield blocks 1 -> 1. Other 9 faces: incoming 3,
+  // Fracture raises it to 6, then Shield blocks 1 -> 5. EV = 4.6.
+  assert.ok(Math.abs(choice.usefulDamage-4.6)<1e-9,`expected 4.6 useful Damage, got ${choice.usefulDamage}`);
+});
+
+test("Beta01 AI applies Shield Break before Combat Damage",()=>{
+  const state=E.setupGame(()=>0.5);
+  state.garrisons=[];
+  state.units.forEach(unit=>{unit.zone="reserve";unit.q=null;unit.r=null;});
+  const attacker=place(state.units.find(unit=>unit.id==="guncannon"),5,5);
+  const target=place(state.units.find(unit=>unit.id==="chars-zaku"),5,4);
+  attacker.tempAccuracy=100;
+  attacker.upgrades.strength=0;
+  target.hp=target.maxHp=20;
+  target.upgrades.shield=1;
+  target.inactiveShields=0;
+  const weapon={id:"shield-break-order-test",name:"Shield Break Order",range:1,strength:1,timeline:0,effect:"shieldBreak"};
+  attacker.weapons=[weapon];
+  const choice=A.attacksFrom(state,attacker,D,E)[0];
+  assert.ok(choice);
+  assert.ok(Math.abs(choice.usefulDamage-0.9)<1e-9,`Shield Break should expose the target before Damage; got ${choice.usefulDamage}`);
+});
+
+test("Beta01 AI models Disarm Hit rerolls and disables Critical effects",()=>{
+  const state=E.setupGame(()=>0.5);
+  state.garrisons=[];
+  state.units.forEach(unit=>{unit.zone="reserve";unit.q=null;unit.r=null;});
+  const attacker=place(state.units.find(unit=>unit.id==="guncannon"),5,5);
+  const target=place(state.units.find(unit=>unit.id==="chars-zaku"),5,4);
+  attacker.tempAccuracy=100;
+  attacker.upgrades.strength=0;
+  attacker.statuses.disarm=true;
+  target.hp=target.maxHp=20;
+  target.upgrades.shield=0;
+  const weapon={id:"disarm-eval-test",name:"Disarm Eval",range:1,strength:1,timeline:0,critical:"damage2"};
+  attacker.weapons=[weapon];
+  const choice=A.attacksFrom(state,attacker,D,E)[0];
+  assert.ok(choice);
+  // Initial: Miss .1 / Hit .7 / Crit .2. Disarm rerolls the .7 Hit; its reroll
+  // succeeds .9 of the time, while original Criticals stay. EV = .7*.9 + .2 = .83.
+  assert.ok(Math.abs(choice.expectedDamage-0.83)<1e-9,`expected 0.83 post-Disarm Damage, got ${choice.expectedDamage}`);
+  assert.equal(attacker.statuses.disarm,true,"AI evaluation must not consume the real Disarm status");
+});
+
+test("Beta01 AI includes Gundam Newtype Instincts reroll",()=>{
+  const state=E.setupGame(()=>0.5);
+  state.garrisons=[];
+  state.units.forEach(unit=>{unit.zone="reserve";unit.q=null;unit.r=null;});
+  const attacker=place(state.units.find(unit=>unit.id==="gundam"),5,5);
+  const target=place(state.units.find(unit=>unit.id==="chars-zaku"),5,4);
+  attacker.tempAccuracy=100;
+  attacker.upgrades.strength=0;
+  target.hp=target.maxHp=20;
+  target.upgrades.shield=0;
+  const weapon={id:"newtype-eval-test",name:"Newtype Eval",range:1,strength:1,timeline:0};
+  attacker.weapons=[weapon];
+  const choice=A.attacksFrom(state,attacker,D,E)[0];
+  assert.ok(choice);
+  // One die succeeds on 9/10 faces. Newtype rerolls its only Miss, so success = .99.
+  assert.ok(Math.abs(choice.expectedDamage-0.99)<1e-9,`expected 0.99 Damage with Newtype reroll, got ${choice.expectedDamage}`);
+});
