@@ -210,8 +210,10 @@
         // Rule (p.17, Jumping): a unit jumping from elevated terrain may bypass enemy units
         // or enemy Garrisons at a lower elevation than its own starting elevation.
         const jumpsOverEnemy = jumping && nextElevation < startElevation;
-        // Enemy pieces and structures are otherwise fully impassable (p.14).
-        if ((isEnemyUnit || isEnemyGarrison || isEnemyBase) && !jumpsOverEnemy) continue;
+        // Jump may bypass only enemy Units/Garrisons below the starting elevation.
+        // Enemy Bases are structures and remain impassable at every elevation.
+        if (isEnemyBase) continue;
+        if ((isEnemyUnit || isEnemyGarrison) && !jumpsOverEnemy) continue;
 
         const currentElevation = elevationAt(state, q, r);
         const ignoresTerrainElevation = !!options.ignoreElevation || unit.id === "wing-zero-ew" || unit.id === "gundam-epyon";

@@ -1,6 +1,9 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams Beta05
+GUNDAM ASSEMBLE // ONLINE — Five Teams Beta06
 
-- Beta05 mobile Unit Card modal fix: บนมือถือ Unit Card modal เลื่อนภายในได้ ปุ่มปิดติดด้านบน และกัน overscroll/pull-to-refresh ที่ทำให้หน้าเว็บ reload เหมือนเกมถูกรีเซ็ต.
+- Beta06 Stability / Rules Fix: ปิดการใช้ Tactic แทรกระหว่าง Attack resolution; Lock Down / Breaking the Line ปิด X แล้ว Status บังคับยัง Resolve; Crimson Execution ถูกใช้ทิ้งก่อน Movement Response จึงไม่ค้างในมือเมื่อ Iron Grip ทำลาย Char; AoE shared roll แสดงลูกเต๋าแบบกลางและคำนวณ HIT/MISS แยกตามเป้าหมาย; ล้าง temporary Activation effects เมื่อ active Unit ถูกทำลาย; Jump ห้ามผ่าน enemy Base; AoE kill FX เก็บตำแหน่งก่อนส่ง Unit เข้า Reserve; Hot-seat PASS CONTROL ล็อก game shell/focus; คง mobile Unit Card modal safety จาก Beta05.
+- Regression suite Beta06: Core 214 + AI 28 = 242 tests.
+
+- Beta06 mobile Unit Card modal fix: บนมือถือ Unit Card modal เลื่อนภายในได้ ปุ่มปิดติดด้านบน และกัน overscroll/pull-to-refresh ที่ทำให้หน้าเว็บ reload เหมือนเกมถูกรีเซ็ต.
 - Beta04 Mechazawa card asset fix: เปลี่ยน Unit Card เป็นไฟล์ asset ชื่อใหม่ assets/cards/unit-mechazawa-beta04.jpg จากภาพล่าสุด เพื่อให้ Unit Card และ Hacking System modal โหลดภาพเดียวกันและหลีกเลี่ยง cache/missing-asset จากชื่อเดิม.
 - Beta03 Secret Team stat update: Mazinger Z เพิ่ม HP จาก 15 เป็น 17 และ EVA-01 ลด VP จาก 10 เป็น 9 พร้อมอัปเดตภาพ Unit Card ของทั้งสองตัวให้ตรงกับค่าปัจจุบัน.
 

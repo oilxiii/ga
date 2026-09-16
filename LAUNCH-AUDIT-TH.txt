@@ -1,4 +1,21 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta05
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta06
+
+BETA06 UPDATE
+- P1: บล็อก Tactic ระหว่าง attack targeting / pending attack / dice resolution โดยตรวจ state จริงทั้ง render และ click handler
+- P2: Lock Down / Breaking the Line ปุ่ม X Resolve Status บังคับเหมือนเลือกไม่ทำลาย Upgrade
+- P2: Crimson Execution retire card เมื่อ Dash ถูก commit ก่อน Movement Response; Iron Grip ฆ่า Char แล้วการ์ดไม่กลับมือ
+- P2: AoE shared roll ไม่ใช้ threshold ของเป้าหมายแรกในการระบาย HIT/MISS; แสดง shared raw dice และ resolve ต่อเป้าหมาย
+- P3: active Unit ที่ถูกทำลายล้าง temporary activation fields ผ่าน helper กลาง
+- P3: Jump bypass ได้เฉพาะ enemy Unit/Garrison ที่ต่ำกว่า แต่ enemy Base impassable เสมอ
+- P3: AoE defeat feedback เก็บ impact hex ก่อน defeatUnit ล้างพิกัด
+- P3: Hot-seat PASS CONTROL ตั้ง game shell inert และ trap keyboard focus จนกดพร้อม
+- คง Beta05 mobile Unit Card scroll/sticky-close/pull-to-refresh protections
+- Cache/build tag: beta06
+
+AUDIT UPDATE Beta06
+- Core 214 + AI 28 = 242 tests ผ่านทั้งหมด
+- JavaScript syntax ผ่านทุกไฟล์
+- Image assets decode ผ่านทั้งหมด
 
 BETA04 UPDATE
 - คืน Unit Card ของ Mechazawa จากภาพล่าสุดที่ผู้ใช้ส่งมา
@@ -7,9 +24,9 @@ BETA04 UPDATE
 - ไม่เปลี่ยนกฎ Hacking System: ซ่อม Damage 1 ต่อ Garrison trigger
 - อัปเดต build/cache tag เป็น beta04
 
-AUDIT UPDATE Beta05
-- Beta05: แก้ mobile Unit Card modal ให้ scroll ภายใน viewport, sticky close button และป้องกัน pull-to-refresh/page reload
-- ผลทดสอบ Beta05: Core 206 + AI 28 = 234 tests ผ่านทั้งหมด
+AUDIT UPDATE Beta06
+- Beta06: แก้ mobile Unit Card modal ให้ scroll ภายใน viewport, sticky close button และป้องกัน pull-to-refresh/page reload
+- ผลทดสอบ Beta06: Core 206 + AI 28 = 234 tests ผ่านทั้งหมด
 - ตรวจ JavaScript syntax และ decode ภาพ assets ผ่านทั้งหมด
 
 BETA03 UPDATE

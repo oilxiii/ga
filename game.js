@@ -639,15 +639,25 @@
     },Math.max(0,delay));
   }
 
+  function clearActivationTemporaryEffects(unit) {
+    if(!unit)return;
+    unit.tempStrength=0;
+    unit.tempAccuracy=0;
+    unit.movementBonus=0;
+    unit.critFloorOverride=null;
+    unit.heroBeamSaberBonus=0;
+    unit.destroyUpgradeAfterAttack=false;
+    unit.critBoost=false;
+    unit.nextAttackDiscount=0;
+    unit.lastShotBonus=false;
+  }
+
   function finishDefeatedActiveActivation(unit,source="Response") {
     if(!unit||unit.id!==state.activeUnitId||unit.zone!=="reserve")return false;
     state.resolvedThisTick.add(unit.id);
     state.lastActivatedTeam=unit.team;
     state.activeUnitId=null;
-    unit.tempStrength=0;
-    unit.critBoost=false;
-    unit.nextAttackDiscount=0;
-    unit.lastShotBonus=false;
+    clearActivationTemporaryEffects(unit);
     mode=null;
     movementDraft=null;
     menuOpen=false;
@@ -882,16 +892,8 @@
     state.activation = { advanced: false, actionUsed: false, commandUsed: {}, tacticUsed: { fed: false, zeon: false }, timelineSpent: 0 };
     const reactivatedShields = E.reactivateShields(unit);
     if (reactivatedShields > 0) addLog(`${unit.name}: Shield Upgrade ${reactivatedShields} ชิ้นกลับมา Active`);
-    unit.tempStrength = 0;
-    unit.tempAccuracy = 0;
-    unit.movementBonus = 0;
-    unit.critFloorOverride = null;
-    unit.heroBeamSaberBonus = 0;
-    unit.destroyUpgradeAfterAttack = false;
+    clearActivationTemporaryEffects(unit);
     unit.progressiveRepeatUsed = false;
-    unit.critBoost = false;
-    unit.nextAttackDiscount = 0;
-    unit.lastShotBonus = false;
     unit.attackedWithRexClaws = false;
     unit.handgunRepeatUsed = false;
     mode = null;
@@ -902,16 +904,21 @@
     addLog(`${teamName(unit.team)} — ${unit.name} ${deployed ? "Deploy บน Base" : "เริ่ม Activation"}`);
     renderAll();
     if(isAiTeam(unit.team)) {
-      $("#pass-overlay")?.classList.remove("show");
+      $("#pass-overlay")?.classList.remove("show");setPassControlLock(false);
       addLog(`AI ${teamMeta(unit.team).short} กำลังประเมินสนามรบ`);
       renderAll();
       focusCameraOnUnit(unit);
       scheduleAiTurn(unit,first?AI_PACE.firstTurn:AI_PACE.turnStart);
     } else if(matchMode==="hotseat") showPassOverlay(unit, first);
     else {
-      $("#pass-overlay")?.classList.remove("show");
+      $("#pass-overlay")?.classList.remove("show");setPassControlLock(false);
       focusCameraOnUnit(unit);
     }
+  }
+
+  function setPassControlLock(locked) {
+    const shell=$(".game-shell");
+    if(shell)shell.inert=!!locked;
   }
 
   function showPassOverlay(unit, first) {
@@ -924,9 +931,11 @@
     </div>`;
     overlay.setAttribute("aria-labelledby","pass-team-title");
     overlay.classList.add("show");
+    setPassControlLock(true);
     const ready=$("#ready-btn");
     ready.addEventListener("click", () => {
       overlay.classList.remove("show");
+      setPassControlLock(false);
       $(".game-shell")?.focus();
       focusCameraOnUnit(unit);
     });
@@ -966,15 +975,7 @@
       else if(result.action==="neutralized")addLog(`${unit.name} ชนะ Contest ${result.friendly}-${result.enemy}: ล้าง Objective ของศัตรูให้เป็นกลาง`);
       else if(result.action==="blocked")addLog(`${unit.name} Contest Objective ไม่สำเร็จ (${result.friendly}-${result.enemy})`);
     });
-    unit.tempStrength = 0;
-    unit.tempAccuracy = 0;
-    unit.movementBonus = 0;
-    unit.critFloorOverride = null;
-    unit.heroBeamSaberBonus = 0;
-    unit.destroyUpgradeAfterAttack = false;
-    unit.critBoost = false;
-    unit.nextAttackDiscount = 0;
-    unit.lastShotBonus = false;
+    clearActivationTemporaryEffects(unit);
     state.resolvedThisTick.add(unit.id);
     state.lastActivatedTeam=unit.team;
     state.activeUnitId = null;
@@ -1431,6 +1432,10 @@
     });
   }
 
+  function attackResolutionBusy() {
+    return !!(attackTargetingBusy || pendingAttack || diceAnimationTimer || diceRollInterval || $("#dice-roll-overlay")?.classList.contains("show"));
+  }
+
   function renderHand() {
     const unit=activeUnit(); if (!unit) return;
     const handTeam=matchMode==="ai"?humanTeam:unit.team;
@@ -1441,7 +1446,7 @@
     $("#tactic-hand").innerHTML=hand.map(card=>{
       const used=isUsed(card.id,handTeam);
       const humanCommandTurn=unit.team===handTeam&&!isAiTeam(unit.team);
-      const legal=!used && humanCommandTurn && ["COMMAND","ATTACK"].includes(card.timing) && !state.activation.tacticUsed[handTeam] && !mode && !attackTargetingBusy && !(card.timing==="ATTACK"&&state.activation.actionUsed);
+      const legal=!used && humanCommandTurn && ["COMMAND","ATTACK"].includes(card.timing) && !state.activation.tacticUsed[handTeam] && !mode && !attackResolutionBusy() && !(card.timing==="ATTACK"&&state.activation.actionUsed);
       const stateLabel=used?"USED · VIEW":legal?"VIEW · CONFIRM":card.timing==="RESPONSE"?"VIEW · RESPONSE":"VIEW · "+card.timing;
       return `<button class="tactic-card ${used?"used":legal?"legal":""}" data-card="${card.id}" aria-label="${card.name}"><img src="${card.card}" alt="การ์ดจริง ${card.name}"><span class="card-state">${stateLabel}</span></button>`;
     }).join("");
@@ -1451,10 +1456,11 @@
   function renderLog() {
     const log=$("#battle-log");
     log.replaceChildren(...state.log.map(item=>{const li=document.createElement("li");li.textContent=String(item);return li;}));
-    $("#dice-tray").innerHTML=lastDice?lastDice.dice.map((die,i)=>`<span class="die ${lastDice.results[i]}">${die}</span>`).join(""):"<span class=\"chip\">ยังไม่มี Attack Roll</span>";
+    $("#dice-tray").innerHTML=lastDice?lastDice.dice.map((die,i)=>`<span class="die ${lastDice.sharedThreshold?"":lastDice.results[i]}">${die}</span>`).join(""):"<span class=\"chip\">ยังไม่มี Attack Roll</span>";
   }
 
   function showDiceRoll(result, label, onComplete=()=>{}, options={}) {
+    const sharedThreshold=!!(options.sharedThreshold||result?.sharedThreshold);
     let overlay=$("#dice-roll-overlay");
     if(!overlay){
       overlay=document.createElement("div");
@@ -1482,11 +1488,16 @@
       diceRollInterval=null;
       nodes.forEach((node,index)=>{
         node.querySelector("span").textContent=String(result.dice[index]);
-        node.classList.add("revealed",result.results[index]);
-        node.setAttribute("aria-label",`ลูกที่ ${index+1}: ${result.dice[index]} ${result.results[index]}`);
+        if(sharedThreshold){
+          node.classList.add("revealed");
+          node.setAttribute("aria-label",`ลูกที่ ${index+1}: ${result.dice[index]} — ใช้ผลชุดเดียวกันและคำนวณ HIT/MISS แยกตามเป้าหมาย`);
+        }else{
+          node.classList.add("revealed",result.results[index]);
+          node.setAttribute("aria-label",`ลูกที่ ${index+1}: ${result.dice[index]} ${result.results[index]}`);
+        }
       });
-      overlay.querySelector(".dice-roll-title").textContent=result.criticals?"CRITICAL!":"ATTACK ROLL";
-      overlay.querySelector(".dice-roll-summary").textContent=`${result.hits} HIT · ${result.criticals} CRITICAL`;
+      overlay.querySelector(".dice-roll-title").textContent=sharedThreshold?"SHARED ATTACK ROLL":result.criticals?"CRITICAL!":"ATTACK ROLL";
+      overlay.querySelector(".dice-roll-summary").textContent=sharedThreshold?"HIT / MISS คำนวณแยกตามแต่ละเป้าหมาย":`${result.hits} HIT · ${result.criticals} CRITICAL`;
       diceAnimationTimer=setTimeout(()=>{
         if(epoch!==gameEpoch)return;
         if(!options.keepOpen)overlay.classList.remove("show");
@@ -1639,6 +1650,7 @@
     if(started&&movementDraft?.unitId===unit.id){
       movementDraft.charDash=true;
       movementDraft.afterEffects=onComplete;
+      movementDraft.onCommit=options.onCommit||null;
       movementDraft.onCancel=options.onCancel||onComplete||null;
     }
     return started;
@@ -1740,6 +1752,7 @@
     if(draft.primaryAction)state.activation.actionUsed=true;
     if(draft.movementType==="advance")state.activation.advanced=true;
     state.justDeployedUnitId=null;
+    if(draft.onCommit)draft.onCommit();
     addLog(`${unit.name} ยืนยัน ${draft.label} ที่ Hex ${unit.q},${unit.r}`);
     const finish=()=>{renderAll();onComplete();};
     afterUnitMove(unit,draft.movementType,finish,moved,{skipCharKick:!!options.skipCharKick});
@@ -2111,6 +2124,7 @@
     const priorAoeExploit=attacker.aoeExploitWeakness;
     attacker.aoeExploitWeakness=attacker.id==="gundam-epyon"&&weapon.aoe==="warEdge"&&targets.some(target=>target.weapons&&Object.values(target.statuses||{}).some(Boolean));
     const master=E.rollAttack(state,attacker,surrogate,weapon);
+    master.sharedThreshold=true;
     attacker.aoeExploitWeakness=priorAoeExploit;
     lastDice=master;attacker.lastAoeTargets=targets;
     addLog(`${attacker.name} ใช้ ${weapon.name} ใส่เป้าหมาย ${targets.length} จุดด้วย Attack Roll ชุดเดียว`);
@@ -2137,11 +2151,12 @@
             if(criticalEffectsActive(result)&&weapon.critical==="fracture")applyDebuff(target,"fracture");
             const entry=results.find(candidate=>candidate.target===target);
             const amount=reducedAttackDamage(attacker,target,Math.max(0,result.damage-(entry?.reduction||0)));
+            const impact={q:target.q,r:target.r};
             const applied=E.applyDamage(target,amount,{sourceType:"attack"});
             addLog(`${weapon.name}: ${target.name} รับ Damage ${applied.taken}${applied.fractured?" (Fracture +3)":""}`);
             const defeated=E.defeatUnit(state,target,attacker.team);
             if(!defeated)survivingDefenders.push(target);
-            if(result.damage>0)playDamageFeedback({to:{q:target.q,r:target.r},targetUnitId:target.id,destroyed:defeated});
+            if(result.damage>0)playDamageFeedback({to:impact,targetUnitId:target.id,destroyed:defeated});
           }else{
             const impact=damageGarrison(attacker,target,result.damage,weapon.name);
             if(result.damage>0)playDamageFeedback({to:{q:impact.q,r:impact.r},garrison:true,destroyed:impact.destroyed});
@@ -2160,7 +2175,7 @@
         });
       };
       offerShieldAt(0);
-    }));
+    }),{sharedThreshold:true});
   }
 
   function resolveGarrisonAttack(attacker,garrison,weapon,options={}) {
@@ -2960,8 +2975,9 @@
     const owner=matchMode==="ai"?humanTeam:unit?.team;
     const card=getTactic(id,owner); if (!card||!inHand(owner,id)) return;
     const playable=["COMMAND","ATTACK"].includes(card.timing);
-    const legal=!isUsed(id,owner)&&playable&&!state.activation.tacticUsed[owner]&&!mode&&!(card.timing==="ATTACK"&&state.activation.actionUsed);
-    const issue=isUsed(id,owner)?"การ์ดใบนี้ถูกใช้แล้ว":!playable?"Response ใช้ได้เฉพาะเมื่อ Trigger เกิดขึ้น":state.activation.tacticUsed[owner]?"ฝ่ายนี้ใช้ Tactic ใน Activation นี้แล้ว":mode?"ยกเลิกการเลือกเป้าหมายปัจจุบันก่อน":card.timing==="ATTACK"&&state.activation.actionUsed?"ใช้ Primary Action ไปแล้ว":commandTacticIssue(card,unit);
+    const busyAttack=attackResolutionBusy();
+    const legal=!isUsed(id,owner)&&playable&&!state.activation.tacticUsed[owner]&&!mode&&!busyAttack&&!(card.timing==="ATTACK"&&state.activation.actionUsed);
+    const issue=isUsed(id,owner)?"การ์ดใบนี้ถูกใช้แล้ว":!playable?"Response ใช้ได้เฉพาะเมื่อ Trigger เกิดขึ้น":state.activation.tacticUsed[owner]?"ฝ่ายนี้ใช้ Tactic ใน Activation นี้แล้ว":busyAttack?"รอให้การโจมตีปัจจุบัน Resolve ให้เสร็จก่อน":mode?"ยกเลิกการเลือกเป้าหมายปัจจุบันก่อน":card.timing==="ATTACK"&&state.activation.actionUsed?"ใช้ Primary Action ไปแล้ว":commandTacticIssue(card,unit);
     showCard(card,issue||"ตรวจความสามารถแล้วกด Confirm เพื่อใช้การ์ด",legal&&!issue?()=>{
       const use=()=>card.timing==="ATTACK"?useAttackTactic(card):useCommandTactic(card);
       if(movementDraft)commitMovementDraft(use);else use();
@@ -3075,11 +3091,12 @@
     }
     else if (card.id==="crimson-execution") {
       if(!["chars-zaku","red-comet-zaku"].includes(unit.id))return showCard(card,"ใช้ได้เมื่อ Char’s Zaku II กำลังทำงาน");
+      const commitCard=()=>{if(!isUsed(card.id,tacticOwner(card)))markCommand(card);};
       const attackAfterDash=()=>continueCrimsonExecution(card,unit);
       if(isAiTeam(unit.team)){
-        startMove(D.rules.dash.distance+1,0,"Crimson Dash",moved=>afterUnitMove(unit,"dash",attackAfterDash,moved));
+        startMove(D.rules.dash.distance+1,0,"Crimson Dash",moved=>{commitCard();afterUnitMove(unit,"dash",attackAfterDash,moved);});
       }else{
-        const started=beginAdjustableCharDash(unit,0,"Crimson Dash",attackAfterDash,{primaryAction:false,onCancel:()=>{menuOpen=true;menuView="main";renderAll();}});
+        const started=beginAdjustableCharDash(unit,0,"Crimson Dash",attackAfterDash,{primaryAction:false,onCommit:commitCard,onCancel:()=>{menuOpen=true;menuView="main";renderAll();}});
         if(!started){menuOpen=true;menuView="main";renderAll();}
       }
     }
@@ -3093,7 +3110,7 @@
     if(isAiTeam(tacticOwner(card))){const selected=A.chooseUpgrade(target,false);apply(choices.includes(selected)?selected:choices[0]);return;}
     const modal=ensureModal();
     modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">${card.name.toUpperCase()}</span><h2>เลือก Upgrade ที่จะทำลาย</h2><p>${target.name} — การทำลาย Upgrade เป็นตัวเลือก แต่ Status จะเกิดขึ้นเสมอ</p><div class="modal-actions">${choices.map(type=>`<button class="primary-btn" data-upgrade-choice="${type}">${type.toUpperCase()} · ${target.upgrades[type]}</button>`).join("")}<button class="action-btn" id="skip-upgrade-destroy">ไม่ทำลาย Upgrade</button></div></div>`;
-    modal.classList.add("show");lockResolutionModal(modal);modal.querySelector(".modal-close").addEventListener("click",closeModal);modal.querySelectorAll("[data-upgrade-choice]").forEach(button=>button.addEventListener("click",()=>apply(button.dataset.upgradeChoice)));modal.querySelector("#skip-upgrade-destroy").addEventListener("click",()=>apply(null));
+    modal.classList.add("show");lockResolutionModal(modal);modal.querySelector(".modal-close").addEventListener("click",()=>apply(null));modal.querySelectorAll("[data-upgrade-choice]").forEach(button=>button.addEventListener("click",()=>apply(button.dataset.upgradeChoice)));modal.querySelector("#skip-upgrade-destroy").addEventListener("click",()=>apply(null));
   }
 
   function openResponse(cards,onPlay,onSkip=closeModal,decisionContext={}) {
@@ -3535,6 +3552,12 @@
     renderActions();
   });
   document.addEventListener("keydown",event=>{
+    const passOverlay=$("#pass-overlay.show");
+    if(passOverlay){
+      const ready=passOverlay.querySelector("#ready-btn");
+      if(event.key==="Tab"){event.preventDefault();ready?.focus();return;}
+      if(event.key==="Escape"){event.preventDefault();return;}
+    }
     const lockedModal=$("#game-modal.show[data-modal-lock='true']");
     if(lockedModal){
       if(event.key==="Tab"){

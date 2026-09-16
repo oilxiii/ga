@@ -2569,7 +2569,7 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
   .faction-option { min-height: 92px; }
 }
 
-/* Beta05 mobile modal safety: keep inspection controls reachable and prevent pull-to-refresh. */
+/* Beta06 mobile modal safety: keep inspection controls reachable and prevent pull-to-refresh. */
 @media (max-width: 680px) {
   #game-modal.overlay {
     place-items: start center;
