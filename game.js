@@ -840,8 +840,11 @@
     state = E.setupGame(Math.random,matchFactions);
     lastDice = null;
     mode = null;
+    pendingAttack = null;
+    movementDraft = null;
     losInspection = { enabled:false };
     menuOpen = false;
+    menuView = "main";
     transitionBusy = false;
     hidePhaseTransition();
     addLog("เริ่มภารกิจ Sleeping Leviathan — Mystery Upgrade ถูกสุ่ม 9 จาก 15 ชิ้นแล้ว");
@@ -2882,14 +2885,14 @@
     const damaged=state.units.filter(target=>target.team===unit.team&&target.zone==="board"&&target.hp<target.maxHp);
     const consumeTrigger=()=>{unit.hackingPending=Math.max(0,(unit.hackingPending||0)-1);};
     if(!damaged.length){consumeTrigger();addLog("Hacking System: ไม่มี Unit ฝ่ายเราที่มี Damage — ข้าม Response");continuePending();return;}
-    const repair=target=>{consumeTrigger();const amount=Math.min(2,target.maxHp-target.hp);target.hp+=amount;addLog(`Hacking System: ${target.name} ซ่อม Damage ${amount}`);renderAll();continuePending();};
+    const repair=target=>{consumeTrigger();const amount=Math.min(1,target.maxHp-target.hp);target.hp+=amount;addLog(`Hacking System: ${target.name} ซ่อม Damage ${amount}`);renderAll();continuePending();};
     if(isAiTeam(unit.team)){repair(damaged.sort((a,b)=>(b.maxHp-b.hp)-(a.maxHp-a.hp))[0]);return;}
     const modal=ensureModal();
-    modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><div class="tactic-confirm-layout"><img class="modal-card-image" src="${unit.card}" alt="${unit.name}"><div><span class="eyebrow">RESPONSE // GARRISON EVENT</span><h2>Hacking System</h2><p>Trigger ${pending}: ซ่อม Damage 2 ให้ Unit ฝ่ายเรา 1 ตัว หรือข้าม Response นี้</p><div class="modal-actions"><button class="primary-btn" id="use-hacking">USE</button><button class="action-btn" id="skip-hacking">SKIP</button></div></div></div></div>`;
+    modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><div class="tactic-confirm-layout"><img class="modal-card-image" src="${unit.card}" alt="${unit.name}"><div><span class="eyebrow">RESPONSE // GARRISON EVENT</span><h2>Hacking System</h2><p>Trigger ${pending}: ซ่อม Damage 1 ให้ Unit ฝ่ายเรา 1 ตัว หรือข้าม Response นี้</p><div class="modal-actions"><button class="primary-btn" id="use-hacking">USE</button><button class="action-btn" id="skip-hacking">SKIP</button></div></div></div></div>`;
     modal.classList.add("show");lockResolutionModal(modal);
     modal.querySelector("#use-hacking").addEventListener("click",()=>{
       closeModal();
-      selectAlly(unit,Infinity,`Hacking System (${pending}): เลือก Unit ฝ่ายเราเพื่อซ่อม Damage 2`,repair,target=>target.hp<target.maxHp,{onCancel:()=>offerHackingSystem(unit,onComplete)});
+      selectAlly(unit,Infinity,`Hacking System (${pending}): เลือก Unit ฝ่ายเราเพื่อซ่อม Damage 1`,repair,target=>target.hp<target.maxHp,{onCancel:()=>offerHackingSystem(unit,onComplete)});
     });
     modal.querySelector("#skip-hacking").addEventListener("click",()=>{consumeTrigger();addLog("Hacking System: SKIP");closeModal();renderAll();continuePending();});
   }
@@ -3414,12 +3417,13 @@
     const modal=ensureModal();
     modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — Char’s Zaku II ทั้งสองแบบ Dash ได้เพิ่ม 1 ช่อง</li><li>Speed เพิ่มระยะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วน Hover ไม่สนผลภูมิประเทศ</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป</li><li>ทุกฝ่ายเริ่มด้วย Tactic 3 ใบ; E.F.S.F. และ ZEON จั่วเพิ่ม 3 ใบหลัง Phase 1 ส่วน White Devil, The Rival และ Secret มี 3 ใบตลอดเกม</li><li>ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation; การ์ด ATTACK ใช้ Primary Action ด้วย</li><li>War Edge, God Drill, Twin Buster Rifle และ Breast Fire เป็น AoE แบบ SP: ทอยครั้งเดียว ไม่โจมตีฝ่ายเดียวกันหรือ Base และใช้แนวเล็งพิเศษที่ Unit/Garrison ไม่บัง</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest; จุดของศัตรูต้องถูกล้างเป็นกลางก่อนยึด</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ ${D.rules.objective?.phaseVp ?? 5} VP ต่อจุดเมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และทำลาย/Rescue Garrison ได้ 2 VP</li></ul></div>`;
     modal.classList.add("show");
+    lockResolutionModal(modal,".modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);
   }
 
   function showResult() {
     const modal=ensureModal();const title=`${teamName(state.winner)} WINS`;
-    modal.innerHTML=`<div class="modal-card"><span class="eyebrow">MISSION COMPLETE</span><h2>${title}</h2><div class="result-grid"><div>${teamMeta("fed").short}<b>${state.vp.fed}</b>VP</div><div>${teamMeta("zeon").short}<b>${state.vp.zeon}</b>VP</div></div><button class="primary-btn" id="play-again">กลับหน้า Title</button></div>`;modal.classList.add("show");modal.querySelector("#play-again").addEventListener("click",returnToTitle);
+    modal.innerHTML=`<div class="modal-card"><span class="eyebrow">MISSION COMPLETE</span><h2>${title}</h2><div class="result-grid"><div>${teamMeta("fed").short}<b>${state.vp.fed}</b>VP</div><div>${teamMeta("zeon").short}<b>${state.vp.zeon}</b>VP</div></div><button class="primary-btn" id="play-again">กลับหน้า Title</button></div>`;modal.classList.add("show");lockResolutionModal(modal,"#play-again");modal.querySelector("#play-again").addEventListener("click",returnToTitle);
   }
 
   function renderSoundButton() {
@@ -3436,6 +3440,7 @@
     const current=soundMuted?"off":BGM.getSelection();
     modal.innerHTML=`<div class="modal-card sound-menu-modal"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">AUDIO</span><h2>เพลงในเกม</h2><p>เลือกเพลงที่จะเล่นระหว่างการต่อสู้ หรือปิดเสียงทั้งหมด</p><div class="sound-choice-list"><button class="action-btn sound-choice ${current==="song1"?"selected":""}" data-sound-choice="song1"><strong>เพลง 1</strong><small>Battle BGM</small></button><button class="action-btn sound-choice ${current==="song2"?"selected":""}" data-sound-choice="song2"><strong>เพลง 2</strong><small>Alternate BGM</small></button><button class="action-btn sound-choice danger ${current==="off"?"selected":""}" data-sound-choice="off"><strong>ปิดเสียง</strong><small>ปิดทั้ง BGM และ Sound Effects</small></button></div></div>`;
     modal.classList.add("show");
+    lockResolutionModal(modal,"[data-sound-choice],.modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);
     modal.querySelectorAll("[data-sound-choice]").forEach(button=>button.addEventListener("click",()=>{
       const choice=button.dataset.soundChoice;

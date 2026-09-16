@@ -1,5 +1,9 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams v95
+GUNDAM ASSEMBLE // ONLINE — Five Teams v98
 
+- v98 Team Select UI Rebuild: ย้ายหน้าต่างเลือกทีมออกจากข้อจำกัดกรอบ Title แนวตั้งให้ใช้ viewport จริง, จัด CLASSIC / STARTER 01 เป็นสองคอลัมน์บนคอมและเรียงอ่านง่ายบนแท็บเล็ต/มือถือ, แยกไอคอน ชื่อทีม รายชื่อยูนิต และปุ่ม SELECT/TARGET เป็นคนละพื้นที่ พร้อม drawer ของ Secret Team ที่ไม่ดันหรือซ้อนข้อความ; ไม่เปลี่ยนกติกา ทีม หรือ AI.
+
+- v97 Stability / Card Cache Fix: Mechazawa Unit Card ใช้ asset ชื่อใหม่เพื่อบังคับ browser/GitHub Pages โหลดภาพ Hacking System ที่แก้เป็น Damage 1 แทน cache เก่า; Restart เคลียร์ pending attack/movement draft จากแมตช์เดิม; Sound/Result/Rules modal ใช้ focus lock/inert ให้สม่ำเสมอ.
+- v96 Mechazawa Balance Update: Hacking System ซ่อม Damage 1 ให้ Unit ฝ่ายเรา 1 ตัวต่อ Garrison trigger (ลดจาก Damage 2); เงื่อนไข trigger, USE/SKIP, target selection และ queue behavior เดิมไม่เปลี่ยน พร้อมอัปเดตภาพ Unit Card Mechazawa ให้ตรงค่าความสามารถใหม่.
 - v95 Team Select UI: ปรับ responsive card structure ใหม่เพื่อแก้ชื่อทีม/UNIT DATA/SELECT ซ้อนกันในหน้าจอแคบ; แยก artwork, team copy, unit-data และ action badge เป็นคนละ layout region พร้อม breakpoint แบบ single-column บน tablet/mobile.
 - v94 Team Select UI: ปรับหน้าเลือกทีมเป็น Mobile Suit tactical roster / deployment HUD โดยคง CLASSIC, STARTER 01 และ Secret drawer (SECRET CHANNEL) พร้อมธีมฟ้า/แดงตามขั้นเลือกทีม.
 - v92 Game Over Flow: ปุ่มหลังจบแมตช์กลับไปหน้า Title และเคลียร์ match state เดิม แทนการเริ่มเกมใหม่ด้วยทีมเดิมทันที.

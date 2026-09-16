@@ -575,7 +575,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>v95<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>v98<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2267,12 +2267,12 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
   }
 });
 
-test("v95 build sync expectations follow the current build", () => {
+test("v98 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>v95<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=95`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v95/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v95/);
+  assert.match(html,/>v98<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=98`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v98/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v98/);
 });
 
 
@@ -2342,24 +2342,42 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
   assert.match(aiChoice,/const can2=canUseCommandAbility\(unit,command2\)/);
 });
 
-test("v95 browser cache tags and docs are synchronized to the build", () => {
+test("v98 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>v95<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=95`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v95/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v95/);
+  assert.match(html,/>v98<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=98`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Five Teams v98/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT v98/);
 });
 
 
-test("v95 team select uses separate responsive dossier regions without shared text overlays", () => {
+test("v98 team select uses the viewport and orderly responsive card regions", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  const selectCss=css.split("/* v98 Team Select rebuild")[1]||"";
   assert.equal((html.match(/class="faction-option-copy"/g)||[]).length,5);
   assert.equal((html.match(/class="faction-option-action"/g)||[]).length,5);
-  assert.match(css,/v95 Team Select \/\/ responsive dossier layout/);
-  assert.match(css,/@media \(max-width:760px\)[\s\S]*?\.faction-group-options \{ grid-template-columns:1fr; \}/);
-  assert.match(css,/\.faction-option-copy strong::after \{ display:none !important; content:none !important; \}/);
-  assert.match(css,/\.faction-option-action \{[\s\S]*?position:absolute;[\s\S]*?bottom:10px;/);
+  assert.equal((html.match(/<em>[^<]+<\/em>/g)||[]).length,5);
+  assert.equal((html.match(/<small>[^<]+<\/small>/g)||[]).length>=2,true);
+  assert.match(selectCss,/\.faction-select \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
+  assert.match(selectCss,/width: min\(920px, calc\(100vw - 40px\)\)/);
+  assert.match(selectCss,/grid-template-columns: 78px minmax\(0, 1fr\) auto/);
+  assert.match(selectCss,/\.faction-option-action \{[\s\S]*?position: static;/);
+  assert.match(selectCss,/@media \(max-width: 780px\)/);
+  assert.match(selectCss,/@media \(max-width: 560px\)/);
+  assert.match(selectCss,/@media \(max-width: 360px\)/);
+});
+
+
+test("v96 Mechazawa Hacking System repairs exactly 1 Damage per Garrison trigger", () => {
+  const data=fs.readFileSync(path.join(__dirname,"..","data.js"),"utf8");
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const hacking=source.match(/function offerHackingSystem[\s\S]*?function offerEscapeFromSide7/)?.[0]||"";
+  assert.match(data,/Hacking System[^\n]*ซ่อม Damage 1/);
+  assert.match(hacking,/Math\.min\(1,target\.maxHp-target\.hp\)/);
+  assert.match(hacking,/ซ่อม Damage 1 ให้ Unit ฝ่ายเรา 1 ตัว/);
+  assert.match(hacking,/เลือก Unit ฝ่ายเราเพื่อซ่อม Damage 1/);
+  assert.doesNotMatch(hacking,/ซ่อม Damage 2/);
 });
 
 test("v83 classified Secret Team icon has animated noise treatment", () => {
@@ -2402,4 +2420,30 @@ test("v92 game-over restart returns to Title instead of replaying the same teams
   assert.match(back,/document\.body\.classList\.add\("title-active"\)/);
   assert.match(back,/screen\?\.classList\.add\("show"\)/);
   assert.match(back,/TitleBGM\.start\(\)/);
+});
+
+
+test("v97 Mechazawa card uses a cache-safe Damage 1 asset", () => {
+  const data=fs.readFileSync(path.join(__dirname,"..","data.js"),"utf8");
+  assert.match(data,/card:\s*"assets\/cards\/unit-mechazawa-v97\.jpg"/);
+  assert.ok(fs.existsSync(path.join(__dirname,"..","assets","cards","unit-mechazawa-v97.jpg")));
+  assert.equal(fs.existsSync(path.join(__dirname,"..","assets","cards","unit-mechazawa.jpg")),false,"old cached filename should not remain in the release");
+});
+
+test("v97 restart clears transient combat and movement state", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const reset=source.match(/function resetGame\(\) \{[\s\S]*?\n  \}/)?.[0]||"";
+  assert.match(reset,/pendingAttack\s*=\s*null/);
+  assert.match(reset,/movementDraft\s*=\s*null/);
+  assert.match(reset,/menuView\s*=\s*"main"/);
+});
+
+test("v97 utility and result modals use the shared focus lock", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const rules=source.match(/function showRules\(\)[\s\S]*?function showResult/)?.[0]||"";
+  const result=source.match(/function showResult\(\)[\s\S]*?function renderSoundButton/)?.[0]||"";
+  const sound=source.match(/function showSoundMenu\(\)[\s\S]*?function renderLosButton/)?.[0]||"";
+  assert.match(rules,/lockResolutionModal\(modal/);
+  assert.match(result,/lockResolutionModal\(modal,"#play-again"\)/);
+  assert.match(sound,/lockResolutionModal\(modal,"\[data-sound-choice\],\.modal-close"\)/);
 });

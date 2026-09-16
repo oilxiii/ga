@@ -1,5 +1,22 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v95
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT v98
 
+AUDIT UPDATE v98
+- Team Select ใช้ viewport เต็มแทนการถูกบีบอยู่ภายใน Title Stage อัตราส่วน 9:16.
+- Desktop แยก CLASSIC / STARTER 01 เป็นสองคอลัมน์ และแยก icon / team copy / unit roster / action badge ไม่ให้ข้อความซ้อนกัน.
+- Tablet และ Mobile มี breakpoint เฉพาะที่ 780 / 560 / 360 px, รองรับจอเตี้ยแนวนอน และให้ panel เลื่อนได้ภายใน viewport.
+- Secret Team drawer ใช้ layout ชุดเดียวกับทีมอื่นและคง flow/logic เดิมทั้งหมด.
+- ไม่แก้กติกาเกม ข้อมูลทีม หรือ AI.
+- ผลทดสอบ v98: Core 198 + AI 24 = 222 tests ผ่านทั้งหมด.
+
+
+AUDIT UPDATE v97
+- Cache-safe Mechazawa card: เปลี่ยน runtime asset เป็น unit-mechazawa-v97.jpg เพื่อไม่ให้ GitHub Pages/browser แสดงภาพ Damage 2 จาก cache เก่า.
+- Restart hard reset: เคลียร์ pendingAttack และ movementDraft ก่อนเริ่มแมตช์ใหม่ เพื่อกัน state เก่าค้างข้ามเกม.
+- Modal consistency: Sound, Result และ Rules ใช้ focus lock/inert แบบเดียวกับ Tactic/Response modal.
+- Mechazawa Hacking System: ลดค่าซ่อมต่อ Garrison trigger จาก Damage 2 เป็น Damage 1.
+- คง trigger source, trigger counter, USE/SKIP, Back/target selection และ AI auto-target behavior เดิม.
+- อัปเดต Unit Card Mechazawa ให้ข้อความ Hacking System ตรงกับกฎใหม่.
+- ผลทดสอบ v97: Core 198 + AI 24 = 222 tests ผ่านทั้งหมด.
 
 AUDIT UPDATE v95
 - แก้ Team Select card layout จาก text/pseudo-element ที่แชร์พื้นที่เดียวกัน เป็น artwork + copy + meta + action badge แยกส่วน ป้องกันข้อความซ้อนกัน.

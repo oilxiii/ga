@@ -163,14 +163,14 @@
     },
     {
       id: "mechazawa", team: "secret", name: "Mechazawa", model: "MECHAZAWA", role: "Steel Delinquent",
-      hp: 10, vp: 4, tl: 1, card: "assets/cards/unit-mechazawa.jpg", portrait: "right",
+      hp: 10, vp: 4, tl: 1, card: "assets/cards/unit-mechazawa-v97.jpg", portrait: "right",
       icon: "assets/icons/icon-mechazawa.png",
       weapons: [
         { id: "mechazawa-drill", name: "Drill", timeline: 2, range: 1, strength: 3, critical: "push1Slow" },
         { id: "laser-eyes", name: "Laser Eyes", timeline: 3, range: 3, strength: 4, critical: "push1Slow" }
       ],
       command: { id: "motorcycle", name: "Motorcycle", energy: 1, text: "เคลื่อนที่ได้อีกสูงสุด 2 ช่อง แม้จะ Move หรือ Dash ไปแล้ว" },
-      response: { name: "Hacking System", text: "เมื่อ Mechazawa ทำลาย Garrison ศัตรูหรือช่วยเหลือ Garrison ฝ่ายเรา ซ่อม Damage 2 ให้ Unit ฝ่ายเรา 1 ตัวต่อ Garrison" }
+      response: { name: "Hacking System", text: "เมื่อ Mechazawa ทำลาย Garrison ศัตรูหรือช่วยเหลือ Garrison ฝ่ายเรา ซ่อม Damage 1 ให้ Unit ฝ่ายเรา 1 ตัวต่อ Garrison" }
     }
   ];
 
