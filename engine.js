@@ -485,7 +485,7 @@
     const fightToEnd=attacker.id==="barbatos-lupus-rex"?(damageTaken>=12?2:damageTaken>=6?1:0):0;
     const exploitWeakness=attacker.id==="gundam-epyon"&&(attacker.aoeExploitWeakness||(defender?.statuses&&Object.values(defender.statuses).some(Boolean)))?2:0;
     const heroSaber=weapon.id==="hero-beam-saber"?(attacker.heroBeamSaberBonus||0):0;
-    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(unit=>unit.id!==attacker.id&&unit.team===attacker.team&&unit.zone==="board"&&distance(attacker,unit)<=3).length*2:0;
+    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(unit=>unit.id!==attacker.id&&unit.team===attacker.team&&unit.zone==="board"&&distance(attacker,unit)<=3&&hasLineOfSight(state,attacker,unit)).length*2:0;
     return attacker.upgrades.strength+attacker.tempStrength+fightToEnd+exploitWeakness+heroSaber+heroAllies+
       (attacker.id==="zaku-enforcer"&&defenderIsDamaged?1:0);
   }
@@ -516,11 +516,11 @@
     });
   }
 
-  function attackResultFromDice(state,attacker,defender,weapon,dice) {
+  function attackResultFromDice(state,attacker,defender,weapon,dice,options={}) {
     const accuracy=attackAccuracy(state,attacker,defender);
     const critFloor=attackCritFloor(attacker);
     const results=dice.map(die=>classifyAttackDie(die,accuracy,critFloor));
-    return summarizeAttackResult(state,attacker,defender,weapon,{dice:[...dice],results,accuracy,critFloor,rerollEligible:false,disarmed:false,disarmedPending:false,disarmRerolled:[],criticalEffectsDisabled:false});
+    return summarizeAttackResult(state,attacker,defender,weapon,{dice:[...dice],results,accuracy,critFloor,rerollEligible:false,disarmed:false,disarmedPending:false,disarmRerolled:[],criticalEffectsDisabled:!!options.criticalEffectsDisabled});
   }
 
   function rerollAttackPool(state,attacker,defender,weapon,result,rng=Math.random){

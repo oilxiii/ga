@@ -1580,7 +1580,7 @@
   }
 
   function keepVulcanDiceOpen(weapon,result){
-    return weapon?.id==="hero-vulcan"&&weapon.critical==="extraDice2"&&criticalEffectsActive(result)&&!result.extraDiceResolved;
+    return weapon?.id==="hero-vulcan"&&weapon.critical==="extraDice2"&&!result?.disarmedPending&&criticalEffectsActive(result)&&!result.extraDiceResolved;
   }
 
   function showAttackDiceRoll(result,weapon,label,onComplete=()=>{}){
@@ -1743,6 +1743,8 @@
     if(draft.placed&&(unit.q!==draft.origin.q||unit.r!==draft.origin.r)){
       unit.q=draft.origin.q; unit.r=draft.origin.r; unit.zone=draft.origin.zone;
       draft.placed=false;
+      if(draft.primaryAction)state.activation.actionUsed=false;
+      if(draft.movementType==="advance")state.activation.advanced=false;
     }
     // Rebuild the legal area from the saved origin every time the preview is reopened.
     // This prevents a previewed position from ever becoming a new movement origin
@@ -1752,7 +1754,7 @@
     mode={
       type:"move",unitId:unit.id,targets:new Set(draft.targets),cost:0,label:draft.label,afterMove:null,
       primaryAction:draft.primaryAction,allowStay:false,adjustableMovement:true,returnMenu:"main",
-      origin:{q:draft.origin.q,r:draft.origin.r},allowance:draft.allowance,reachOptions:{},
+      origin:{q:draft.origin.q,r:draft.origin.r},allowance:draft.allowance,reachOptions:{},onCancel:()=>cancelMovementDraft(),
       hint:`${draft.label}: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged?` จาก ${draft.allowance} เพราะ ENCOUNTER -1`:""}) — ยืนยันเมื่อเลือก Action อื่น`
     };
     menuOpen=true;renderAll();return true;
@@ -1783,6 +1785,8 @@
     const moved=unit.q!==draft.origin.q||unit.r!==draft.origin.r||draft.origin.zone==="deploying";
     if(!moved&&draft.origin.zone!=="deploying"){
       unit.q=draft.origin.q;unit.r=draft.origin.r;unit.zone=draft.origin.zone;
+      if(draft.primaryAction)state.activation.actionUsed=false;
+      if(draft.movementType==="advance")state.activation.advanced=false;
       addLog(`${unit.name}: ${draft.label} ต้องจบต่างจากช่องเริ่มต้น`);renderAll();onComplete();return;
     }
     payTimeline(unit,draft.cost);
@@ -1795,7 +1799,11 @@
     if(draft.onCommit)draft.onCommit();
     addLog(`${unit.name} ยืนยัน ${draft.label} ที่ Hex ${unit.q},${unit.r}`);
     const finish=()=>{renderAll();onComplete();};
-    afterUnitMove(unit,draft.movementType,finish,moved,{skipCharKick:!!options.skipCharKick});
+    const resolveResponses=()=>afterUnitMove(unit,draft.movementType,finish,moved,{skipCharKick:!!options.skipCharKick});
+    // The active player's committed Char Kick resolves before the opponent's
+    // movement Responses, but all costs and pickups must already be committed.
+    if(options.beforeMovementResponses)options.beforeMovementResponses(resolveResponses);
+    else resolveResponses();
     renderAll();
   }
 
@@ -1981,8 +1989,8 @@
   function resolveCharKickTarget(unit,target,continuation=null) {
     if(!unit||!target||target.team===unit.team)return false;
     const draft=movementDraft?.charDash&&movementDraft.unitId===unit.id?movementDraft:null;
+    const dealKick=()=>{if(target.zone==="board")damageUnit(unit,target,1,"Char Kick");};
     const finishKick=()=>{
-      damageUnit(unit,target,1,"Char Kick");
       const afterEffects=draft?.afterEffects||continuation;
       if(afterEffects)afterEffects();
       else {menuOpen=true;menuView="main";}
@@ -1991,17 +1999,20 @@
     mode=null;
     if(draft){
       addLog(`${unit.name} ยืนยัน ${draft.label}${draft.cost===0?" ฟรี":""} ด้วย Char Kick — Timeline +${draft.cost}`);
-      commitMovementDraft(finishKick,{skipCharKick:true});
-    }else finishKick();
+      commitMovementDraft(finishKick,{skipCharKick:true,beforeMovementResponses:next=>{dealKick();next();}});
+    }else {dealKick();finishKick();}
     return true;
   }
 
   function resolveCharKickGarrisonTarget(unit,garrison,continuation=null) {
     if(!unit||!garrison||garrison.team===unit.team)return false;
     const draft=movementDraft?.charDash&&movementDraft.unitId===unit.id?movementDraft:null;
-    const finishKick=()=>{
+    const dealKick=()=>{
+      if(!state.garrisons.some(target=>target.id===garrison.id))return;
       const info=damageGarrison(unit,garrison,1,"Char Kick");
       playDamageFeedback({to:{q:info.q,r:info.r},garrison:true,destroyed:info.destroyed});
+    };
+    const finishKick=()=>{
       const afterEffects=draft?.afterEffects||continuation;
       if(afterEffects)afterEffects();
       else {menuOpen=true;menuView="main";}
@@ -2010,8 +2021,8 @@
     mode=null;
     if(draft){
       addLog(`${unit.name} ยืนยัน ${draft.label}${draft.cost===0?" ฟรี":""} ด้วย Char Kick — Timeline +${draft.cost}`);
-      commitMovementDraft(finishKick,{skipCharKick:true});
-    }else finishKick();
+      commitMovementDraft(finishKick,{skipCharKick:true,beforeMovementResponses:next=>{dealKick();next();}});
+    }else {dealKick();finishKick();}
     return true;
   }
 
@@ -2060,6 +2071,9 @@
   }
 
   function afterUnitMove(unit, movementType, afterEffects=null, movementOccurred=true, options={}) {
+    if(movementOccurred&&unit.zone==="board"&&["push","pull"].includes(movementType)){
+      playPickupFeedback(unit,E.pickupAt(state,unit));
+    }
     if(unit.id==="red-gundam"&&movementType==="dash"&&!options.skipShujiKick){
       if(offerShujiKick(unit,afterEffects,movementOccurred))return;
       return;
@@ -2210,13 +2224,8 @@
     showDiceRoll(master,weapon.name.toUpperCase(),()=>resolveDisarmReroll(attacker,surrogate,weapon,master,()=>{
       const results=targets.map(target=>{
         const targetSurrogate=target.weapons?target:{...target,upgrades:{shield:0,speed:0,strength:0},statuses:{slow:false,fracture:false,disarm:false}};
-        const result=E.attackResultFromDice(state,attacker,targetSurrogate,weapon,master.dice);
-        if(master.criticalEffectsDisabled){
-          result.criticalEffectsDisabled=true;
-          // Disarm suppresses printed Critical Hit Effects, not effects that merely
-          // count rolled Criticals (for example GQX KIRA KIRA!).
-          result.damage=result.hits+result.criticals+(weapon.criticalOverdrivePerCrit?result.criticals*weapon.criticalOverdrivePerCrit:0);
-        }
+        // Keep normal weapon bonuses while suppressing only printed Critical effects.
+        const result=E.attackResultFromDice(state,attacker,targetSurrogate,weapon,master.dice,{criticalEffectsDisabled:!!master.criticalEffectsDisabled});
         return {target,result,reduction:0};
       });
       const offerShieldAt=index=>{
@@ -2270,6 +2279,7 @@
     if(!options.attackCommitted){
       if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
       attacker.nextAttackDiscount=0;attacker.lastShotBonus=false;
+      if(weapon.id==="rex-claws")attacker.attackedWithRexClaws=true;
     }
     const garrisonPresent=()=>state.garrisons.some(item=>item.id===garrison.id);
     if(weapon.preAttack==="pull1"&&!committedOptions.pullResolved){
@@ -2371,7 +2381,7 @@
   }
 
   function offerWeaponAfterRollEffect(attacker,defender,weapon,onComplete=()=>{}) {
-    if(weapon.critical==="extraDice2"&&criticalEffectsActive(lastDice)&&!lastDice.extraDiceResolved){
+    if(weapon.critical==="extraDice2"&&!lastDice?.disarmedPending&&criticalEffectsActive(lastDice)&&!lastDice.extraDiceResolved){
       const previousDiceCount=lastDice.dice.length;
       lastDice.extraDiceResolved=true;
       E.addAttackDice(state,attacker,defender,weapon,lastDice,2);
@@ -3054,7 +3064,7 @@
       addLog(`AI · Rescue the Mechanics: ${ally.name} ซ่อมแซม Damage ${repaired}`);renderAll();onComplete();return;
     }
     const modal=ensureModal();
-    modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><div class="tactic-confirm-layout"><img class="modal-card-image" src="${unit.card}" alt="Unit Card ${unit.name}"><div><span class="eyebrow">UNIT RESPONSE // AFTER RESCUE</span><h2>Rescue the Mechanics</h2><p>${unit.response.text}</p><div class="modal-actions"><button class="primary-btn" id="confirm-rescue-mechanics">ใช้ Response</button><button class="action-btn" id="skip-rescue-mechanics">ไม่ใช้ Response <span>SKIP</span></button></div></div></div></div>`;
+    modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><div class="tactic-confirm-layout"><img class="modal-card-image" src="${unit.card}" alt="Unit Card ${unit.name}"><div><span class="eyebrow">UNIT RESPONSE // AFTER RESCUE</span><h2>Rescue the Mechanics</h2><p>${unit.response.text}${englishCardText(unit.response)}</p><div class="modal-actions"><button class="primary-btn" id="confirm-rescue-mechanics">ใช้ Response</button><button class="action-btn" id="skip-rescue-mechanics">ไม่ใช้ Response <span>SKIP</span></button></div></div></div></div>`;
     modal.classList.add("show");lockResolutionModal(modal);
     modal.querySelector("#confirm-rescue-mechanics").addEventListener("click",()=>{
       closeModal();
@@ -3270,7 +3280,7 @@
         afterUnitMove(unit,"tactic",()=>{
           const started=selectEnemy(unit,1,"Drive Them Back: เลือกยูนิตศัตรูที่ติดกัน",enemy=>{
             beginPushDirection(unit,enemy,1,()=>{
-              damageUnit(unit,enemy,1,"Drive Them Back","tactic");
+              if(enemy.zone==="board")damageUnit(unit,enemy,1,"Drive Them Back","tactic");
               renderAll();
             },"Drive Them Back");
           },()=>true,{required:true});
@@ -3333,7 +3343,7 @@
     const modal=ensureModal();
     let selected=cards[0];
     const render=()=>{
-      modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><span class="eyebrow">RESPONSE WINDOW // ${teamName(tacticOwner(selected))}</span><h2>ตรวจการ์ดก่อนยืนยัน</h2>${cards.length>1?`<div class="response-picker">${cards.map(card=>`<button class="${card.id===selected.id?"selected":""}" data-response-preview="${card.id}">${card.name}</button>`).join("")}</div>`:""}<div class="tactic-confirm-layout"><img class="modal-card-image" src="${selected.card}" alt="${selected.name}"><div><h3>${selected.name}</h3><p>${selected.text}</p><div class="modal-actions"><button class="primary-btn" id="confirm-response">Confirm ใช้ Response</button><button class="action-btn" id="skip-response">ไม่ใช้ Response <span>SKIP</span></button></div></div></div></div>`;
+      modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><span class="eyebrow">RESPONSE WINDOW // ${teamName(tacticOwner(selected))}</span><h2>ตรวจการ์ดก่อนยืนยัน</h2>${cards.length>1?`<div class="response-picker">${cards.map(card=>`<button class="${card.id===selected.id?"selected":""}" data-response-preview="${card.id}">${card.name}</button>`).join("")}</div>`:""}<div class="tactic-confirm-layout"><img class="modal-card-image" src="${selected.card}" alt="${selected.name}"><div><h3>${selected.name}</h3><p>${selected.text}${englishCardText(selected)}</p><div class="modal-actions"><button class="primary-btn" id="confirm-response">Confirm ใช้ Response</button><button class="action-btn" id="skip-response">ไม่ใช้ Response <span>SKIP</span></button></div></div></div></div>`;
       modal.classList.add("show");lockResponseModal(modal);
       modal.querySelectorAll("[data-response-preview]").forEach(btn=>btn.addEventListener("click",()=>{selected=getTactic(btn.dataset.responsePreview,tacticOwner(selected));render();}));
       modal.querySelector("#confirm-response").addEventListener("click",()=>onPlay(selected));
@@ -3350,7 +3360,7 @@
       continued=true;
       closeModal();renderAll();onContinue();
     };
-    modal.innerHTML=`<div class="modal-card tactic-confirm-modal ai-tactic-reveal"><button class="modal-close" id="close-ai-tactic" aria-label="ปิดและดำเนินการต่อ">×</button><span class="eyebrow">AI ${card.timing} // TACTIC REVEAL</span><h2>AI ใช้ ${card.name}</h2><div class="tactic-confirm-layout"><img class="modal-card-image" src="${card.card}" alt="Tactic Card ${card.name}"><div><h3>${card.name}</h3><p>${card.text}</p><p class="chip">เกมจะหยุดรอจนกว่าผู้เล่นจะปิดการ์ดใบนี้</p><div class="modal-actions"><button class="primary-btn" id="continue-ai-tactic">ปิดและดำเนินการต่อ</button></div></div></div></div>`;
+    modal.innerHTML=`<div class="modal-card tactic-confirm-modal ai-tactic-reveal"><button class="modal-close" id="close-ai-tactic" aria-label="ปิดและดำเนินการต่อ">×</button><span class="eyebrow">AI ${card.timing} // TACTIC REVEAL</span><h2>AI ใช้ ${card.name}</h2><div class="tactic-confirm-layout"><img class="modal-card-image" src="${card.card}" alt="Tactic Card ${card.name}"><div><h3>${card.name}</h3><p>${card.text}${englishCardText(card)}</p><p class="chip">เกมจะหยุดรอจนกว่าผู้เล่นจะปิดการ์ดใบนี้</p><div class="modal-actions"><button class="primary-btn" id="continue-ai-tactic">ปิดและดำเนินการต่อ</button></div></div></div></div>`;
     modal.classList.add("show");
     lockResolutionModal(modal,"#continue-ai-tactic,#close-ai-tactic");
     modal.querySelector("#continue-ai-tactic").addEventListener("click",proceed);
@@ -3646,9 +3656,13 @@
     aiUsePreMoveAbility(unit,()=>aiWaitForSettled(unit,()=>aiAdvance(unit,()=>aiWaitForSettled(unit,()=>aiUseTactic(unit,()=>aiWaitForSettled(unit,()=>aiUseAbility(unit,()=>aiWaitForSettled(unit,()=>aiTakePrimary(unit)))))))));
   }
 
+  function englishCardText(item) {
+    return item?.textEn ? `<small class="card-translation" lang="en">${item.textEn}</small>` : "";
+  }
+
   function showCard(card,note="",onConfirm=null) {
     const modal=ensureModal();
-    modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><button class="modal-close" aria-label="ปิด">×</button><div class="tactic-confirm-layout"><img class="modal-card-image" src="${card.card}" alt="${card.name}"><div><span class="eyebrow">${card.timing}${card.trigger?` // ${card.trigger}`:""}</span><h2>${card.name}</h2><p>${card.text}</p>${note?`<p class="chip ${onConfirm?"good":"bad"}">${note}</p>`:""}<div class="modal-actions">${onConfirm?`<button class="primary-btn" id="confirm-tactic">Confirm ใช้การ์ด</button>`:""}<button class="action-btn" id="close-tactic">กลับ</button></div></div></div></div>`;
+    modal.innerHTML=`<div class="modal-card tactic-confirm-modal"><button class="modal-close" aria-label="ปิด">×</button><div class="tactic-confirm-layout"><img class="modal-card-image" src="${card.card}" alt="${card.name}"><div><span class="eyebrow">${card.timing}${card.trigger?` // ${card.trigger}`:""}</span><h2>${card.name}</h2><p>${card.text}${englishCardText(card)}</p>${note?`<p class="chip ${onConfirm?"good":"bad"}">${note}</p>`:""}<div class="modal-actions">${onConfirm?`<button class="primary-btn" id="confirm-tactic">Confirm ใช้การ์ด</button>`:""}<button class="action-btn" id="close-tactic">กลับ</button></div></div></div></div>`;
     modal.classList.add("show");
     lockResolutionModal(modal,"#confirm-tactic,#close-tactic,.modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);modal.querySelector("#close-tactic").addEventListener("click",closeModal);
@@ -3657,7 +3671,7 @@
 
   function showUnitCard(unit,{inspection=false}={}) {
     const modal=ensureModal();
-    modal.innerHTML=`<div class="modal-card unit-card-modal ${inspection?"timeline-inspection-modal":""}"><button class="modal-close" aria-label="ปิด">×</button>${inspection?'<span class="eyebrow timeline-inspection-label">TIMELINE // UNIT DATA</span>':""}<img class="modal-card-image unit-sheet" src="${unit.card}" alt="Unit Card ${unit.name}"><div class="unit-inspection-hud" aria-label="สถานะปัจจุบันของ ${unit.name}">${unitHudHtml(unit)}</div><div class="unit-card-summary"><span class="eyebrow">${unit.model} // ${unit.role}</span><h2>${unit.name}${unit.weaponBadge?` · ${unit.weaponBadge}`:""}</h2>${unit.command?`<p>${unit.command.name}: ${unit.command.text}</p>`:""}${unit.command2?`<p>${unit.command2.name}: ${unit.command2.text}</p>`:""}${unit.ongoing?`<p>${unit.ongoing.name}: ${unit.ongoing.text}</p>`:""}${unit.ongoing2?`<p>${unit.ongoing2.name}: ${unit.ongoing2.text}</p>`:""}${unit.response?`<p>${unit.response.name}: ${unit.response.text}</p>`:""}</div></div>`;
+    modal.innerHTML=`<div class="modal-card unit-card-modal ${inspection?"timeline-inspection-modal":""}"><button class="modal-close" aria-label="ปิด">×</button>${inspection?'<span class="eyebrow timeline-inspection-label">TIMELINE // UNIT DATA</span>':""}<img class="modal-card-image unit-sheet" src="${unit.card}" alt="Unit Card ${unit.name}"><div class="unit-inspection-hud" aria-label="สถานะปัจจุบันของ ${unit.name}">${unitHudHtml(unit)}</div><div class="unit-card-summary"><span class="eyebrow">${unit.model} // ${unit.role}</span><h2>${unit.name}${unit.weaponBadge?` · ${unit.weaponBadge}`:""}</h2>${unit.command?`<p>${unit.command.name}: ${unit.command.text}${englishCardText(unit.command)}</p>`:""}${unit.command2?`<p>${unit.command2.name}: ${unit.command2.text}${englishCardText(unit.command2)}</p>`:""}${unit.ongoing?`<p>${unit.ongoing.name}: ${unit.ongoing.text}${englishCardText(unit.ongoing)}</p>`:""}${unit.ongoing2?`<p>${unit.ongoing2.name}: ${unit.ongoing2.text}${englishCardText(unit.ongoing2)}</p>`:""}${unit.response?`<p>${unit.response.name}: ${unit.response.text}${englishCardText(unit.response)}</p>`:""}</div></div>`;
     modal.classList.add("show");
     lockResolutionModal(modal,".modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);

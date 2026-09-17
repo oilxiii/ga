@@ -1,0 +1,47 @@
+Beta10 English + Bugfix build beta10-en2
+
+Fixed all eight confirmed findings from the review:
+1. Cancelled or reopened Dash previews restore Primary Action state. An unpaid
+   Dash cannot end an activation and strand a unit on an old Timeline slot.
+2. When human Char confirms Dash with Char Kick, the kick resolves before enemy
+   movement Responses such as Iron Grip. Costs and pickups commit first. If the
+   Enforcer survives, Iron Grip can still resolve. Garrison kicks use the same order.
+3. Disarm suppresses Hero Gundam's Vulcan bonus Critical dice. The dice overlay
+   does not wait for a suppressed bonus roll. AI damage estimates match.
+4. Disarmed AoE attacks retain normal bonuses, including Breast Fire's adjacent
+   Damage +2. Printed Critical effects remain disabled; rolled Critical results
+   and independent Critical-counting bonuses remain intact.
+5. Declaring Rex Claws against a Garrison enables Annihilate, just as a Unit attack
+   does. Annihilate still needs Energy and a legal follow-up target.
+6. Drive Them Back's follow-up Damage 1 only affects a target still on the board.
+   A target defeated by Collision returns to Reserve at full HP as normal.
+7. A Unit finishing Push or Pull picks up Energy/Upgrades on the final hex, before
+   movement Responses. Passing through items, zero movement and Garrisons do not
+   collect items.
+8. Epic Shot's Range 3 allied Strength bonus now requires Line of Sight in both
+   combat calculation and AI evaluation.
+
+Validation:
+- Existing core tests: 228 passed.
+- Existing AI tests: 29 passed.
+- New executable regression cases: 18 passed.
+- Regression harness uses the actual game functions and engine with synchronous
+  UI/animation mocks and controlled board states, not a browser playthrough.
+- Two old code-text assertions were updated to follow changed callback structure;
+  the new behavior tests verify Char Kick ordering and movement cancellation.
+- Desktop/mobile visual playthrough is not verified in this environment.
+
+Run checks from the game folder:
+  node tests/core.test.js
+  node tests/ai.test.js
+  node tests/regressions.test.js
+
+Update from the previous English build:
+  Replace game.js, engine.js, ai.js and index.html.
+  Include the updated tests and notes if keeping a development copy.
+
+Update from original Beta10:
+  Replace those four files plus data.js and styles.css for English summaries.
+
+Card artwork, unit stats, custom AoE LOS rules and Phase 2 Objective reset remain
+as in the supplied game. English summaries remain included for all teams.

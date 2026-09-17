@@ -36,7 +36,7 @@
       hit: hitFaces / 10,
       critical: criticalFaces / 10
     };
-    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(ally=>ally.id!==unit.id&&ally.team===unit.team&&ally.zone==="board"&&engine.distance(unit,ally)<=3).length*2:0;
+    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(ally=>ally.id!==unit.id&&ally.team===unit.team&&ally.zone==="board"&&engine.distance(unit,ally)<=3&&engine.hasLineOfSight(state,unit,ally)).length*2:0;
     const dice = attackDice(unit, target, weapon)+heroAllies;
     const rollDistribution = count => {
       let dist = new Map([["0,0", 1]]);
@@ -77,7 +77,7 @@
 
     // Vulcan Cannons adds exactly two dice if the post-Newtype roll contains a Critical.
     // It resolves before Disarm, matching offerWeaponAfterRollEffect -> resolveDisarmReroll.
-    if (weapon.critical === "extraDice2") {
+    if (weapon.critical === "extraDice2" && !unit.statuses?.disarm) {
       const extra = rollDistribution(2);
       const combined = new Map();
       const addCombined=(h,c,p)=>{const key=`${h},${c}`;combined.set(key,(combined.get(key)||0)+p);};
@@ -177,7 +177,7 @@
     }
     if (weapon.critical === "repeatAtTimeline0") score += stats.criticalChance * (12 + stats.usefulDamage * 5);
     if (weapon.critical === "fractureRepeatTimeline0") score += stats.criticalChance * (18 + stats.usefulDamage * 5);
-    if (weapon.critical === "extraDice2") score += 4; // damage expectation already includes the conditional dice
+    if (weapon.critical === "extraDice2" && !unit.statuses?.disarm) score += 4; // damage expectation already includes the conditional dice
     return { score, ...stats };
   }
 

@@ -242,6 +242,63 @@
     { id: "another-timeline", team: "gqx", name: "Another Timeline", timing: "RESPONSE", trigger: "After Attack Roll", card: "assets/cards/tactic-another-timeline.jpg", text: "หลังทอย Attack Dice แต่ก่อน Resolve สามารถทอย Attack Dice ทั้งหมดใหม่ 1 ครั้ง และต้องใช้ผลจากการทอยครั้งใหม่ทั้งหมด" }
   ];
 
+  // English reading aids only; these fields do not participate in game rules.
+  const abilityEnglish = {
+    "gundam": ["Choose an allied unit within Range 3 with no more than 1 Upgrade. Give it 1 Upgrade of your choice.", "After your Attack Roll, you may re-roll 1 die that missed."],
+    "guncannon": ["Apply Fracture to an enemy within Range 3.", "While this unit has at least 2 Upgrades, rolls of 7 and 8 also count as Critical Hits."],
+    "guntank": ["Roll 5 dice. For each Critical rolled, deal 1 damage to every enemy within Range 4.", "While this unit has at least 2 Upgrades, gain Accuracy +1."],
+    "chars-zaku": ["Make an additional Heat Hawk attack at TL 0.", "When Dashing, you may move 1 additional hex.", "After Dashing, deal 1 damage to an adjacent enemy unit or enemy Garrison."],
+    "zaku-line": ["Move up to 5 hexes toward a damaged enemy unit, ignoring terrain penalties.", "After this unit Rescues a Garrison, you may repair 2 damage on 1 allied unit."],
+    "zaku-enforcer": ["Immediately capture an Objective on or adjacent to this unit's hex.", "Gain Strength +1 when attacking a damaged enemy unit."],
+    "wing-zero-ew": ["Gain Strength +3 until the end of this activation.", "Rolls of 7 and 8 also count as Critical Hits.", "Ignore terrain and elevation penalties while moving."],
+    "gundam-vidar": ["Push an adjacent enemy unit up to 2 hexes, then deal 1 damage to that unit.", "If you control at least 2 Objectives, gain Move +2 and Strength +1 for this activation."],
+    "barbatos-lupus-rex": ["If this unit has attacked with Rex Claws during this activation, make 1 additional Rex Claws attack at TL 0.", "Deal 3 damage to this unit to move 2 hexes.", "While this unit has taken at least 6 damage, gain Strength +1. At 12 or more damage, gain another Strength +1."],
+    "hero-gundam": ["Move 2 hexes. For this activation, Beam Saber gains Strength +1 for each Garrison your side has Rescued.", "After this unit Rescues a Garrison, gain 1 Energy."],
+    "red-comet-zaku": ["Gain Accuracy +2 for this activation. After attacking, destroy 1 Upgrade on the target.", "When Dashing, you may move 1 additional hex.", "After Dashing, deal 1 damage to an adjacent enemy unit or enemy Garrison."],
+    "gundam-epyon": ["Apply Slow to an enemy unit within Range 2.", "Gain Strength +2 when attacking an enemy unit with a status effect.", "Ignore terrain and elevation penalties while moving."],
+    "eva-01": ["If this unit has no Shield Upgrades, gain 1 Shield Upgrade.", "This unit ignores Engagement."],
+    "mazinger-z": ["Rolls of 6, 7 and 8 also count as Critical Hits for this activation.", "Each time this unit deploys from a Base, gain 1 Shield Upgrade."],
+    "mechazawa": ["Move up to 2 additional hexes, even if this unit has already moved or Dashed.", "Whenever this unit destroys an enemy Garrison or Rescues an allied Garrison, repair 1 damage on 1 allied unit per Garrison."],
+    "gquuuuuux": ["Gain Strength +2 until the end of this activation.", "Take no collision damage from Push or Pull. This unit can still be Pushed or Pulled normally.", "After resolving an attack with at least 1 Critical rolled, you may Move up to 2 hexes."],
+    "gfred": ["Gain Accuracy +1 for this activation. Rolls of 8 also count as Critical Hits.", "Take no collision damage from Push or Pull. This unit can still be Pushed or Pulled normally.", "After resolving an attack with at least 1 Critical rolled, you may Move up to 1 hex."],
+    "red-gundam": ["When Dashing, you may move 1 additional hex.", "After Dashing, choose 1 adjacent enemy unit and Push it up to 1 hex. Cannot target Garrisons."]
+  };
+  for (const unit of units) {
+    const abilities = [unit.command, unit.command2, unit.ongoing, unit.ongoing2, unit.response].filter(Boolean);
+    abilities.forEach((ability, index) => { ability.textEn = abilityEnglish[unit.id][index]; });
+  }
+  const tacticEnglish = {
+    "built-to-last": "Repair 1 damage on the active unit for each Upgrade token it has.",
+    "entrenched-position": "Guntank gains 1 Shield Upgrade, then immediately captures an Objective on or adjacent to its hex.",
+    "forward-artillery": "Guncannon gains 1 Energy, then gains Strength +1 for each Garrison your side has Rescued, until the end of its activation.",
+    "last-shot-counts": "Gundam gains 1 Strength Upgrade. Its next attack costs TL -1. If that attack defeats an enemy unit, gain 1 additional Strength Upgrade.",
+    "return-fire": "After Combat Damage, if the defending allied unit survives, it immediately makes a counterattack at TL -1.",
+    "rookies-momentum": "The active unit gains Strength +2, and rolls of 7 and 8 also count as Critical Hits, until the end of its activation.",
+    "lock-down": "You may destroy 1 Upgrade on an enemy unit within Range 3 of the active unit, then apply Slow to that enemy unit.",
+    "shield-recovery": "After an allied unit Rescues a Garrison, that unit gains 1 Shield Upgrade.",
+    "federation-shield": "After the opponent's Attack Roll, reduce the damage an allied unit would take from that attack by 2.",
+    "rescued-extraction": "Zaku II: Line Breaker Rescues an allied Garrison within Range 3 at TL 0, then gains 1 Energy.",
+    "logistics-relay": "After an allied unit Rescues a Garrison, that unit gains 1 Speed Upgrade.",
+    "exploited-chaos": "After an allied unit's attack resolves, the attacking unit gains 1 Energy and 1 Strength Upgrade.",
+    "shattered-formation": "After Combat Damage, if the defending allied unit survives, it deals 2 damage to the attacker.",
+    "drive-them-back": "The active unit moves 2 additional hexes, then Pushes an adjacent enemy unit up to 1 hex and deals 1 damage to that unit.",
+    "iron-grip": "When an enemy unit ends a movement adjacent to Zaku II: Enforcer, deal 3 damage to that enemy unit.",
+    "sudden-pressure": "The active unit deals 2 damage to every enemy unit and enemy Garrison within Range 3.",
+    "breaking-line": "You may destroy 1 Upgrade on an enemy unit within Range 3 of the active unit, then apply Fracture to that enemy unit.",
+    "crimson-execution": "Char's Zaku II makes 1 additional Dash at TL 0, then 1 additional Heat Hawk attack at TL 0.",
+    "renewed-power": "The active unit gains 1 Strength Upgrade.",
+    "sacrificial-overload": "After Wing Gundam Zero attacks, deal 2 damage to Wing Gundam Zero and each target.",
+    "epic-shot": "Gundam [Hero of Side 7] makes a Beam Rifle attack: TL 3, Range 5, Strength 7. Gain Strength +2 per other allied unit within Range 3. Critical: Damage +2.",
+    "war-edge": "Gundam Epyon makes a Beam Sword area attack using the SP pattern: TL 3, Strength 8. Critical: Damage +1.",
+    "berserk": "If EVA-01 has more than 1 HP, reduce it to 1 HP, then gain 3 Speed, 3 Strength and 3 Shield Upgrades. When EVA-01 is defeated, remove all its Upgrades.",
+    "god-drill": "Mechazawa makes an area attack using the SP pattern: TL 4, Strength 6. Critical: Damage +1 per Critical rolled, up to +4.",
+    "jet-scrander": "Mazinger Z moves up to 5 hexes toward an enemy unit, ignoring terrain penalties.",
+    "gundam-go": "Each allied unit may Move up to 1 hex.",
+    "kira-kira": "Play before declaring an attack. For this attack, Damage +1 for each Critical rolled, with no maximum.",
+    "another-timeline": "After your Attack Roll, before resolving it, you may re-roll the entire attack dice pool once. You must keep all of the new results."
+  };
+  tactics.forEach(card => { card.textEn = tacticEnglish[card.id]; });
+
   const featureCoordinates = {
     bases: [{ q: 7, r: 0, team: "zeon" }, { q: 7, r: 12, team: "fed" }],
     garrisons: {

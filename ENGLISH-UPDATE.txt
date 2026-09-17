@@ -1,0 +1,22 @@
+Beta10 English summaries + bug fixes (cache build beta10-en2)
+
+Added small English translations below Thai ability descriptions for all 18 units
+and effect descriptions for all 28 tactics. No EN label or language toggle.
+Tactic translations also appear in Response selection and AI card reveals.
+Original card images and balance values are unchanged. Eight confirmed
+implementation bugs are corrected; see BUGFIX-NOTES.txt.
+
+Files to replace when updating an existing Beta10 installation:
+  data.js
+  game.js
+  engine.js
+  ai.js
+  styles.css
+  index.html (refreshes cached scripts and stylesheet)
+
+Validation: 228 core checks, 29 AI checks and 18 new regression checks passed.
+All 18 unit and 28 tactic
+summary HTML outputs checked. Gameplay data compared with the original archive
+after excluding translation fields: identical.
+Visual desktop/mobile browser verification could not be completed because the
+browser download timed out. Existing scrollable modal layouts are retained.

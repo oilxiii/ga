@@ -1,4 +1,6 @@
 GUNDAM ASSEMBLE // ONLINE — Six Teams Beta10
+- English + Bugfix build beta10-en2: แก้ 8 บั๊กที่ยืนยันแล้ว: Dash cancel/Timeline, Char Kick ก่อน Iron Grip, Vulcan/Disarm, Breast Fire/Disarm, Rex Claws ใส่ Garrison เปิด Annihilate, Drive Them Back ไม่ทำดาเมจซ้ำใน Reserve, Push/Pull เก็บของเมื่อจบการเคลื่อนที่ และ Epic Shot ตรวจ LOS ของพันธมิตร; AI ใช้การประเมินที่ตรงกัน คงคำแปลอังกฤษครบเดิม ดู BUGFIX-NOTES.txt
+- Current validation: Core 228 + AI 29 + regression cases 18 = 275 checks.
 - Beta10 Bonus Attack UX: เมื่อผู้เล่นต้องเลือกเป้าหมายสำหรับการโจมตีซ้ำแบบบังคับ เกมจะแสดง bubble เล็กเหนือ Unit ว่า “Attack again / Select a target” สำหรับ Vidar Handgun, EVA-01 Progressive Knife, Barbatos Annihilate และ Crimson Execution; bubble หายทันทีเมื่อออกจาก target-selection flow และไม่แสดงในเทิร์น AI.
 - Beta09 GQX Rules/Disarm Fix: Disarm ยังคง reroll Hit และปิดเฉพาะ Critical Hit Effect ของอาวุธ แต่ไม่ลบผล Critical; Omega Psycommu Active ยัง Trigger จาก Critical และ KIRA KIRA! ยังเพิ่ม Damage ต่อ Critical ได้ตามปกติ.
 - Beta09 GQX UI/Docs Fix: HUD ของ GFreD แสดง Nyaan Focus แทน Mazin Power, Dash preview แสดง follow-up ที่ถูกต้องสำหรับ Shuji Kick/Char Kick, และกติกาย่อ/README ระบุ Three Times Faster ของ Red Gundam กับ fixed Tactic ของ GQX.

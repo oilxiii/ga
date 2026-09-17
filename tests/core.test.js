@@ -524,7 +524,7 @@ test("Char Kick uses a damage-or-back decision before committing the Dash", () =
   assert.match(source,/data-char-kick-unit/);
   assert.match(source,/data-char-kick-garrison/);
   assert.match(source,/ทำ Damage 1/);
-  assert.match(source,/commitMovementDraft\(finishKick,\{skipCharKick:true\}\)/);
+  assert.match(source,/commitMovementDraft\(finishKick,\{skipCharKick:true,beforeMovementResponses:/);
   assert.match(source,/payTimeline\(unit,draft\.cost\)/);
   assert.match(source,/char-kick-target/);
   assert.match(source,/char-kick-victim/);
@@ -1737,7 +1737,8 @@ test("1 Player keeps the human Tactic hand visible during AI movement and Iron G
   assert.match(source,/const handTeam=matchMode==="ai"\?humanTeam:unit\.team/);
   assert.match(source,/function resolveMovementResponses\(/);
   assert.match(source,/openResponse\(\[getTactic\("iron-grip",enforcer\.team\)\]/);
-  assert.match(source,/afterUnitMove\([\s\S]{0,900}resolveMovementResponses\(unit,movementType,afterEffects,movementOccurred\)/);
+  const movementBody=source.match(/function afterUnitMove\([\s\S]*?\n  function consumeCriticalOverdrive/)?.[0]||"";
+  assert.match(movementBody,/resolveMovementResponses\(unit,movementType,afterEffects,movementOccurred\)/);
 });
 
 
