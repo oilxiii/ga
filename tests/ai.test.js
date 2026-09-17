@@ -25,12 +25,13 @@ test("AI policy is deterministic and never performs its own random rolls", () =>
 test("1 Player asks for the human team and then a different AI opponent", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   const game = fs.readFileSync(path.join(__dirname, "..", "game.js"), "utf8");
-  for(const faction of ["fed","zeon","white-devil","rival","secret"])assert.match(html,new RegExp(`data-faction="${faction}"`));
+  for(const faction of ["fed","zeon","white-devil","rival","secret","gqx"])assert.match(html,new RegExp(`data-faction="${faction}"`));
   assert.match(html,/id="secret-team-toggle"/);
   assert.match(html,/id="secret-team-drawer"[^>]*aria-hidden="true"/);
   assert.match(html,/<strong>WHITE DEVIL<\/strong>/);
   assert.match(html,/<strong>THE RIVAL<\/strong>/);
   assert.match(html,/<strong>SECRET TEAM<\/strong><span>UNKNOWN SIGNAL<\/span><em>DATA LOCK \/\/ ENCRYPTED<\/em>/);
+  assert.match(html,/<strong>GQX<\/strong><span>GQUUUUUUX TEAM<\/span>/);
   assert.match(game,/setSecretRevealed\(false\)/);
   assert.match(game, /button\.disabled=step===2&&button\.dataset\.faction===firstFaction/);
   assert.match(game, /launch\(selectingMode,\{fed:firstFaction,zeon:faction\}\)/);
@@ -426,4 +427,21 @@ test("Beta01 AI includes Gundam Newtype Instincts reroll",()=>{
   assert.ok(choice);
   // One die succeeds on 9/10 faces. Newtype rerolls its only Miss, so success = .99.
   assert.ok(Math.abs(choice.expectedDamage-0.99)<1e-9,`expected 0.99 Damage with Newtype reroll, got ${choice.expectedDamage}`);
+});
+
+
+test("Beta09 AI can evaluate GQX attacks and its shared Tactics",()=>{
+  const state=E.setupGame(()=>0.5,{fed:"gqx",zeon:"fed"});
+  const gfred=place(state.units.find(unit=>unit.id==="gfred"),5,5);
+  const enemy=place(state.units.find(unit=>unit.id==="gundam"),5,8);
+  state.hands.fed=["kira-kira","gundam-go","another-timeline"];
+  const attack=A.chooseAttack(state,gfred,D,E);
+  assert.ok(attack,"GFreD should find a legal ranged attack");
+  assert.equal(attack.target.team,'zeon');
+  assert.ok(E.legalWeaponTargets(state,gfred,attack.weapon).some(target=>target.id===attack.target.id));
+  const card=A.chooseCommandTactic(state,gfred,D,E);
+  assert.ok(["kira-kira","gundam-go"].includes(card?.id));
+  const another=D.tactics.find(card=>card.id==="another-timeline");
+  assert.equal(A.shouldUseResponse(another,{diceCount:5,attackRollDamage:0}),true);
+  assert.equal(A.shouldUseResponse(another,{diceCount:5,attackRollDamage:5}),false);
 });

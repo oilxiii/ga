@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=beta07">
+  <link rel="stylesheet" href="styles.css?v=beta09">
 </head>
 <body class="title-active">
   <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
@@ -56,11 +56,16 @@
                 </div>
               </section>
             </div>
-            <button id="secret-team-toggle" class="secret-team-toggle" type="button" aria-expanded="false" aria-controls="secret-team-drawer" aria-label="เปิด Secret Team" title="มีบางอย่างซ่อนอยู่">›</button>
+            <button id="secret-team-toggle" class="secret-team-toggle" type="button" aria-expanded="false" aria-controls="secret-team-drawer" aria-label="เปิด Secret / GQX" title="Secret / GQX">›</button>
             <div id="secret-team-drawer" class="secret-team-drawer" aria-hidden="true">
               <button type="button" class="faction-option secret-team-option" data-faction="secret" tabindex="-1">
                 <span class="faction-option-art"><span class="secret-team-question" aria-hidden="true">?</span></span>
                 <span class="faction-option-copy"><strong>SECRET TEAM</strong><span>UNKNOWN SIGNAL</span><em>DATA LOCK // ENCRYPTED</em></span>
+                <i class="faction-option-action" aria-hidden="true">SELECT</i>
+              </button>
+              <button type="button" class="faction-option secret-team-option gqx-team-option" data-faction="gqx" tabindex="-1">
+                <span class="faction-option-art"><img src="assets/icons/icon-gquuuuuux.png" alt=""></span>
+                <span class="faction-option-copy"><strong>GQX</strong><span>GQUUUUUUX TEAM</span><em>GQuuuuuuX · GFreD · Red Gundam</em></span>
                 <i class="faction-option-action" aria-hidden="true">SELECT</i>
               </button>
             </div>
@@ -82,7 +87,7 @@
         <div id="zeon-score" class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> <b id="zeon-team-name">ZEON</b></span></div>
       </section>
       <div class="topbar-actions">
-        <span class="build-version" title="Game build version">Beta07</span>
+        <span class="build-version" title="Game build version">Beta09</span>
         <button id="sound-btn" class="icon-btn" type="button" aria-label="เลือกเพลงและเสียง" title="เลือกเพลงและเสียง" aria-pressed="false">🔊</button>
         <button id="restart-btn" class="icon-btn" type="button" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
       </div>
@@ -131,9 +136,9 @@
     </div>
   </div>
 
-  <script src="data.js?v=beta07"></script>
-  <script src="engine.js?v=beta07"></script>
-  <script src="ai.js?v=beta07"></script>
-  <script src="game.js?v=beta07"></script>
+  <script src="data.js?v=beta09"></script>
+  <script src="engine.js?v=beta09"></script>
+  <script src="ai.js?v=beta09"></script>
+  <script src="game.js?v=beta09"></script>
 </body>
 </html>

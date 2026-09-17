@@ -171,6 +171,43 @@
       ],
       command: { id: "motorcycle", name: "Motorcycle", energy: 1, text: "เคลื่อนที่ได้อีกสูงสุด 2 ช่อง แม้จะ Move หรือ Dash ไปแล้ว" },
       response: { name: "Hacking System", text: "เมื่อ Mechazawa ทำลาย Garrison ศัตรูหรือช่วยเหลือ Garrison ฝ่ายเรา ซ่อม Damage 1 ให้ Unit ฝ่ายเรา 1 ตัวต่อ Garrison" }
+    },
+    {
+      id: "gquuuuuux", team: "gqx", name: "GQuuuuuuX", model: "gMS-Ω", role: "Machu's Kira-Kira",
+      hp: 13, vp: 8, tl: 2, card: "assets/cards/unit-gquuuuuux.jpg", portrait: "right",
+      icon: "assets/icons/icon-gquuuuuux.png",
+      ignoreForcedCollisionDamage: true, omegaPsycommuMove: 2,
+      weapons: [
+        { id: "gqx-heat-hawk", name: "Tomenosuke Heat Hawk", timeline: 2, range: 1, strength: 5, critical: "damage1" },
+        { id: "gqx-vulcan", name: "Vulcan Guns", timeline: 2, range: 2, strength: 3, critical: "slow" }
+      ],
+      command: { id: "machu-kira-kira", name: "Machu Kira Kira", energy: 1, text: "ได้รับ Strength +2 จนจบ Activation" },
+      ongoing: { name: "High Mobility Frame", text: "ไม่รับ Collision Damage ที่เกิดจาก Push หรือ Pull แต่ยังถูก Push/Pull และเคลื่อนตำแหน่งตามปกติ" },
+      ongoing2: { name: "Omega Psycommu Active", text: "หลัง Resolve การโจมตี หากมี Critical อย่างน้อย 1 ลูก Move ได้สูงสุด 2 ช่อง" }
+    },
+    {
+      id: "gfred", team: "gqx", name: "GFreD", model: "gMS-κ", role: "Nyaan's Psycommu",
+      hp: 12, vp: 8, tl: 3, card: "assets/cards/unit-gfred.jpg", portrait: "right",
+      icon: "assets/icons/icon-gfred.png",
+      ignoreForcedCollisionDamage: true, omegaPsycommuMove: 1,
+      weapons: [
+        { id: "gfred-luna", name: "ES Bits — Luna", timeline: 2, range: 4, strength: 4, ignoreLos: true, critical: "slow" },
+        { id: "gfred-artemis", name: "ES Bits — Artemis", timeline: 3, range: 5, strength: 5, ignoreLos: true, critical: "damage2" }
+      ],
+      command: { id: "nyaan-focus", name: "Nyaan Focus", energy: 1, text: "ได้รับ Accuracy +1 และผล 8 ถือเป็น Critical จนจบ Activation" },
+      ongoing: { name: "High Mobility Frame", text: "ไม่รับ Collision Damage ที่เกิดจาก Push หรือ Pull แต่ยังถูก Push/Pull ตามปกติ" },
+      ongoing2: { name: "Omega Psycommu Active", text: "หลัง Resolve การโจมตี หากมี Critical อย่างน้อย 1 ลูก Move ได้สูงสุด 1 ช่อง" }
+    },
+    {
+      id: "red-gundam", team: "gqx", name: "Red Gundam", model: "RX-78-02", role: "Shuji's Red Gundam",
+      hp: 13, vp: 8, tl: 1, card: "assets/cards/unit-red-gundam.jpg", portrait: "right",
+      icon: "assets/icons/icon-red-gundam.png", dashBonus: 1,
+      weapons: [
+        { id: "red-gundam-beam-saber", name: "Beam Saber", timeline: 2, range: 1, strength: 3, critical: "damage2" },
+        { id: "red-gundam-bits", name: "Bits", timeline: 3, range: 4, strength: 5, critical: "disarm" }
+      ],
+      ongoing: { name: "Three Times Faster", text: "เมื่อใช้ Dash สามารถเคลื่อนที่เพิ่มได้อีก 1 ช่อง" },
+      response: { name: "Shuji Kick", text: "หลัง Dash เลือก Unit ศัตรูที่อยู่ติดกัน 1 ตัว (ใช้กับ Garrison ไม่ได้) แล้ว Push up to 1" }
     }
   ];
 
@@ -199,7 +236,10 @@
     { id: "war-edge", team: "rival", name: "War Edge", timing: "ATTACK", unitOnly: "gundam-epyon", card: "assets/cards/tactic-war-edge.jpg", text: "Gundam Epyon โจมตีด้วย Beam Sword แบบพื้นที่ SP; Critical Damage +1", weapon:{id:"war-edge-beam-sword",name:"War Edge · Beam Sword",timeline:3,range:"SP",strength:8,aoe:"warEdge",critical:"damage1",tacticAttack:true} },
     { id: "berserk", team: "secret", name: "Berserk", timing: "COMMAND", unitOnly: "eva-01", card: "assets/cards/tactic-berserk.jpg", text: "EVA-01 ที่มี HP มากกว่า 1 ลด HP เหลือ 1 แล้วได้รับ Speed +3, Strength +3 และ Shield +3; เมื่อถูกทำลายให้นำ Upgrade ทั้งหมดออก" },
     { id: "god-drill", team: "secret", name: "God Drill", timing: "ATTACK", unitOnly: "mechazawa", card: "assets/cards/tactic-god-drill.jpg", text: "Mechazawa โจมตีแบบพื้นที่ SP; Critical Damage +1 ต่อ Critical สูงสุด +4", weapon:{id:"god-drill-attack",name:"God Drill",timeline:4,range:"SP",strength:6,aoe:"godDrill",critical:"criticalDamageUpTo4",tacticAttack:true} },
-    { id: "jet-scrander", team: "secret", name: "Jet Scrander", timing: "COMMAND", unitOnly: "mazinger-z", card: "assets/cards/tactic-jet-scrander.jpg", text: "Mazinger Z เคลื่อนที่ได้สูงสุด 5 ช่องเข้าหา Unit ศัตรู โดยไม่สนใจผลของภูมิประเทศ" }
+    { id: "jet-scrander", team: "secret", name: "Jet Scrander", timing: "COMMAND", unitOnly: "mazinger-z", card: "assets/cards/tactic-jet-scrander.jpg", text: "Mazinger Z เคลื่อนที่ได้สูงสุด 5 ช่องเข้าหา Unit ศัตรู โดยไม่สนใจผลของภูมิประเทศ" },
+    { id: "gundam-go", team: "gqx", name: "GUNDAM GO!", timing: "COMMAND", card: "assets/cards/tactic-gundam-go.jpg", text: "ยูนิตฝ่ายเดียวกันทุกตัวสามารถ Move up to 1" },
+    { id: "kira-kira", team: "gqx", name: "KIRA KIRA!", timing: "COMMAND", card: "assets/cards/tactic-kira-kira.jpg", text: "ใช้ก่อนประกาศการโจมตี; สำหรับการโจมตีครั้งนี้ Damage +1 ต่อ Critical ทุก 1 ลูกที่ทอยได้ โดยไม่มีเพดาน" },
+    { id: "another-timeline", team: "gqx", name: "Another Timeline", timing: "RESPONSE", trigger: "After Attack Roll", card: "assets/cards/tactic-another-timeline.jpg", text: "หลังทอย Attack Dice แต่ก่อน Resolve สามารถทอย Attack Dice ทั้งหมดใหม่ 1 ครั้ง และต้องใช้ผลจากการทอยครั้งใหม่ทั้งหมด" }
   ];
 
   const featureCoordinates = {
@@ -234,15 +274,17 @@
       zeon: { name: "Principality of Zeon", short: "ZEON", color: "#ff405a", phaseTwoTacticDraw: 3 },
       "white-devil": { name: "White Devil", short: "WHITE DEVIL", color: "#36b7ff", phaseTwoTacticDraw: 0 },
       rival: { name: "The Rival", short: "THE RIVAL", color: "#ff405a", phaseTwoTacticDraw: 0 },
-      secret: { name: "Secret", short: "SECRET", color: "#36b7ff", phaseTwoTacticDraw: 0 }
+      secret: { name: "Secret", short: "SECRET", color: "#36b7ff", phaseTwoTacticDraw: 0 },
+      gqx: { name: "GQX", short: "GQX", color: "#bdf7ff", phaseTwoTacticDraw: 0 }
     },
-    factionOrder: ["fed", "zeon", "white-devil", "rival", "secret"],
+    factionOrder: ["fed", "zeon", "white-devil", "rival", "secret", "gqx"],
     tacticDecks: {
       fed: ["built-to-last","entrenched-position","forward-artillery","last-shot-counts","return-fire","rookies-momentum","lock-down","shield-recovery","federation-shield"],
       zeon: ["rescued-extraction","logistics-relay","exploited-chaos","shattered-formation","drive-them-back","iron-grip","sudden-pressure","breaking-line","crimson-execution"],
       "white-devil": ["epic-shot","renewed-power","sacrificial-overload"],
       rival: ["war-edge","crimson-execution","renewed-power"],
-      secret: ["berserk","god-drill","jet-scrander"]
+      secret: ["berserk","god-drill","jet-scrander"],
+      gqx: ["gundam-go","kira-kira","another-timeline"]
     },
     rules: {
       advance: { distance: 3, timeline: 0 },

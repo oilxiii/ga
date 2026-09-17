@@ -137,6 +137,7 @@
         if (weapon.critical === "criticalDamageUpTo4") incoming += Math.min(4, criticals);
         if (weapon.critical === "rescuedGarrisonDamage") incoming += rescuedBonus;
       }
+      if (weapon.criticalOverdrivePerCrit) incoming += criticals * weapon.criticalOverdrivePerCrit;
       // Engine timing: Fracture modifies qualifying Combat Damage before Shield prevention.
       const fractured=!!(target.statuses?.fracture&&incoming>=3);
       const damageBeforeShield=incoming+(fractured?3:0);
@@ -231,7 +232,8 @@
 
   function attacksFrom(state, unit, data, engine) {
     const choices = [];
-    for (const weapon of unit.weapons) {
+    for (const baseWeapon of unit.weapons) {
+      const weapon=unit.nextAttackCriticalOverdrive?{...baseWeapon,criticalOverdrivePerCrit:1}:baseWeapon;
       if(weapon.aoe){
         const engagedIds=new Set((engine.engagedTargets?.(state,unit)||[]).map(target=>target.id));
         for(let rotation=0;rotation<6;rotation+=1){
@@ -388,8 +390,19 @@
       "breaking-line": visibleEnemyUnits.length ? 44 + Math.max(...visibleEnemyUnits.map(sumUpgrades)) * 4 : -Infinity,
       "crimson-execution": ["chars-zaku","red-comet-zaku"].includes(unit.id) && canReachEnemy(state, unit, data.rules.dash.distance + 1, data, engine) ? 76 : -Infinity,
       "berserk": unit.id==="eva-01"&&unit.hp>1&&unit.hp<=5?88:-Infinity,
-      "jet-scrander": unit.id==="mazinger-z"&&state.units.some(enemy=>enemy.team!==unit.team&&enemy.zone==="board")?48:-Infinity
-      ,"renewed-power": attacks.length ? 54 : 20
+      "jet-scrander": unit.id==="mazinger-z"&&state.units.some(enemy=>enemy.team!==unit.team&&enemy.zone==="board")?48:-Infinity,
+      "gundam-go": (()=>{
+        const allies=state.units.filter(ally=>ally.team===unit.team&&ally.zone==="board");
+        const gain=allies.reduce((sum,ally)=>{
+          const reachable=engine.reachable(state,ally,1);
+          const current=positionScore(state,ally,ally.q,ally.r,data,engine);
+          const best=chooseMove(state,ally,reachable.keys(),data,engine,true);
+          return sum+Math.max(0,(best?.score??current)-current);
+        },0);
+        return allies.length>=2&&gain>4?52+Math.min(28,gain):-Infinity;
+      })(),
+      "kira-kira": attacks.length ? 64 : -Infinity,
+      "renewed-power": attacks.length ? 54 : 20
     };
     return scores[card.id] ?? -Infinity;
   }
@@ -484,6 +497,11 @@
     if(card.id==="sacrificial-overload"){
       const selfDefeated=(context.attackerHp||0)<=2;
       return (context.sacrificialTargets||0)>0&&(!selfDefeated||(context.sacrificialKillVp||0)>(context.attackerVp||0));
+    }
+    if(card.id==="another-timeline"){
+      const dice=Math.max(1,context.diceCount||1);
+      const damage=Math.max(0,context.attackRollDamage??context.damage??0);
+      return damage<Math.max(2,dice*0.55);
     }
     if (["iron-grip", "shield-recovery", "logistics-relay", "exploited-chaos"].includes(card.id)) return true;
     return false;

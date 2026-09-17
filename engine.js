@@ -355,6 +355,7 @@
       critBoost: false,
       nextAttackDiscount: 0,
       lastShotBonus: false,
+      nextAttackCriticalOverdrive: false,
       rescuedGarrisons: 0,
       hasDeployed: false
     }));
@@ -464,6 +465,10 @@
     if (weapon.critical === "damage1" && criticalEffectsActive) result.damage += 1;
     if (weapon.critical === "damage2" && criticalEffectsActive) result.damage += 2;
     if (weapon.critical === "criticalDamageUpTo4" && criticalEffectsActive) result.damage += Math.min(4,result.criticals);
+    // Team/tactic effects that key off the rolled Critical result are not a printed
+    // Critical Hit Effect. Disarm suppresses weapon.critical effects, but it does not
+    // erase Critical results or bonuses such as GQX KIRA KIRA!.
+    if (weapon.criticalOverdrivePerCrit && result.criticals>0) result.damage += result.criticals * weapon.criticalOverdrivePerCrit;
     result.criticalBonusDamage = 0;
     if (weapon.critical === "rescuedGarrisonDamage" && criticalEffectsActive) {
       result.criticalBonusDamage = Math.max(0, Number(state?.rescuedGarrisons?.[attacker?.team]) || 0);
@@ -518,6 +523,17 @@
     return summarizeAttackResult(state,attacker,defender,weapon,{dice:[...dice],results,accuracy,critFloor,rerollEligible:false,disarmed:false,disarmedPending:false,disarmRerolled:[],criticalEffectsDisabled:false});
   }
 
+  function rerollAttackPool(state,attacker,defender,weapon,result,rng=Math.random){
+    if(!result?.dice?.length)return result;
+    const dice=result.dice.map(()=>Math.floor(rng()*10)+1);
+    const fresh=attackResultFromDice(state,attacker,defender,weapon,dice);
+    fresh.rerollEligible=attacker.id==="gundam";
+    fresh.disarmedPending=!!attacker.statuses?.disarm;
+    fresh.sharedThreshold=!!result.sharedThreshold;
+    fresh.poolRerolled=true;
+    return fresh;
+  }
+
   function resolveDisarmAttack(state, attacker, defender, weapon, result, rng = Math.random) {
     if(!result?.disarmedPending||!attacker?.statuses?.disarm)return result;
     const rerolled=[];
@@ -570,6 +586,12 @@
     // `true` remains available as a concise compatibility shorthand for attack callers.
     const isAttack = options === true || options?.attack === true || options?.sourceType === "attack";
     const incoming = Math.max(0, amount);
+
+    // GQX High Mobility Frame: forced movement still resolves normally, but the
+    // unit ignores only the Collision Damage created by Push/Pull.
+    if (options?.sourceType === "collision" && target?.ignoreForcedCollisionDamage) {
+      return { incoming, blocked: 0, taken: 0, fractured: false, collisionIgnored: true };
+    }
 
     // Rule timing: Fracture modifies Combat Damage before Shield prevention resolves.
     // Keep `incoming` as the original pre-Fracture amount for callers/logging.
@@ -667,7 +689,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, resolveDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, rerollAttackPool, resolveDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

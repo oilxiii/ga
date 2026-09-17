@@ -1,4 +1,15 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta07
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta09
+
+BETA08 UPDATE
+- เพิ่มทีม GQX: GQuuuuuuX HP13/VP8/TL2, GFreD HP12/VP8/TL3, Red Gundam HP13/VP8/TL1
+- เพิ่ม GQX abilities: High Mobility Frame, Omega Psycommu Active, Machu Kira Kira, Nyaan Focus, Three Times Faster, Shuji Kick
+- เพิ่ม Tactic fixed 3 ใบ: GUNDAM GO!, KIRA KIRA!, Another Timeline
+- GQX อยู่ใน drawer เดียวกับ Secret และใช้ icon GQuuuuuuX เป็น Team Icon
+- Another Timeline ใช้ engine reroll pipeline และต้องใช้ผลใหม่ทั้งชุด
+- Cache/build tag: beta09
+- ผลทดสอบ Beta09: Core 227 + AI 29 = 256 checks ผ่านทั้งหมด
+- ตรวจ JavaScript syntax, asset references, image decode และ ordered faction pairings 30 คู่ผ่านทั้งหมด
+
 
 BETA07 UPDATE
 - Pull is up to 1: ผู้เล่นและ AI เลือก Pull 0 ได้ และการโจมตียัง Resolve ต่อ
@@ -336,3 +347,10 @@ AUDIT UPDATE v81
 - Alaya-Vijnana Exertion: Back ได้ และ rollback HP, Shield state, Energy/Command ไปก่อนกด Command
 
 Beta04: Mechazawa Unit Card asset ถูกเปลี่ยนเป็นชื่อใหม่แบบ cache-safe และ Hacking System ยังคงดึงภาพผ่าน unit.card เดียวกัน
+
+Beta09 // GQX DISARM + UI/DOCS FIX
+- Disarm ปิดเฉพาะ Critical Hit Effect ของอาวุธ; ผล Critical ยังคงอยู่เพื่อ Trigger Omega Psycommu Active และโบนัส KIRA KIRA!.
+- High-level dice rule แยก rolled Critical result ออกจาก criticalEffectsDisabled เพื่อให้ตรง Core Rulebook.
+- GFreD HUD ระบุ Nyaan Focus ถูกต้อง; Dash preview ไม่แสดง Char Kick ผิดกับ Red Gundam/Unit อื่น.
+- Three Times Faster ของ Red Gundam ใช้ dashBonus ในเส้นทาง AI/ระบบกลาง.
+- Rules/README เพิ่ม GQX ในกลุ่ม fixed 3 Tactics และระบุ Red Gundam Dash +1.

@@ -1,4 +1,11 @@
-GUNDAM ASSEMBLE // ONLINE — Five Teams Beta07
+GUNDAM ASSEMBLE // ONLINE — Six Teams Beta09
+- Beta09 GQX Rules/Disarm Fix: Disarm ยังคง reroll Hit และปิดเฉพาะ Critical Hit Effect ของอาวุธ แต่ไม่ลบผล Critical; Omega Psycommu Active ยัง Trigger จาก Critical และ KIRA KIRA! ยังเพิ่ม Damage ต่อ Critical ได้ตามปกติ.
+- Beta09 GQX UI/Docs Fix: HUD ของ GFreD แสดง Nyaan Focus แทน Mazin Power, Dash preview แสดง follow-up ที่ถูกต้องสำหรับ Shuji Kick/Char Kick, และกติกาย่อ/README ระบุ Three Times Faster ของ Red Gundam กับ fixed Tactic ของ GQX.
+- Beta09 AI parity: เส้นทาง Dash ที่เรียกจาก AI/ระบบกลางใช้ dashBonus ของ Unit จึงรองรับ Three Times Faster ของ Red Gundam สม่ำเสมอ.
+- Beta08 GQX Team: เพิ่มทีม GQX (GQuuuuuuX / GFreD / Red Gundam) พร้อม Unit Card, SD icons และ Tactic 3 ใบ GUNDAM GO!, KIRA KIRA!, Another Timeline; เพิ่ม High Mobility Frame, Omega Psycommu Active, Machu Kira Kira, Nyaan Focus, Three Times Faster และ Shuji Kick; ทีม GQX อยู่ใน drawer เดียวกับ Secret บนหน้า Team Select และใช้ icon GQuuuuuuX เป็น Team Icon.
+- Beta08 AI/Rules integration: AI สามารถเลือก/เล่น GQX, ประเมินอาวุธและ Tactic, ใช้ Command ของ GQuuuuuuX/GFreD และ Another Timeline ใช้ combat RNG pipeline เดียวกับ engine.
+- Regression suite Beta09: Core 227 + AI 29 = 256 checks ผ่านทั้งหมด; ตรวจทีมทั้ง 6 ใน ordered matchup 30 คู่, asset references และ image decode ผ่าน.
+
 - Beta07 Forced Movement Rules Sync: Pull/Push เป็น "up to" ตาม Rulebook; Pull เลือก 0 ได้ทั้งผู้เล่นและ AI, เป้าหมายที่ติดผู้ดึงไม่ชนช่องของผู้ดึง, Unit และ Garrison ใช้ forced-movement flow ร่วมกันสำหรับ Pre-Attack Pull/Critical Push, และขอบสนามหยุดการเคลื่อนที่โดยไม่เกิด Collision Damage.
 - Regression suite Beta07: Core 218 + AI 28 = 246 tests; เพิ่มเคส Pull 0, adjacent Pull, Garrison forced movement และ board-edge stop.
 
@@ -68,7 +75,7 @@ GUNDAM ASSEMBLE // ONLINE — Five Teams Beta07
 2. เปิด index.html ด้วย Chrome, Edge หรือ Safari รุ่นปัจจุบัน
 3. เลือก 1 PLAYER แล้วเลือกทีมของผู้เล่นและทีมคู่ต่อสู้ของ AI
    หรือเลือก 2 PLAYER สำหรับ Hot-seat แล้วให้ผู้เล่นทั้งสองเลือกทีม
-4. ในหนึ่งแมตช์ ทีมของทั้งสองฝั่งต้องไม่ซ้ำกัน โดยเลือกได้จาก E.F.S.F., ZEON, White Devil, The Rival และ Secret
+4. ในหนึ่งแมตช์ ทีมของทั้งสองฝั่งต้องไม่ซ้ำกัน โดยเลือกได้จาก E.F.S.F., ZEON, White Devil, The Rival, Secret และ GQX
 
 โครงสร้างสำคัญ
 - index.html       หน้าเริ่มเกม
@@ -93,13 +100,13 @@ GUNDAM ASSEMBLE // ONLINE — Five Teams Beta07
 - ป้าย ENCOUNTER และ MOVE -1 ถูกวาดบนชั้นหน้าสุดของกระดานเพื่อไม่ให้ Hex หรือ Token บัง
 - Move ของผู้เล่นสามารถเลือกตำแหน่งใหม่ภายในพื้นที่เดิมได้จนกว่าจะเลือก Action อื่น จึงค่อยยืนยันการเดินและเก็บ Token
 - คลิก Unit ตัวอื่นบนแผนที่ได้ทั้งฝ่ายเดียวกันและศัตรูเพื่อเปิดดู Unit Card แบบเต็มแผ่น; Unit ที่กำลังทำงานยังเปิด Command Menu ตามเดิม
-- Dash ของผู้เล่นปรับตำแหน่งซ้ำได้ภายในพื้นที่เดิมเหมือน Move; หัก Timeline, เก็บ Token และตรวจ Char Kick เมื่อยืนยัน Action อื่นเท่านั้น
+- Dash ของผู้เล่นปรับตำแหน่งซ้ำได้ภายในพื้นที่เดิมเหมือน Move; หัก Timeline, เก็บ Token และตรวจ Response หลัง Dash (Char Kick / Shuji Kick) เมื่อยืนยัน Action อื่นเท่านั้น
 - แสดงหมายเลข Build ขนาดเล็กที่มุมขวาบนของหน้าการเล่น
 - กติกาการออกเวอร์ชัน: ทุกครั้งที่เปลี่ยนเลข Build/Version ต้องอัปเดตข้อความเวอร์ชันที่แสดงในเกม (มุมขวาบนใน index.html) ให้ตรงกับเวอร์ชันไฟล์และ cache tag เสมอ
 - Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามอัปเดต Scenario ล่าสุด
-- ทีมพิเศษปัจจุบันคือ White Devil, The Rival และ Secret; ทุกทีมใช้สีแดงหรือน้ำเงินตามฝั่งของแมตช์ ไม่มี Token สีเขียว และ Objective กลางเป็นสีเหลือง
+- ทีมพิเศษปัจจุบันคือ White Devil, The Rival, Secret และ GQX; ทุกทีมใช้สีแดงหรือน้ำเงินตามฝั่งของแมตช์ ไม่มี Token สีเขียว และ Objective กลางเป็นสีเหลือง
 - Twin Buster Rifle, War Edge, God Drill และ Breast Fire ใช้ AoE ตาม pattern ของการ์ด, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison/Base และ Terrain ปกติ; จะถูกบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับผู้ยิง และไม่โจมตี Base หรือพวกเดียวกัน
-- White Devil, The Rival และ Secret มี Tactic ทีมละ 3 ใบตลอดเกมโดยไม่จั่วเพิ่มหลัง Phase 1
+- White Devil, The Rival, Secret และ GQX มี Tactic ทีมละ 3 ใบตลอดเกมโดยไม่จั่วเพิ่มหลัง Phase 1
 
 การตรวจสอบสำหรับผู้พัฒนา (ต้องมี Node.js)
   node tests/ai.test.js

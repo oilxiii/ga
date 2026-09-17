@@ -2423,7 +2423,7 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
   clip-path: none;
   font-size: 0;
 }
-.secret-team-toggle::before { content: "SECRET TEAM"; font-size: .58rem; font-weight: 900; letter-spacing: .14em; }
+.secret-team-toggle::before { content: "SECRET / GQX"; font-size: .58rem; font-weight: 900; letter-spacing: .14em; }
 .secret-team-toggle::after { content: "  +"; font-size: .72rem; }
 .faction-select.secret-revealed .secret-team-toggle::after { content: "  −"; }
 .secret-team-toggle:hover,
@@ -2603,4 +2603,22 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
     max-height: none;
     margin-top: 0;
   }
+}
+
+/* Beta09 // GQX rules/UI fixes; team drawer layout retained from Beta08. */
+.secret-team-drawer,
+.faction-select.secret-revealed .secret-team-drawer {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+.faction-select.secret-revealed .secret-team-drawer { max-height: 170px; }
+.secret-team-option { width: 100%; }
+.faction-option.gqx-team-option { --team-card: #79f0d2; }
+.faction-option.gqx-team-option strong { color: #b8fff0; }
+
+@media (max-width: 560px) {
+  .secret-team-drawer,
+  .faction-select.secret-revealed .secret-team-drawer { grid-template-columns: 1fr; }
+  .faction-select.secret-revealed .secret-team-drawer { max-height: 190px; }
 }
