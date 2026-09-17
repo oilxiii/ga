@@ -2622,3 +2622,11 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
   .faction-select.secret-revealed .secret-team-drawer { grid-template-columns: 1fr; }
   .faction-select.secret-revealed .secret-team-drawer { max-height: 190px; }
 }
+
+/* Beta10: small in-board cue for mandatory bonus attacks. */
+.attack-again-prompt{pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.48))}
+.attack-again-prompt rect{fill:rgba(5,18,30,.95);stroke:#8fe4ff;stroke-width:1.3}
+.attack-again-prompt .attack-again-pointer{fill:rgba(5,18,30,.95);stroke:#8fe4ff;stroke-width:1.1;stroke-linejoin:round}
+.attack-again-prompt text{text-anchor:middle;dominant-baseline:middle;font-family:Arial,sans-serif;paint-order:stroke;stroke:rgba(0,0,0,.62);stroke-width:1.2px;stroke-linejoin:round}
+.attack-again-prompt .attack-again-title{fill:#fff;font-size:9px;font-weight:900;letter-spacing:.35px}
+.attack-again-prompt .attack-again-subtitle{fill:#bfefff;font-size:7px;font-weight:700;letter-spacing:.18px}

@@ -1202,6 +1202,19 @@
     });
   }
 
+  function renderAttackAgainPrompt(cx,cy) {
+    const width=104,height=34;
+    const x=Math.max(4,Math.min(780-width-4,cx-width/2));
+    const y=Math.max(4,cy-84);
+    const anchorX=Math.max(x+16,Math.min(x+width-16,cx));
+    return `<g class="attack-again-prompt" aria-label="Attack again. Select a target.">
+      <path class="attack-again-pointer" d="M ${anchorX-6} ${y+height-1} L ${cx} ${Math.max(y+height+5,cy-25)} L ${anchorX+6} ${y+height-1} Z"></path>
+      <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="7"></rect>
+      <text class="attack-again-title" x="${x+width/2}" y="${y+13}">Attack again</text>
+      <text class="attack-again-subtitle" x="${x+width/2}" y="${y+26}">Select a target</text>
+    </g>`;
+  }
+
   function renderBoard() {
     const size = 27, x0 = 72, y0 = 32, dx = size*1.5, dy = Math.sqrt(3)*size;
     const active = activeUnit();
@@ -1245,6 +1258,7 @@
         ${unit.id===state.activeUnitId ? `<g class="active-turn-marker" aria-hidden="true">
           <path class="active-turn-triangle" d="M ${cx-7} ${cy-31} L ${cx+7} ${cy-31} L ${cx} ${cy-22} Z"></path>
         </g>` : ""}
+        ${mode?.type==="attack"&&mode.attackAgainPrompt&&mode.unitId===unit.id&&!isAiTeam(unit.team) ? renderAttackAgainPrompt(cx,cy) : ""}
         ${unit.weaponBadge ? `<rect class="weapon-badge" x="${cx+8}" y="${cy-21}" width="23" height="11" rx="2"></rect><text class="weapon-badge-text" x="${cx+19.5}" y="${cy-15.5}">${unit.weaponBadge}</text>` : ""}
         ${renderUnitEffectBadges(unit,cx,cy)}
         <rect class="unit-hp-bg" x="${cx-20}" y="${cy+20}" width="40" height="5" rx="2"></rect>
@@ -2085,7 +2099,7 @@
       :weapon.effect==="splash"
       ? `${weapon.name}: เลือกเป้าหมายหลัก — หลัง Combat Damage ศัตรูทุกตัวที่ติดกับเป้าหมายจะรับ Damage 0 (Critical = 1)`
       : `${weapon.name}: เลือกยูนิตหรือ Garrison สีแดง`;
-    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,onDeclare:options.onDeclare,onComplete:options.onComplete,required:!!options.required,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องเลือก Unit หรือ Garrison ที่กำลัง Engage ยูนิตนี้เป็นเป้าหมาย`:normalHint};
+    mode={type:"attack",unitId:unit.id,weapon,free:!!options.free,onDeclare:options.onDeclare,onComplete:options.onComplete,required:!!options.required,attackAgainPrompt:!!options.attackAgainPrompt,targets:new Set(targets.map(t=>E.key(t.q,t.r))),returnMenu:"weapons",hint:engaged.length?`${weapon.name}: ENGAGED — ต้องเลือก Unit หรือ Garrison ที่กำลัง Engage ยูนิตนี้เป็นเป้าหมาย`:normalHint};
     menuOpen=true;
     renderAll();
     return true;
@@ -2594,7 +2608,7 @@
     if(weapon.critical==="repeatAtTimeline0"&&!attacker.handgunRepeatUsed){
       attacker.handgunRepeatUsed=true;
       addLog("Handgun Critical: โจมตีด้วย Handgun เพิ่มอีก 1 ครั้งที่ Timeline 0");
-      const started=beginAttack(weapon,{free:true,required:true,onComplete});
+      const started=beginAttack(weapon,{free:true,required:true,attackAgainPrompt:true,onComplete});
       if(!started)onComplete();
       else if(isAiTeam(attacker.team))scheduleAiResolveMode();
       return;
@@ -2606,7 +2620,7 @@
       if(!attacker.progressiveRepeatUsed){
         attacker.progressiveRepeatUsed=true;
         addLog("Progressive Knife Critical: เป้าหมายติด Fracture และโจมตีเพิ่มอีก 1 ครั้งที่ Timeline 0");
-        const started=beginAttack(weapon,{free:true,required:true,onComplete});
+        const started=beginAttack(weapon,{free:true,required:true,attackAgainPrompt:true,onComplete});
         if(!started)onComplete();else if(isAiTeam(attacker.team))scheduleAiResolveMode();
         return;
       }
@@ -3002,7 +3016,7 @@
       const rex=unit.weapons.find(weapon=>weapon.id==="rex-claws");
       const legalTargets=rex?E.legalWeaponTargets(state,unit,rex):[];
       if(!rex||!legalTargets.length){addLog("Annihilate: ไม่มีเป้าหมาย Rex Claws ที่โจมตีได้ — ไม่เสีย Energy หรือ Command");menuOpen=true;renderAll();return;}
-      spend();beginAttack(rex,{free:true,required:true});
+      spend();beginAttack(rex,{free:true,required:true,attackAgainPrompt:true});
     }
     renderAll();
   }
@@ -3159,7 +3173,7 @@
     const heatHawk=unit.weapons.find(weapon=>weapon.id==="char-heat-hawk"||weapon.id==="red-comet-heat-hawk");
     if(!heatHawk){addLog("Crimson Execution: ไม่พบข้อมูล Heat Hawk");renderAll();return false;}
     addLog("Crimson Execution: Heat Hawk Attack · Timeline 0");
-    const started=beginAttack(heatHawk,{free:true,required:true});
+    const started=beginAttack(heatHawk,{free:true,required:true,attackAgainPrompt:true});
     if(!started){
       // The Attack is mandatory only when a legal target exists. If the Dash ends
       // with no legal Heat Hawk target, the committed Tactic resolves safely here.

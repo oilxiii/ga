@@ -578,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta09<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta10<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1468,7 +1468,7 @@ test("Crimson Execution continues from Char Kick into the free Heat Hawk attack"
   assert.match(source,/Crimson Execution: Heat Hawk Attack · Timeline 0/);
   const continuation=source.match(/function continueCrimsonExecution\(card,unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
   assert.match(continuation,/weapon=>weapon\.id==="char-heat-hawk"/);
-  assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
+  assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true,attackAgainPrompt:true\}\)/);
   assert.match(continuation,/if\(!isUsed\(card\.id,tacticOwner\(card\)\)\)markCommand\(card\)/);
   assert.match(source,/resolveCharKickTarget\(unit,target,continuation\)/);
   assert.match(source,/resolveCharKickGarrisonTarget\(unit,(?:garrison|target),continuation\)/);
@@ -1625,7 +1625,7 @@ test("Ultimate Team commands and follow-up attacks preserve their printed condit
   assert.match(source,/damageUnit\(unit,target,1,"Hunter’s Edge"\)/);
   assert.match(source,/damageUnit\(unit,unit,3,"Alaya-Vijnana Exertion"/);
   assert.match(source,/!unit\.attackedWithRexClaws/);
-  assert.match(source,/beginAttack\(rex,\{free:true,required:true\}\)/);
+  assert.match(source,/beginAttack\(rex,\{free:true,required:true,attackAgainPrompt:true\}\)/);
   assert.match(source,/weapon\.critical==="repeatAtTimeline0"&&!attacker\.handgunRepeatUsed/);
   assert.match(source,/weapon\.preAttack==="pull1"/);
 });
@@ -1698,7 +1698,7 @@ test("Escape cannot cancel a mandatory Critical, capture, or Crimson resolution"
   const keyboard=source.match(/document\.addEventListener\("keydown",event=>\{[\s\S]*?\n  \}\);/)?.[0]||"";
   assert.match(keyboard,/if\(currentMode\.required\)return/);
   assert.match(source,/type:"push-direction"[\s\S]{0,180}required:true/);
-  assert.match(source,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
+  assert.match(source,/beginAttack\(heatHawk,\{free:true,required:true,attackAgainPrompt:true\}\)/);
   assert.match(source,/selectObjective\(unit,"Entrenched Position",[\s\S]{0,180},true\)/);
 });
 
@@ -1726,7 +1726,7 @@ test("required Drive Them Back resolves safely when no legal target remains", ()
 test("committed Crimson Execution skips its required Attack safely when there is no legal Heat Hawk target", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const continuation=source.match(/function continueCrimsonExecution\(card,unit\) \{[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true\}\)/);
+  assert.match(continuation,/beginAttack\(heatHawk,\{free:true,required:true,attackAgainPrompt:true\}\)/);
   assert.match(continuation,/if\(!started\)[\s\S]*?ข้ามส่วน Attack และจบเอฟเฟกต์/);
   assert.match(continuation,/mode=null;menuOpen=true;menuView="main"/);
 });
@@ -1930,7 +1930,7 @@ test("Vidar Handgun repeat preserves the first attack continuation", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const critical=source.match(/function resolveAfterCombatCritical[\s\S]*?function applyCritical/)?.[0]||"";
   const finish=source.match(/function finishAttack[\s\S]*?function criticalEffectsActive/)?.[0]||"";
-  assert.match(critical,/beginAttack\(weapon,\{free:true,required:true,onComplete\}\)/);
+  assert.match(critical,/beginAttack\(weapon,\{free:true,required:true,attackAgainPrompt:true,onComplete\}\)/);
   assert.match(source,/pendingAttack=\{attacker,defender,weapon,result,reductions:\{\},continuation:options\.onComplete\|\|null\}/);
   assert.match(finish,/if\(continuation\)continuation\(\)/);
 });
@@ -1999,7 +1999,7 @@ test("dice and sound animations do not consume gameplay Math.random", () => {
   assert.doesNotMatch(sfx,/Math\.random/);
 });
 
-test("Beta09 registers six complete factions with three distinct units each",()=>{
+test("Beta10 registers six complete factions with three distinct units each",()=>{
   assert.deepEqual(D.factionOrder,["fed","zeon","white-devil","rival","secret","gqx"]);
   for(const faction of D.factionOrder)assert.equal(D.units.filter(unit=>unit.team===faction).length,3,faction);
   assert.deepEqual(D.units.filter(unit=>unit.team==="white-devil").map(unit=>unit.id).sort(),["barbatos-lupus-rex","hero-gundam","wing-zero-ew"]);
@@ -2128,7 +2128,7 @@ test("Rocket Punch ignores blocked Line of Sight for Units and Garrisons",()=>{
   assert.match(source,/IGNORE LINE OF SIGHT — เลือก Unit หรือ Garrison ศัตรู/);
 });
 
-test("Beta09 team select keeps GQX beside Secret in the hidden drawer",()=>{
+test("Beta10 team select keeps GQX beside Secret in the hidden drawer",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   for(const faction of D.factionOrder)assert.match(html,new RegExp(`data-faction="${faction}"`));
   for(const icon of ["team-white-devil.png","team-rival.png"])assert.match(html,new RegExp(icon));
@@ -2291,10 +2291,10 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta09<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta09`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta09/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta09/);
+  assert.match(html,/>Beta10<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta10`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta10/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta10/);
 });
 
 
@@ -2366,10 +2366,10 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta09<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta09`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta09/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta09/);
+  assert.match(html,/>Beta10<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta10`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta10/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta10/);
 });
 
 
@@ -2505,8 +2505,8 @@ test("Beta04 Secret Team stat update matches latest unit cards",()=>{
   assert.ok(fs.existsSync(path.join(__dirname,"..",eva.card)));
   assert.ok(fs.existsSync(path.join(__dirname,"..",mazinger.card)));
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/Beta09/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta09"));
+  assert.match(html,/Beta10/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta10"));
 });
 
 test("Beta02 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
@@ -2549,8 +2549,8 @@ test("Beta02 Secret Team theme is listed and auto-selected only at match launch"
   const launch=game.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
   assert.match(launch,/Object\.values\(matchFactions\)\.includes\("secret"\)\)BGM\.select\("secret"\)/);
   assert.equal((game.match(/BGM\.select\("secret"\)/g)||[]).length,1,"automatic Secret selection must happen only at launch");
-  assert.match(html,/Beta09/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta09"));
+  assert.match(html,/Beta10/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta10"));
 });
 
 
@@ -2697,7 +2697,7 @@ test("Beta07 board edge stops Push/Pull without Collision Damage",()=>{
 });
 
 
-test("Beta09 GQX data matches the approved three-unit roster",()=>{
+test("Beta10 GQX data matches the approved three-unit roster",()=>{
   const gqx=D.units.find(unit=>unit.id==="gquuuuuux");
   const gfred=D.units.find(unit=>unit.id==="gfred");
   const red=D.units.find(unit=>unit.id==="red-gundam");
@@ -2718,7 +2718,7 @@ test("Beta09 GQX data matches the approved three-unit roster",()=>{
   assert.equal(red.dashBonus,1);
 });
 
-test("Beta09 High Mobility Frame ignores only Push/Pull Collision Damage",()=>{
+test("Beta10 High Mobility Frame ignores only Push/Pull Collision Damage",()=>{
   const state=E.setupGame(()=>0.5,{fed:"gqx",zeon:"fed"});
   const gqx=state.units.find(unit=>unit.id==="gquuuuuux");
   const gfred=state.units.find(unit=>unit.id==="gfred");
@@ -2730,7 +2730,7 @@ test("Beta09 High Mobility Frame ignores only Push/Pull Collision Damage",()=>{
   assert.equal(E.applyDamage(gqx,2,{sourceType:"attack"}).taken,2,"normal Combat Damage is not prevented");
 });
 
-test("Beta09 Nyaan Focus makes 8 Critical and adds Accuracy without changing Artemis base Strength",()=>{
+test("Beta10 Nyaan Focus makes 8 Critical and adds Accuracy without changing Artemis base Strength",()=>{
   const state=E.setupGame(()=>0.5,{fed:"gqx",zeon:"fed"});
   const gfred=state.units.find(unit=>unit.id==="gfred");
   const target=state.units.find(unit=>unit.id==="gundam");
@@ -2743,7 +2743,7 @@ test("Beta09 Nyaan Focus makes 8 Critical and adds Accuracy without changing Art
   assert.equal(artemis.strength,5);
 });
 
-test("Beta09 KIRA KIRA adds one Damage per active Critical with no cap",()=>{
+test("Beta10 KIRA KIRA adds one Damage per active Critical with no cap",()=>{
   const state=E.setupGame(()=>0.5,{fed:"gqx",zeon:"fed"});
   const red=state.units.find(unit=>unit.id==="red-gundam");
   const target=state.units.find(unit=>unit.id==="gundam");
@@ -2755,7 +2755,7 @@ test("Beta09 KIRA KIRA adds one Damage per active Critical with no cap",()=>{
   result.criticalEffectsDisabled=true;
 });
 
-test("Beta09 Disarm suppresses weapon Critical Hit Effect but preserves Critical results and KIRA KIRA damage",()=>{
+test("Beta10 Disarm suppresses weapon Critical Hit Effect but preserves Critical results and KIRA KIRA damage",()=>{
   const state=E.setupGame(()=>0.5,{fed:"gqx",zeon:"fed"});
   const red=state.units.find(unit=>unit.id==="red-gundam");
   const target=state.units.find(unit=>unit.id==="gundam");
@@ -2772,7 +2772,7 @@ test("Beta09 Disarm suppresses weapon Critical Hit Effect but preserves Critical
   assert.equal(result.damage,3,"2 base damage +1 KIRA KIRA; printed Critical Damage +2 is suppressed");
 });
 
-test("Beta09 GQX Disarm/UI wiring keeps Omega and KIRA KIRA separate from Critical Hit Effects",()=>{
+test("Beta10 GQX Disarm/UI wiring keeps Omega and KIRA KIRA separate from Critical Hit Effects",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(game,/Omega Psycommu Active keys off the presence of a Critical result/);
   assert.match(game,/if\(!allowance\|\|attacker\?\.zone!=="board"\|\|!\(result\?\.criticals>0\)\)/);
@@ -2782,7 +2782,7 @@ test("Beta09 GQX Disarm/UI wiring keeps Omega and KIRA KIRA separate from Critic
   assert.match(game,/D\.rules\.dash\.distance\+dashBonus\(unit\)\+\(unit\.movementBonus\|\|0\)/);
 });
 
-test("Beta09 Another Timeline rerolls the whole attack pool and keeps its size",()=>{
+test("Beta10 Another Timeline rerolls the whole attack pool and keeps its size",()=>{
   const state=E.setupGame(()=>0.5,{fed:"gqx",zeon:"fed"});
   const red=state.units.find(unit=>unit.id==="red-gundam");
   const target=state.units.find(unit=>unit.id==="gundam");
@@ -2796,7 +2796,7 @@ test("Beta09 Another Timeline rerolls the whole attack pool and keeps its size",
   assert.equal(rerolled.poolRerolled,true);
 });
 
-test("Beta09 GQX interaction hooks are wired without new token or status types",()=>{
+test("Beta10 GQX interaction hooks are wired without new token or status types",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const engine=fs.readFileSync(path.join(__dirname,"..","engine.js"),"utf8");
   assert.match(game,/Omega Psycommu Active/);
@@ -2811,8 +2811,26 @@ test("Beta09 GQX interaction hooks are wired without new token or status types",
   assert.match(engine,/target\?\.ignoreForcedCollisionDamage/);
 });
 
-test("Beta09 build and cache tags are synchronized",()=>{
+
+
+test("Beta10 mandatory bonus attacks show a small Attack again prompt over the acting unit",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(game,/function renderAttackAgainPrompt\(cx,cy\)/);
+  assert.match(game,/Attack again/);
+  assert.match(game,/Select a target/);
+  assert.match(game,/mode\?\.type==="attack"&&mode\.attackAgainPrompt&&mode\.unitId===unit\.id&&!isAiTeam\(unit\.team\)/);
+  const flagged=(game.match(/beginAttack\([^\n]+attackAgainPrompt:true/g)||[]);
+  assert.equal(flagged.length,4,"exactly Vidar, EVA, Annihilate, and Crimson Execution request the repeat-attack bubble");
+  assert.match(game,/Handgun Critical:[\s\S]{0,260}attackAgainPrompt:true/);
+  assert.match(game,/Progressive Knife Critical:[\s\S]{0,300}attackAgainPrompt:true/);
+  assert.match(game,/Annihilate:[\s\S]{0,600}attackAgainPrompt:true/);
+  assert.match(game,/Crimson Execution:[\s\S]{0,420}attackAgainPrompt:true/);
+  assert.match(css,/\.attack-again-prompt\{pointer-events:none/);
+});
+
+test("Beta10 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta09<\/span>/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta09`));
+  assert.match(html,/>Beta10<\/span>/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta10`));
 });

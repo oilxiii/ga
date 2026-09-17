@@ -1,15 +1,17 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta09
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta10
 
-BETA08 UPDATE
-- เพิ่มทีม GQX: GQuuuuuuX HP13/VP8/TL2, GFreD HP12/VP8/TL3, Red Gundam HP13/VP8/TL1
-- เพิ่ม GQX abilities: High Mobility Frame, Omega Psycommu Active, Machu Kira Kira, Nyaan Focus, Three Times Faster, Shuji Kick
-- เพิ่ม Tactic fixed 3 ใบ: GUNDAM GO!, KIRA KIRA!, Another Timeline
-- GQX อยู่ใน drawer เดียวกับ Secret และใช้ icon GQuuuuuuX เป็น Team Icon
-- Another Timeline ใช้ engine reroll pipeline และต้องใช้ผลใหม่ทั้งชุด
+BETA10 UPDATE
+- เพิ่ม mandatory bonus-attack prompt แบบ bubble เหนือ Unit: “Attack again / Select a target”
+- ครอบคลุม Vidar Handgun Critical, EVA-01 Progressive Knife Critical, Barbatos Annihilate และ Crimson Execution
+- Prompt แสดงเฉพาะฝั่งผู้เล่น ไม่แสดงในเทิร์น AI และหายเมื่อ target-selection flow จบ
+- ไม่เปลี่ยนกฎ Action, Timeline, Target legality หรือ bonus-attack resolution
+- Cache/build tag: beta10
+- ผลทดสอบ Beta10: Core 228 + AI 29 = 257 checks ผ่านทั้งหมด
+
+BETA09 UPDATE
+- Disarm ปิดเฉพาะ printed Critical Hit Effect แต่ยังคง Critical result สำหรับ Omega Psycommu Active และ KIRA KIRA!
+- แก้ Nyaan Focus HUD, Red Gundam Dash/Shuji Kick text, GQX rules/docs และ AI dashBonus parity
 - Cache/build tag: beta09
-- ผลทดสอบ Beta09: Core 227 + AI 29 = 256 checks ผ่านทั้งหมด
-- ตรวจ JavaScript syntax, asset references, image decode และ ordered faction pairings 30 คู่ผ่านทั้งหมด
-
 
 BETA07 UPDATE
 - Pull is up to 1: ผู้เล่นและ AI เลือก Pull 0 ได้ และการโจมตียัง Resolve ต่อ
@@ -348,7 +350,7 @@ AUDIT UPDATE v81
 
 Beta04: Mechazawa Unit Card asset ถูกเปลี่ยนเป็นชื่อใหม่แบบ cache-safe และ Hacking System ยังคงดึงภาพผ่าน unit.card เดียวกัน
 
-Beta09 // GQX DISARM + UI/DOCS FIX
+Beta10 // GQX DISARM + UI/DOCS FIX
 - Disarm ปิดเฉพาะ Critical Hit Effect ของอาวุธ; ผล Critical ยังคงอยู่เพื่อ Trigger Omega Psycommu Active และโบนัส KIRA KIRA!.
 - High-level dice rule แยก rolled Critical result ออกจาก criticalEffectsDisabled เพื่อให้ตรง Core Rulebook.
 - GFreD HUD ระบุ Nyaan Focus ถูกต้อง; Dash preview ไม่แสดง Char Kick ผิดกับ Red Gundam/Unit อื่น.
