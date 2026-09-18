@@ -552,6 +552,35 @@
     return summarizeAttackResult(state,attacker,defender,weapon,result);
   }
 
+  function resolveSharedDisarmAttack(state, attacker, defenders, weapon, result, rng = Math.random) {
+    if(!result?.disarmedPending||!attacker?.statuses?.disarm)return result;
+    const targets=(defenders||[]).filter(Boolean);
+    if(!targets.length)return resolveDisarmAttack(state,attacker,defenders?.[0]||attacker,weapon,result,rng);
+    const critFloor=attackCritFloor(attacker);
+    const accuracies=targets.map(defender=>attackAccuracy(state,attacker,defender));
+    const rerolled=[];
+    result.dice.forEach((die,index)=>{
+      const classifications=accuracies.map(accuracy=>classifyAttackDie(die,accuracy,critFloor));
+      // A shared AoE die is rerolled when it is an ordinary Hit for at least one
+      // affected target. Criticals are never rerolled by Disarm. This makes the
+      // result independent of which AoE target happens to be first in the array.
+      if(classifications.includes("critical")||!classifications.includes("hit"))return;
+      rerolled.push({index,from:die});
+      result.dice[index]=Math.floor(rng()*10)+1;
+    });
+    const reference=targets[0];
+    result.accuracy=attackAccuracy(state,attacker,reference);
+    result.critFloor=critFloor;
+    result.results=result.dice.map(die=>classifyAttackDie(die,result.accuracy,critFloor));
+    attacker.statuses.disarm=false;
+    result.disarmedPending=false;
+    result.disarmed=true;
+    result.disarmRerolled=rerolled.map(entry=>entry.index);
+    result.disarmRerollDetails=rerolled;
+    result.criticalEffectsDisabled=true;
+    return summarizeAttackResult(state,attacker,reference,weapon,result);
+  }
+
   function rerollAttackDie(state, attacker, defender, weapon, result, index, rng = Math.random) {
     if (!result.rerollEligible || !Number.isInteger(index) || index<0 || index>=result.dice.length || result.results[index]!=="miss") return false;
     result.rerollEligible=false;
@@ -689,7 +718,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, rerollAttackPool, resolveDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, rerollAttackPool, resolveDisarmAttack, resolveSharedDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

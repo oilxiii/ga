@@ -1,11 +1,15 @@
-GUNDAM ASSEMBLE // ONLINE — Six Teams Beta10
+GUNDAM ASSEMBLE // ONLINE — Six Teams Beta12
+- Beta12 Pre-Launch UX: Line of Sight inspection now honors Engagement. A target with clear geometry that cannot legally be selected because the attacker is Engaged is shown as an orange ENGAGED result instead of green. Special AoE inspection also checks a legal firing direction rather than only raw line geometry.
+- Beta12 Dice Modal: dice results now scroll safely on short/landscape screens, use a compact short-height layout, and share the game modal focus lock so keyboard focus cannot move to controls behind the result dialog.
+- Beta11 Dice Readability / AoE UX: Attack dice results for human-controlled attacks now stay open until the × button is pressed. Each die has a small HIT / MISS / CRIT label. Shared AoE rolls label per target number (for example HIT 1 · MISS 2), safely restore green when a die Hits every AoE target, keep mixed-threshold dice neutral, and keep Critical dice gold. AoE target numbers are listed under the roll. Critical dice also receive a small sparkle/glint treatment.
+- Beta11 AoE Disarm: shared AoE Disarm no longer depends on whichever target happens to be first. A non-Critical shared die is rerolled if it counts as a Hit against at least one affected target; Critical results are preserved and printed Critical Hit Effects remain disabled as normal.
 - English + Bugfix build beta10-en2: แก้ 8 บั๊กที่ยืนยันแล้ว: Dash cancel/Timeline, Char Kick ก่อน Iron Grip, Vulcan/Disarm, Breast Fire/Disarm, Rex Claws ใส่ Garrison เปิด Annihilate, Drive Them Back ไม่ทำดาเมจซ้ำใน Reserve, Push/Pull เก็บของเมื่อจบการเคลื่อนที่ และ Epic Shot ตรวจ LOS ของพันธมิตร; AI ใช้การประเมินที่ตรงกัน คงคำแปลอังกฤษครบเดิม ดู BUGFIX-NOTES.txt
-- Current validation: Core 228 + AI 29 + regression cases 18 = 275 checks.
+- Current validation: Core 232 + AI 29 + regression cases 18 = 279 checks.
 - Beta10 Bonus Attack UX: เมื่อผู้เล่นต้องเลือกเป้าหมายสำหรับการโจมตีซ้ำแบบบังคับ เกมจะแสดง bubble เล็กเหนือ Unit ว่า “Attack again / Select a target” สำหรับ Vidar Handgun, EVA-01 Progressive Knife, Barbatos Annihilate และ Crimson Execution; bubble หายทันทีเมื่อออกจาก target-selection flow และไม่แสดงในเทิร์น AI.
 - Beta09 GQX Rules/Disarm Fix: Disarm ยังคง reroll Hit และปิดเฉพาะ Critical Hit Effect ของอาวุธ แต่ไม่ลบผล Critical; Omega Psycommu Active ยัง Trigger จาก Critical และ KIRA KIRA! ยังเพิ่ม Damage ต่อ Critical ได้ตามปกติ.
 - Beta09 GQX UI/Docs Fix: HUD ของ GFreD แสดง Nyaan Focus แทน Mazin Power, Dash preview แสดง follow-up ที่ถูกต้องสำหรับ Shuji Kick/Char Kick, และกติกาย่อ/README ระบุ Three Times Faster ของ Red Gundam กับ fixed Tactic ของ GQX.
 - Beta09 AI parity: เส้นทาง Dash ที่เรียกจาก AI/ระบบกลางใช้ dashBonus ของ Unit จึงรองรับ Three Times Faster ของ Red Gundam สม่ำเสมอ.
-- Regression suite Beta10: Core 228 + AI 29 = 257 checks ผ่านทั้งหมด.
+- Regression suite Beta12: Core 232 + AI 29 = 261 checks ผ่านทั้งหมด; regression cases 18 ผ่านทั้งหมด.
 
 - Beta08 GQX Team: เพิ่มทีม GQX (GQuuuuuuX / GFreD / Red Gundam) พร้อม Unit Card, SD icons และ Tactic 3 ใบ GUNDAM GO!, KIRA KIRA!, Another Timeline; เพิ่ม High Mobility Frame, Omega Psycommu Active, Machu Kira Kira, Nyaan Focus, Three Times Faster และ Shuji Kick; ทีม GQX อยู่ใน drawer เดียวกับ Secret บนหน้า Team Select และใช้ icon GQuuuuuuX เป็น Team Icon.
 - Beta08 AI/Rules integration: AI สามารถเลือก/เล่น GQX, ประเมินอาวุธและ Tactic, ใช้ Command ของ GQuuuuuuX/GFreD และ Another Timeline ใช้ combat RNG pipeline เดียวกับ engine.

@@ -1,3 +1,15 @@
+Beta12 Pre-Launch UX fixes (cache build beta12-en)
+- LOS Inspector now distinguishes true legal targets from clear-LOS targets blocked by Engagement; those are orange and report “CLEAR LOS · Cannot target — ENGAGED”.
+- Special AoE LOS inspection checks whether a legal firing direction can actually affect the inspected target while respecting Engagement.
+- Dice results are vertically scrollable on short/landscape screens with a compact height breakpoint.
+- Dice results now use the shared modal focus lock; keyboard focus cannot tab into the underlying game while the result is open.
+
+Beta11 Dice / AoE UX update (cache build beta11-en)
+- Human attack dice remain visible until the top-right × is pressed.
+- Per-die HIT / MISS / CRIT labels added. Shared AoE labels identify affected target numbers.
+- Shared AoE Criticals are gold again with a subtle sparkle; all-hit dice may be green, all-miss gray, mixed results neutral.
+- Shared AoE Disarm reroll is target-order independent and checks every affected target.
+
 Beta10 English + Bugfix build beta10-en2
 
 Fixed all eight confirmed findings from the review:

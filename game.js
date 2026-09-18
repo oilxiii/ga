@@ -811,7 +811,7 @@
     if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
     clearAttackTargetingFx();
     document.querySelectorAll(".attack-targeting-fx,.combat-shot-fx,.combat-impact-fx,.combat-explosion-fx,.bazooka-bonus-fx,.unit-state-fx").forEach(node=>node.remove());
-    $("#dice-roll-overlay")?.classList.remove("show");
+    {const diceOverlay=$("#dice-roll-overlay");if(diceOverlay){releaseResolutionModalLock(diceOverlay);diceOverlay.classList.remove("show");}}
     $("#pass-overlay")?.classList.remove("show");
     closeModal();
     hidePhaseTransition();
@@ -860,7 +860,7 @@
     if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
     clearAttackTargetingFx();
     document.querySelectorAll(".attack-targeting-fx,.combat-shot-fx,.combat-impact-fx,.combat-explosion-fx,.bazooka-bonus-fx,.unit-state-fx").forEach(node=>node.remove());
-    $("#dice-roll-overlay")?.classList.remove("show");
+    {const diceOverlay=$("#dice-roll-overlay");if(diceOverlay){releaseResolutionModalLock(diceOverlay);diceOverlay.classList.remove("show");}}
     closeModal();
     state = E.setupGame(Math.random,matchFactions);
     lastDice = null;
@@ -1079,7 +1079,7 @@
     if (garrison) {
       const faction=factionForSide(garrison.team);
       const palette=sidePalette(garrison.team);
-      return { type:"garrison", team:garrison.team, faction, hp:garrison.hp, icon:assetPath(`assets/tokens/garrison-${palette}.png`) };
+      return { type:"garrison", id:garrison.id, team:garrison.team, faction, q:garrison.q, r:garrison.r, hp:garrison.hp, icon:assetPath(`assets/tokens/garrison-${palette}.png`) };
     }
     const objective = state.objectives.find(x => x.q===q && x.r===r);
     if (objective) return { type:"objective", team:objective.owner || "neutral" };
@@ -1150,6 +1150,45 @@
     return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
   }
 
+  function sameInspectionTarget(a,b) {
+    if(!a||!b)return false;
+    if(a===b)return true;
+    if(a.id&&b.id)return a.id===b.id;
+    return a.q===b.q&&a.r===b.r&&a.team===b.team;
+  }
+
+  function specialAoeCanAffectInspectionTarget(source,target,weapon,{ignoreEngagement=false}={}) {
+    const engaged=ignoreEngagement?[]:E.engagedTargets(state,source);
+    const engagedIds=new Set(engaged.map(item=>item.id));
+    for(let rotation=0;rotation<6;rotation+=1){
+      const targets=twinBusterTargets(source,rotation,weapon);
+      if(!targets.some(candidate=>sameInspectionTarget(candidate,target)))continue;
+      if(!engaged.length||targets.some(candidate=>engagedIds.has(candidate.id)))return true;
+    }
+    return false;
+  }
+
+  function inspectionWeaponGeometryAllowsTarget(source,target,weapon) {
+    if(E.distance(source,target)>weaponRange(weapon))return false;
+    if(usesSpecialAoeLine(weapon))return specialAoeCanAffectInspectionTarget(source,target,weapon,{ignoreEngagement:true});
+    return weapon.ignoreLos||E.hasLineOfSight(state,source,target);
+  }
+
+  function inspectionWeaponCanAttackTarget(source,target,weapon) {
+    if(E.distance(source,target)>weaponRange(weapon))return false;
+    if(usesSpecialAoeLine(weapon))return specialAoeCanAffectInspectionTarget(source,target,weapon);
+    return E.legalWeaponTargets(state,source,weapon).some(candidate=>sameInspectionTarget(candidate,target));
+  }
+
+  function losInspectionAssessment(source,target) {
+    const distance=E.distance(source,target);
+    const inRangeWeapons=inspectionWeaponsFor(source).filter(weapon=>distance<=weaponRange(weapon));
+    const canAttack=inRangeWeapons.some(weapon=>inspectionWeaponCanAttackTarget(source,target,weapon));
+    const geometricClear=inRangeWeapons.some(weapon=>inspectionWeaponGeometryAllowsTarget(source,target,weapon));
+    const engagementBlocked=!canAttack&&geometricClear&&E.engagedTargets(state,source).length>0;
+    return {distance,inRangeWeapons,canAttack,geometricClear,engagementBlocked,status:canAttack?"clear":engagementBlocked?"engaged":"blocked"};
+  }
+
   function renderLosInspection(source,x0,y0,dx,dy) {
     if(!losInspection.enabled||!source||source.zone==="reserve")return "";
     const inspectionWeapons=inspectionWeaponsFor(source);
@@ -1162,25 +1201,27 @@
     return targets
       .filter(target=>E.distance(source,target)<=maximumRange)
       .map(target=>{
-        const distance=E.distance(source,target);
+        const assessment=losInspectionAssessment(source,target);
+        const {distance,inRangeWeapons,canAttack,engagementBlocked,status}=assessment;
         const details=E.lineOfSightDetails(state,source,target);
-        const inRangeWeapons=inspectionWeapons.filter(weapon=>distance<=weaponRange(weapon));
-        const twinBusterClear=inRangeWeapons.some(weapon=>usesSpecialAoeLine(weapon)&&E.hasTwinBusterLine(state,source,target));
-        const canAttack=inRangeWeapons.some(weapon=>weapon.ignoreLos||(usesSpecialAoeLine(weapon)?E.hasTwinBusterLine(state,source,target):details.clear));
+        const specialAoeClear=inRangeWeapons.some(weapon=>usesSpecialAoeLine(weapon)&&specialAoeCanAffectInspectionTarget(source,target,weapon,{ignoreEngagement:true}));
         const ignoresLos=!details.clear&&inRangeWeapons.some(weapon=>weapon.ignoreLos);
-        // A line exactly on a hex border gives the acting player a choice. Green means
-        // at least one in-range weapon can legally attack; Ignore LOS weapons remain green.
+        // Green now means the target is actually legal under both LOS and Engagement.
+        // Orange means geometry/LOS is clear but Engagement forces the attack elsewhere.
         const route=details.paths.find(candidate=>candidate.clear)||details.paths[0];
-        const status=canAttack?"clear":"blocked";
         const targetX=x0+target.q*dx,targetY=y0+(target.r+(target.q&1)*.5)*dy;
-        return `<g aria-label="${canAttack?"ยิงได้":"Line of Sight ถูกบัง"}${ignoresLos?"ด้วยอาวุธ Ignore Line of Sight":""}"><title>${twinBusterClear&&!details.clear?"Twin Buster ยิงถึงตามกฎพื้นที่สูง แม้ LOS ปกติถูกบัง":ignoresLos?"ยิงได้ด้วยอาวุธที่ Ignore Line of Sight":canAttack?"ยิงได้ด้วยอาวุธอย่างน้อย 1 ชิ้น":"ไม่มีอาวุธในระยะที่มองเห็นเป้าหมาย"}</title><polyline class="los-path ${status}" points="${route.path.map(point).join(" ")}"></polyline><circle class="los-endpoint ${status}" cx="${targetX}" cy="${targetY}" r="25"></circle><g class="los-range-badge ${status}" transform="translate(${targetX+20} ${targetY-21})"><circle r="8"></circle><text y=".5">${distance}</text></g></g>`;
+        const aria=engagementBlocked?"Clear LOS. Cannot target while Engaged.":canAttack?"Legal attack target":"Line of Sight blocked";
+        const title=engagementBlocked?"CLEAR LOS · Cannot target — ENGAGED":specialAoeClear&&!details.clear?"Special AoE line reaches this target even though normal LOS is blocked":ignoresLos?"Legal target with an Ignore Line of Sight weapon":canAttack?"Legal target with at least one weapon":"No in-range weapon can legally target this enemy";
+        return `<g aria-label="${aria}"><title>${title}</title><polyline class="los-path ${status}" points="${route.path.map(point).join(" ")}"></polyline><circle class="los-endpoint ${status}" cx="${targetX}" cy="${targetY}" r="25"></circle><g class="los-range-badge ${status}" transform="translate(${targetX+20} ${targetY-21})"><circle r="8"></circle><text y=".5">${distance}</text></g></g>`;
       }).join("");
   }
 
   function blockedForEveryInRangeWeapon(source,target) {
-    const distance=E.distance(source,target);
-    const weapons=inspectionWeaponsFor(source).filter(weapon=>distance<=weaponRange(weapon));
-    return !weapons.some(weapon=>weapon.ignoreLos||(usesSpecialAoeLine(weapon)?E.hasTwinBusterLine(state,source,target):E.hasLineOfSight(state,source,target)));
+    return losInspectionAssessment(source,target).status==="blocked";
+  }
+
+  function engagementBlockedForLosInspection(source,target) {
+    return losInspectionAssessment(source,target).status==="engaged";
   }
 
   function focusCameraOnUnit(unit) {
@@ -1235,12 +1276,13 @@
       if (active?.q===q && active?.r===r) cls.push("selected");
       const f=featureAt(q,r);
       const losGarrison=losInspection.enabled&&active&&f?.type==="garrison"&&f.team!==active.team&&E.distance(active,{q,r})<=losMaximumRange;
-      const losGarrisonBlocked=losGarrison&&blockedForEveryInRangeWeapon(active,{q,r,team:f.team});
+      const losGarrisonBlocked=losGarrison&&blockedForEveryInRangeWeapon(active,f);
+      const losGarrisonEngaged=losGarrison&&engagementBlockedForLosInspection(active,f);
       cells += `<g class="${cls.join(" ")}" data-q="${q}" data-r="${r}">
         <polygon points="${hexPoints(cx,cy,size-1)}"></polygon>
         <text class="elevation-label" x="${cx-18}" y="${cy-14}">L${hex.elevation}</text>
         ${f ? f.icon
-          ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""} ${losGarrison?"los-inspectable":""} ${losGarrisonBlocked?"los-blocked-target":""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
+          ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""} ${losGarrison?"los-inspectable":""} ${losGarrisonBlocked?"los-blocked-target":""} ${losGarrisonEngaged?"los-engagement-target":""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
           : `<g class="objective-flag ${f.team}" aria-label="Objective ${f.team === "neutral" ? "ยังไม่มีผู้ครอบครอง" : `ครอบครองโดย ${teamName(f.team)}`}"><title>Objective · ${D.rules.objective?.phaseVp ?? 5} VP เมื่อจบ Phase</title><path class="objective-pole" d="M ${cx-7} ${cy+13} V ${cy-12}"></path><path class="objective-cloth" d="M ${cx-6} ${cy-11} L ${cx+11} ${cy-6} L ${cx-6} ${cy+1} Z"></path><path class="objective-base" d="M ${cx-13} ${cy+13} H ${cx-1}"></path></g>` : ""}
       </g>`;
     }
@@ -1252,7 +1294,8 @@
       const teamClass=unit.team;
       const losInspectable=losInspection.enabled&&active&&unit.team!==active.team&&E.distance(active,unit)<=losMaximumRange;
       const losBlocked=losInspectable&&blockedForEveryInRangeWeapon(active,unit);
-      units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""} ${losInspectable?"los-inspectable":""} ${losBlocked?"los-blocked-target":""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
+      const losEngagementBlocked=losInspectable&&engagementBlockedForLosInspection(active,unit);
+      units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""} ${losInspectable?"los-inspectable":""} ${losBlocked?"los-blocked-target":""} ${losEngagementBlocked?"los-engagement-target":""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
         <circle class="unit-base ${teamClass}" cx="${cx}" cy="${cy}" r="20"></circle>
         <image class="unit-portrait" href="${unit.icon}" x="${cx-18}" y="${cy-20}" width="36" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})"></image>
         ${unit.id===state.activeUnitId ? `<g class="active-turn-marker" aria-hidden="true">
@@ -1479,11 +1522,64 @@
   function renderLog() {
     const log=$("#battle-log");
     log.replaceChildren(...state.log.map(item=>{const li=document.createElement("li");li.textContent=String(item);return li;}));
-    $("#dice-tray").innerHTML=lastDice?lastDice.dice.map((die,i)=>`<span class="die ${lastDice.sharedThreshold?"":lastDice.results[i]}">${die}</span>`).join(""):"<span class=\"chip\">ยังไม่มี Attack Roll</span>";
+    $("#dice-tray").innerHTML=lastDice?lastDice.dice.map((die,i)=>{
+      const sharedClass=lastDice.aoeDisplay?.dice?.[i]?.visualClass||(lastDice.results?.[i]==="critical"?"critical":"");
+      const outcomeClass=lastDice.sharedThreshold?sharedClass:lastDice.results[i];
+      return `<span class="die ${outcomeClass||""}">${die}</span>`;
+    }).join(""):"<span class=\"chip\">ยังไม่มี Attack Roll</span>";
+  }
+
+  function sharedAoeDiceDisplay(attacker,weapon,dice,targets) {
+    const entries=(targets||[]).filter(Boolean).map((target,index)=>{
+      const surrogate=target.weapons?target:{...target,upgrades:{shield:0,speed:0,strength:0},statuses:{slow:false,fracture:false,disarm:false}};
+      const result=E.attackResultFromDice(state,attacker,surrogate,weapon,dice,{criticalEffectsDisabled:false});
+      return {index:index+1,target,result,name:target.name||`Garrison ${index+1}`};
+    });
+    const diceMeta=dice.map((die,dieIndex)=>{
+      const groups={critical:[],hit:[],miss:[]};
+      entries.forEach(entry=>groups[entry.result.results[dieIndex]]?.push(entry.index));
+      const parts=[];
+      if(groups.critical.length)parts.push(`CRIT ${groups.critical.join(",")}`);
+      if(groups.hit.length)parts.push(`HIT ${groups.hit.join(",")}`);
+      if(groups.miss.length)parts.push(`MISS ${groups.miss.join(",")}`);
+      const visualClass=groups.critical.length?"critical":groups.hit.length&&groups.miss.length?"split":groups.hit.length?"hit":"miss";
+      return {die,visualClass,label:parts.join(" · ")||"—",groups};
+    });
+    return {targets:entries.map(entry=>({index:entry.index,name:entry.name,hits:entry.result.hits,criticals:entry.result.criticals})),dice:diceMeta};
+  }
+
+  function diceTargetLegendHtml(display) {
+    if(!display?.targets?.length)return "";
+    return `<div class="dice-target-legend" aria-label="AoE target numbers">${display.targets.map(target=>`<span><b>${target.index}</b>${escapeFxText(target.name)}</span>`).join("")}</div>`;
+  }
+
+  function diceItemHtml(die,index) {
+    return `<div class="dice-result-item" data-dice-item="${index}"><div class="rolling-d10" data-index="${index}" data-final="${die}"><span class="dice-face">?</span></div><small class="dice-outcome">ROLL</small></div>`;
+  }
+
+  function revealDiceNode(node,result,index,sharedThreshold,display) {
+    const item=node.closest(".dice-result-item");
+    const outcome=item?.querySelector(".dice-outcome");
+    node.querySelector(".dice-face").textContent=String(result.dice[index]);
+    const meta=display?.dice?.[index];
+    if(sharedThreshold&&meta){
+      node.classList.add("revealed",meta.visualClass);
+      item?.classList.add(meta.visualClass);
+      if(outcome)outcome.textContent=meta.label;
+      node.setAttribute("aria-label",`Die ${index+1}: ${result.dice[index]} — ${meta.label}`);
+      return;
+    }
+    const classification=result.results[index];
+    node.classList.add("revealed",classification);
+    item?.classList.add(classification);
+    if(outcome)outcome.textContent=classification==="critical"?"CRIT":classification.toUpperCase();
+    node.setAttribute("aria-label",`Die ${index+1}: ${result.dice[index]} ${classification}`);
   }
 
   function showDiceRoll(result, label, onComplete=()=>{}, options={}) {
     const sharedThreshold=!!(options.sharedThreshold||result?.sharedThreshold);
+    const display=options.aoeDisplay||result?.aoeDisplay||null;
+    const manualClose=!!options.manualClose;
     let overlay=$("#dice-roll-overlay");
     if(!overlay){
       overlay=document.createElement("div");
@@ -1491,60 +1587,73 @@
       overlay.className="dice-roll-overlay";
       overlay.setAttribute("role","dialog");
       overlay.setAttribute("aria-modal","true");
-      overlay.setAttribute("aria-label","ผลการทอยลูกเต๋า");
+      overlay.setAttribute("aria-label","Attack dice results");
       document.body.appendChild(overlay);
     }
     if(diceAnimationTimer)clearTimeout(diceAnimationTimer);
-    const dice=result.dice.map((die,index)=>`<div class="rolling-d10" data-index="${index}" data-final="${die}"><span>?</span></div>`).join("");
-    overlay.innerHTML=`<div class="dice-roll-card"><span class="eyebrow">D10 // ${label}</span><h2 class="dice-roll-title">กำลังทอยลูกเต๋า…</h2><div class="animated-dice-grid">${dice}</div><div class="dice-roll-summary" aria-live="polite">ROLLING</div></div>`;
+    if(diceRollInterval)clearInterval(diceRollInterval);
+    const dice=result.dice.map((die,index)=>diceItemHtml(die,index)).join("");
+    overlay.innerHTML=`<div class="dice-roll-card"><button type="button" class="dice-roll-close" aria-label="Close dice results" title="Close" disabled>×</button><span class="eyebrow">D10 // ${escapeFxText(label)}</span><h2 class="dice-roll-title">ROLLING…</h2><div class="animated-dice-grid">${dice}</div>${diceTargetLegendHtml(display)}<div class="dice-roll-summary" aria-live="polite">ROLLING</div></div>`;
     overlay.classList.add("show");
+    overlay.tabIndex=-1;
+    lockResolutionModal(overlay,".dice-roll-close:not(:disabled)");
+    overlay.focus({preventScroll:true});
     const nodes=[...overlay.querySelectorAll(".rolling-d10")];
+    const closeButton=overlay.querySelector(".dice-roll-close");
     const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const rollTime=reduced?80:850;
-    const holdTime=reduced?350:700;
-    if(diceRollInterval)clearInterval(diceRollInterval);
+    const holdTime=reduced?220:700;
     const epoch=gameEpoch;
-    diceRollInterval=setInterval(()=>nodes.forEach(node=>{node.querySelector("span").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
+    let completed=false;
+    const finish=()=>{
+      if(completed)return;
+      completed=true;
+      if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
+      if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
+      releaseResolutionModalLock(overlay);
+      overlay.classList.remove("show");
+      onComplete();
+    };
+    closeButton?.addEventListener("click",finish);
+    diceRollInterval=setInterval(()=>nodes.forEach(node=>{node.querySelector(".dice-face").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
     diceAnimationTimer=setTimeout(()=>{
       if(epoch!==gameEpoch){if(diceRollInterval)clearInterval(diceRollInterval);diceRollInterval=null;return;}
       clearInterval(diceRollInterval);
       diceRollInterval=null;
-      nodes.forEach((node,index)=>{
-        node.querySelector("span").textContent=String(result.dice[index]);
-        if(sharedThreshold){
-          node.classList.add("revealed");
-          node.setAttribute("aria-label",`ลูกที่ ${index+1}: ${result.dice[index]} — ใช้ผลชุดเดียวกันและคำนวณ HIT/MISS แยกตามเป้าหมาย`);
-        }else{
-          node.classList.add("revealed",result.results[index]);
-          node.setAttribute("aria-label",`ลูกที่ ${index+1}: ${result.dice[index]} ${result.results[index]}`);
-        }
-      });
+      nodes.forEach((node,index)=>revealDiceNode(node,result,index,sharedThreshold,display));
+      closeButton.disabled=false;
       overlay.querySelector(".dice-roll-title").textContent=sharedThreshold?"SHARED ATTACK ROLL":result.criticals?"CRITICAL!":"ATTACK ROLL";
-      overlay.querySelector(".dice-roll-summary").textContent=sharedThreshold?"HIT / MISS คำนวณแยกตามแต่ละเป้าหมาย":`${result.hits} HIT · ${result.criticals} CRITICAL`;
+      overlay.querySelector(".dice-roll-summary").textContent=sharedThreshold?`${result.criticals} CRITICAL · RESULTS BY TARGET`:`${result.hits} HIT · ${result.criticals} CRITICAL`;
+      if(manualClose&&!options.keepOpen){
+        diceAnimationTimer=null;
+        closeButton.focus({preventScroll:true});
+        return;
+      }
       diceAnimationTimer=setTimeout(()=>{
-        if(epoch!==gameEpoch)return;
-        if(!options.keepOpen)overlay.classList.remove("show");
+        if(epoch!==gameEpoch||completed)return;
+        completed=true;
+        if(!options.keepOpen){releaseResolutionModalLock(overlay);overlay.classList.remove("show");}
         diceAnimationTimer=null;
         onComplete();
       },holdTime);
     },rollTime);
   }
 
-  function appendDiceRoll(result,startIndex,label,onComplete=()=>{}) {
+  function appendDiceRoll(result,startIndex,label,onComplete=()=>{},options={}) {
     const overlay=$("#dice-roll-overlay");
     const grid=overlay?.querySelector(".animated-dice-grid");
     const existing=grid?[...grid.querySelectorAll(".rolling-d10")]:[];
     if(!overlay?.classList.contains("show")||!grid||existing.length!==startIndex){
-      showDiceRoll(result,label,onComplete);
+      showDiceRoll(result,label,onComplete,{manualClose:!!options.manualClose});
       return;
     }
     if(diceAnimationTimer)clearTimeout(diceAnimationTimer);
     if(diceRollInterval)clearInterval(diceRollInterval);
     const extra=result.dice.slice(startIndex);
-    if(!extra.length){overlay.classList.remove("show");onComplete();return;}
+    if(!extra.length){releaseResolutionModalLock(overlay);overlay.classList.remove("show");onComplete();return;}
     extra.forEach((die,offset)=>{
       const index=startIndex+offset;
-      grid.insertAdjacentHTML("beforeend",`<div class="rolling-d10 extra-die" data-index="${index}" data-final="${die}"><span>?</span></div>`);
+      grid.insertAdjacentHTML("beforeend",diceItemHtml(die,index));
     });
     const newNodes=[...grid.querySelectorAll(".rolling-d10")].slice(startIndex);
     const priorResults=result.results.slice(0,startIndex);
@@ -1553,28 +1662,42 @@
     overlay.querySelector(".eyebrow").textContent=`D10 // ${label}`;
     overlay.querySelector(".dice-roll-title").textContent=`CRITICAL · +${extra.length} DICE`;
     overlay.querySelector(".dice-roll-summary").textContent=`${priorHits} HIT · ${priorCriticals} CRITICAL · +${extra.length} DICE`;
+    const oldClose=overlay.querySelector(".dice-roll-close");
+    if(oldClose)oldClose.disabled=true;
     const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const rollTime=reduced?80:850;
-    const holdTime=reduced?350:700;
+    const holdTime=reduced?220:700;
     const epoch=gameEpoch;
-    diceRollInterval=setInterval(()=>newNodes.forEach(node=>{node.querySelector("span").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
+    let completed=false;
+    const finish=()=>{
+      if(completed)return;
+      completed=true;
+      if(diceAnimationTimer){clearTimeout(diceAnimationTimer);diceAnimationTimer=null;}
+      if(diceRollInterval){clearInterval(diceRollInterval);diceRollInterval=null;}
+      releaseResolutionModalLock(overlay);
+      overlay.classList.remove("show");
+      onComplete();
+    };
+    const replacement=oldClose?.cloneNode(true);
+    if(oldClose&&replacement){oldClose.replaceWith(replacement);replacement.addEventListener("click",finish);}
+    diceRollInterval=setInterval(()=>newNodes.forEach(node=>{node.querySelector(".dice-face").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
     diceAnimationTimer=setTimeout(()=>{
       if(epoch!==gameEpoch){if(diceRollInterval)clearInterval(diceRollInterval);diceRollInterval=null;return;}
       clearInterval(diceRollInterval);
       diceRollInterval=null;
-      newNodes.forEach(node=>{
-        const index=Number(node.dataset.index);
-        node.querySelector("span").textContent=String(result.dice[index]);
-        node.classList.add("revealed",result.results[index]);
-        node.setAttribute("aria-label",`ลูกที่ ${index+1}: ${result.dice[index]} ${result.results[index]}`);
-      });
+      newNodes.forEach(node=>{const index=Number(node.dataset.index);revealDiceNode(node,result,index,false,null);});
+      const closeButton=overlay.querySelector(".dice-roll-close");
+      if(closeButton)closeButton.disabled=false;
       overlay.querySelector(".dice-roll-title").textContent=result.criticals?"CRITICAL! · EXTRA DICE":"ATTACK ROLL · EXTRA DICE";
       overlay.querySelector(".dice-roll-summary").textContent=`${result.hits} HIT · ${result.criticals} CRITICAL`;
-      diceAnimationTimer=setTimeout(()=>{
-        if(epoch!==gameEpoch)return;
-        overlay.classList.remove("show");
+      if(options.manualClose){
         diceAnimationTimer=null;
-        onComplete();
+        closeButton?.focus({preventScroll:true});
+        return;
+      }
+      diceAnimationTimer=setTimeout(()=>{
+        if(epoch!==gameEpoch||completed)return;
+        completed=true;releaseResolutionModalLock(overlay);overlay.classList.remove("show");diceAnimationTimer=null;onComplete();
       },holdTime);
     },rollTime);
   }
@@ -1583,8 +1706,10 @@
     return weapon?.id==="hero-vulcan"&&weapon.critical==="extraDice2"&&!result?.disarmedPending&&criticalEffectsActive(result)&&!result.extraDiceResolved;
   }
 
-  function showAttackDiceRoll(result,weapon,label,onComplete=()=>{}){
-    showDiceRoll(result,label,onComplete,{keepOpen:keepVulcanDiceOpen(weapon,result)});
+  function showAttackDiceRoll(result,weapon,label,onComplete=()=>{},attacker=null){
+    const keepOpen=keepVulcanDiceOpen(weapon,result);
+    const ownerTeam=attacker?.team||result?.displayOwnerTeam||activeUnit()?.team||null;
+    showDiceRoll(result,label,onComplete,{keepOpen,manualClose:!!ownerTeam&&!isAiTeam(ownerTeam)&&!keepOpen});
   }
 
   function offerAnotherTimeline(attacker,defender,weapon,result,onComplete=()=>{}) {
@@ -1599,7 +1724,7 @@
       lastDice=result;
       if(pendingAttack)pendingAttack.result=result;
       addLog(`Another Timeline: ${attacker.name} ทอย Attack Dice ใหม่ทั้งชุดและใช้ผลใหม่`);
-      renderAll();showAttackDiceRoll(result,weapon,"ANOTHER TIMELINE",onComplete);
+      renderAll();showAttackDiceRoll(result,weapon,"ANOTHER TIMELINE",onComplete,attacker);
     };
     openResponse([card],()=>reroll(),onComplete,{attackRollDamage:result.damage,criticals:result.criticals,hits:result.hits,diceCount:result.dice.length});
   }
@@ -1613,7 +1738,7 @@
       E.rerollAttackDie(state,attacker,defender,weapon,result,index);
       const rerollView={dice:[result.dice[index]],results:[result.results[index]],hits:result.results[index]==="hit"?1:0,criticals:result.results[index]==="critical"?1:0};
       lastDice=result;addLog(`AI · Newtype Instincts: ทอยลูกที่ ${index+1} ใหม่ ${previous} → ${result.dice[index]}`);renderAll();
-      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete);
+      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete,{manualClose:!isAiTeam(attacker.team)});
       return;
     }
     const modal=ensureModal();
@@ -1624,7 +1749,7 @@
       E.rerollAttackDie(state,attacker,defender,weapon,result,index);
       const rerollView={dice:[result.dice[index]],results:[result.results[index]],hits:result.results[index]==="hit"?1:0,criticals:result.results[index]==="critical"?1:0};
       lastDice=result;addLog(`Newtype Instincts: Gundam ทอยลูกที่ ${index+1} ใหม่ ${previous} → ${result.dice[index]}`);closeModal();renderAll();
-      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete);
+      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete,{manualClose:!isAiTeam(attacker.team)});
     }));
     modal.querySelector("#skip-newtype").addEventListener("click",()=>{result.rerollEligible=false;closeModal();onComplete();});
   }
@@ -1632,12 +1757,15 @@
   function resolveDisarmReroll(attacker,defender,weapon,result,onComplete=()=>{}) {
     if(!result?.disarmedPending){onComplete();return;}
     const before=result.dice.slice();
-    E.resolveDisarmAttack(state,attacker,defender,weapon,result);
+    const sharedTargets=result.sharedThreshold?(attacker.lastAoeTargets||[]):[];
+    if(sharedTargets.length)E.resolveSharedDisarmAttack(state,attacker,sharedTargets,weapon,result);
+    else E.resolveDisarmAttack(state,attacker,defender,weapon,result);
+    if(sharedTargets.length)result.aoeDisplay=sharedAoeDiceDisplay(attacker,weapon,result.dice,sharedTargets);
     lastDice=result;
     const changes=(result.disarmRerolled||[]).map(index=>`${before[index]}→${result.dice[index]}`);
     addLog(`${attacker.name}: Disarm ${changes.length?`ทอย Hit ใหม่ ${changes.join(", ")}`:"ไม่มีผล Hit ให้ทอยใหม่"} และปิด Critical Effect ของการโจมตีนี้`);
     renderAll();
-    if(changes.length)showDiceRoll(result,"DISARM",onComplete);
+    if(changes.length)showDiceRoll(result,"DISARM",onComplete,{sharedThreshold:!!result.sharedThreshold,aoeDisplay:result.aoeDisplay,manualClose:!isAiTeam(attacker.team)});
     else onComplete();
   }
 
@@ -2218,7 +2346,9 @@
     const master=E.rollAttack(state,attacker,surrogate,weapon);
     master.sharedThreshold=true;
     attacker.aoeExploitWeakness=priorAoeExploit;
-    lastDice=master;attacker.lastAoeTargets=targets;
+    attacker.lastAoeTargets=targets;
+    master.aoeDisplay=sharedAoeDiceDisplay(attacker,weapon,master.dice,targets);
+    lastDice=master;
     addLog(`${attacker.name} ใช้ ${weapon.name} ใส่เป้าหมาย ${targets.length} จุดด้วย Attack Roll ชุดเดียว`);
     renderAll();
     showDiceRoll(master,weapon.name.toUpperCase(),()=>resolveDisarmReroll(attacker,surrogate,weapon,master,()=>{
@@ -2267,7 +2397,7 @@
         });
       };
       offerShieldAt(0);
-    }),{sharedThreshold:true});
+    }),{sharedThreshold:true,aoeDisplay:master.aoeDisplay,manualClose:!isAiTeam(attacker.team)});
   }
 
   function resolveGarrisonAttack(attacker,garrison,weapon,options={}) {
@@ -2386,7 +2516,7 @@
       lastDice.extraDiceResolved=true;
       E.addAttackDice(state,attacker,defender,weapon,lastDice,2);
       addLog(`${weapon.name} Critical: ทอยลูกเต๋าเพิ่ม 2 ลูก`);
-      renderAll();appendDiceRoll(lastDice,previousDiceCount,`${weapon.name.toUpperCase()} · EXTRA DICE`,onComplete);return;
+      renderAll();appendDiceRoll(lastDice,previousDiceCount,`${weapon.name.toUpperCase()} · EXTRA DICE`,onComplete,{manualClose:!isAiTeam(attacker.team)});return;
     }
     if(weapon.effect==="shieldBreak"){
       if(defender.upgrades?.shield>0)destroyUpgradeToken(defender,"shield",weapon.name);
@@ -2859,6 +2989,7 @@
       const fireReturnWeapon=(returningUnit,weapon)=>{
         E.advanceUnitTimeline(state,returningUnit,Math.max(0,weapon.timeline-1));
         const result=E.rollAttack(state,returningUnit,attacker,weapon);
+        result.displayOwnerTeam=returningUnit.team;
         lastDice=result;closeModal();renderAll();
         showAttackDiceRoll(result,weapon,`RETURN FIRE · ${weapon.name}`,()=>offerNewtypeReroll(returningUnit,attacker,weapon,result,()=>offerWeaponAfterRollEffect(returningUnit,attacker,weapon,()=>resolveDisarmReroll(returningUnit,attacker,weapon,result,()=>{
           const from={q:returningUnit.q,r:returningUnit.r};
@@ -2932,7 +3063,7 @@
       selectEnemy(unit,3,"Critical Shot: เลือกศัตรู",target=>{spend();applyDebuff(target,"fracture");addLog(`${target.name} ติด Fracture`);});
     } else if (unit.id==="guntank") {
       spend(); const dice=Array.from({length:5},()=>Math.floor(Math.random()*10)+1); const crit=dice.filter(x=>x>=9).length; lastDice={dice,results:dice.map(x=>x>=9?"critical":"miss"),hits:0,criticals:crit,damage:crit,accuracy:0};
-      renderAll();showDiceRoll(lastDice,"SATURATED FIRE",()=>{const targets=E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=4&&E.hasLineOfSight(state,unit,x));targets.forEach(x=>damageUnit(unit,x,crit,"Saturated Fire"));addLog(`Saturated Fire: ${crit} Critical — สร้าง Damage ${crit} แก่ศัตรู ${targets.length} ตัวใน Range 4 และ Line of Sight`);renderAll();});return;
+      renderAll();showDiceRoll(lastDice,"SATURATED FIRE",()=>{const targets=E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=4&&E.hasLineOfSight(state,unit,x));targets.forEach(x=>damageUnit(unit,x,crit,"Saturated Fire"));addLog(`Saturated Fire: ${crit} Critical — สร้าง Damage ${crit} แก่ศัตรู ${targets.length} ตัวใน Range 4 และ Line of Sight`);renderAll();},{manualClose:!isAiTeam(unit.team)});return;
     } else if (unit.id==="chars-zaku") {
       beginAttack(unit.weapons[0],{free:true,onDeclare:spend});
     }
@@ -3375,7 +3506,7 @@
     if(modal.dataset.modalLock!=="true")responseModalRestoreFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
     modal.dataset.modalLock="true";modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");document.body.classList.add("modal-open");
     const shell=$(".game-shell");if(shell)shell.inert=true;
-    requestAnimationFrame(()=>{const focusable=modal.querySelector(preferredSelector)||modal.querySelector("button,[href],[tabindex]:not([tabindex='-1'])");focusable?.focus?.({preventScroll:true});});
+    requestAnimationFrame(()=>{const focusable=modal.querySelector(preferredSelector)||modal.querySelector("button:not([disabled]),[href],[tabindex]:not([tabindex='-1'])");if(focusable&&!focusable.disabled)focusable.focus?.({preventScroll:true});else{if(!modal.hasAttribute("tabindex"))modal.tabIndex=-1;modal.focus?.({preventScroll:true});}});
   }
   function lockResponseModal(modal) {
     if(!modal)return;
@@ -3776,7 +3907,7 @@
       if(event.key==="Tab"){event.preventDefault();ready?.focus();return;}
       if(event.key==="Escape"){event.preventDefault();return;}
     }
-    const lockedModal=$("#game-modal.show[data-modal-lock='true']");
+    const lockedModal=$("#game-modal.show[data-modal-lock='true'],#dice-roll-overlay.show[data-modal-lock='true']");
     if(lockedModal){
       if(event.key==="Tab"){
         const focusable=[...lockedModal.querySelectorAll("button:not([disabled]),[href],[tabindex]:not([tabindex='-1'])")].filter(node=>!node.inert&&node.offsetParent!==null);

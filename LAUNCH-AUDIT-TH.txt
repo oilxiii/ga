@@ -1,12 +1,26 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta10
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta12
+BETA12 PRE-LAUNCH FIX
+- LOS Inspector ใช้ target legality เดียวกับ combat มากขึ้น: ขณะ Engaged เป้าหมายที่ LOS/ระยะถึงแต่เลือกยิงไม่ได้จะแสดงสถานะสีส้ม ENGAGED แทนสีเขียว
+- SP AoE LOS inspection ตรวจทิศยิงจริงและบังคับว่าทิศนั้นต้องครอบเป้าหมาย Engaged อย่างน้อย 1 จุดเมื่อผู้ยิงกำลัง Engaged
+- Dice result รองรับจอเตี้ย/landscape ด้วย vertical scroll + compact breakpoint; ปุ่ม × ยังอยู่ด้านบนและผลทั้งหมดเลื่อนอ่านได้
+- Dice result ใช้ shared modal focus lock/inert; Tab ไม่สามารถหลุดไป control ด้านหลังระหว่างหน้าผลลูกเต๋า
+- ไม่แก้ข้อความภาษา/Localization ตามคำสั่งผู้ใช้
+- Cache/build tag: beta12-en
+- Validation: Core 232 + AI 29 + regression 18 = 279 checks ผ่านทั้งหมด
+
+BETA11 DICE / AOE UX
+- Human dice results wait for × close; per-die HIT/MISS/CRIT labels added.
+- Shared AoE shows target-number outcomes; Criticals are gold with subtle sparkle.
+- Shared AoE + Disarm reroll is target-order independent.
+
 
 BETA10 UPDATE
 - เพิ่ม mandatory bonus-attack prompt แบบ bubble เหนือ Unit: “Attack again / Select a target”
 - ครอบคลุม Vidar Handgun Critical, EVA-01 Progressive Knife Critical, Barbatos Annihilate และ Crimson Execution
 - Prompt แสดงเฉพาะฝั่งผู้เล่น ไม่แสดงในเทิร์น AI และหายเมื่อ target-selection flow จบ
 - ไม่เปลี่ยนกฎ Action, Timeline, Target legality หรือ bonus-attack resolution
-- Cache/build tag: beta10
-- ผลทดสอบ Beta10: Core 228 + AI 29 = 257 checks ผ่านทั้งหมด
+- Cache/build tag: beta12-en
+- ผลทดสอบ Beta12: Core 232 + AI 29 = 261 checks ผ่านทั้งหมด + regression 18 checks
 
 BETA09 UPDATE
 - Disarm ปิดเฉพาะ printed Critical Hit Effect แต่ยังคง Critical result สำหรับ Omega Psycommu Active และ KIRA KIRA!

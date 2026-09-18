@@ -578,7 +578,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta10<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta12<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1960,12 +1960,13 @@ test("Twin Buster edge aiming exposes six explicit direction controls instead of
   assert.match(source,/if\(matching\.length===1\)previewTwinBusterDirection/);
 });
 
-test("Wing LOS inspector uses Twin Buster terrain rules and never shows RNaN", () => {
+test("Wing LOS inspector uses the special AoE footprint and never shows RNaN", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const helper=source.match(/function specialAoeCanAffectInspectionTarget[\s\S]*?function inspectionWeaponGeometryAllowsTarget/)?.[0]||"";
   const los=source.match(/function renderLosInspection[\s\S]*?function blockedForEveryInRangeWeapon/)?.[0]||"";
   const button=source.match(/function renderLosButton[\s\S]*?function toggleLosInspection/)?.[0]||"";
-  assert.match(los,/usesSpecialAoeLine\(weapon\)\?E\.hasTwinBusterLine/);
-  assert.match(los,/twinBusterClear/);
+  assert.match(helper,/twinBusterTargets\(source,rotation,weapon\)/);
+  assert.match(los,/specialAoeCanAffectInspectionTarget/);
   assert.match(button,/map\(weaponRange\)/);
   assert.doesNotMatch(button,/weapon=>weapon\.range\|\|0/);
 });
@@ -2269,7 +2270,8 @@ test("v90 Pull moves only closer, collides with higher terrain or occupied hexes
 
 test("v90 LOS Inspector uses Attack Tactics for both range and blocked-target styling", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/function blockedForEveryInRangeWeapon[\s\S]*?inspectionWeaponsFor\(source\)/);
+  assert.match(source,/function losInspectionAssessment[\s\S]*?inspectionWeaponsFor\(source\)/);
+  assert.match(source,/function blockedForEveryInRangeWeapon[\s\S]*?losInspectionAssessment\(source,target\)/);
   assert.match(source,/const losMaximumRange=active\?Math\.max\(0,\.\.\.inspectionWeaponsFor\(active\)\.map\(weaponRange\)\):0/);
   assert.match(source,/const inspectionWeapons=inspectionWeaponsFor\(source\)/);
 });
@@ -2292,10 +2294,10 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta10<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta10`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta10/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta10/);
+  assert.match(html,/>Beta12<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta12`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta12/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta12/);
 });
 
 
@@ -2367,10 +2369,10 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta10<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta10`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta10/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta10/);
+  assert.match(html,/>Beta12<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta12`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta12/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta12/);
 });
 
 
@@ -2506,8 +2508,8 @@ test("Beta04 Secret Team stat update matches latest unit cards",()=>{
   assert.ok(fs.existsSync(path.join(__dirname,"..",eva.card)));
   assert.ok(fs.existsSync(path.join(__dirname,"..",mazinger.card)));
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/Beta10/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta10"));
+  assert.match(html,/Beta12/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta12"));
 });
 
 test("Beta02 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
@@ -2550,8 +2552,8 @@ test("Beta02 Secret Team theme is listed and auto-selected only at match launch"
   const launch=game.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
   assert.match(launch,/Object\.values\(matchFactions\)\.includes\("secret"\)\)BGM\.select\("secret"\)/);
   assert.equal((game.match(/BGM\.select\("secret"\)/g)||[]).length,1,"automatic Secret selection must happen only at launch");
-  assert.match(html,/Beta10/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta10"));
+  assert.match(html,/Beta12/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta12"));
 });
 
 
@@ -2593,11 +2595,46 @@ test("Beta07 Crimson Execution is retired before movement Responses can defeat C
   assert.match(use,/moved=>\{commitCard\(\);afterUnitMove/);
 });
 
-test("Beta07 AoE dice display is neutral when target thresholds differ",()=>{
+test("Beta11 AoE dice display labels each target without hiding Criticals",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   assert.match(game,/master\.sharedThreshold=true/);
+  assert.match(game,/master\.aoeDisplay=sharedAoeDiceDisplay/);
   assert.match(game,/SHARED ATTACK ROLL/);
-  assert.match(game,/HIT \/ MISS คำนวณแยกตามแต่ละเป้าหมาย/);
+  assert.match(game,/CRIT \$\{groups\.critical\.join/);
+  assert.match(game,/HIT \$\{groups\.hit\.join/);
+  assert.match(game,/MISS \$\{groups\.miss\.join/);
+  assert.match(game,/dice-target-legend/);
+  assert.match(css,/\.rolling-d10\.revealed\.split/);
+  assert.match(css,/critical-sparkle-a/);
+});
+
+test("Beta11 shared AoE Disarm rerolls a Hit for any target and is target-order independent",()=>{
+  const setup=()=>{
+    const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"zeon"});
+    const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+    const low=state.units.find(unit=>unit.id==="chars-zaku");
+    const high=state.units.find(unit=>unit.id==="zaku-line");
+    state.units.forEach(unit=>{unit.zone="reserve";});
+    for(const hex of Object.values(state.board))hex.elevation=0;
+    Object.assign(wing,{zone:"board",q:5,r:5});state.board[E.key(5,5)].elevation=1;
+    Object.assign(low,{zone:"board",q:6,r:5});state.board[E.key(6,5)].elevation=0;
+    Object.assign(high,{zone:"board",q:5,r:6});state.board[E.key(5,6)].elevation=2;
+    wing.statuses.disarm=true;
+    const weapon=wing.weapons.find(item=>item.id==="twin-buster-rifle");
+    const result=E.attackResultFromDice(state,wing,high,weapon,[3]);
+    result.disarmedPending=true;result.sharedThreshold=true;
+    return {state,wing,low,high,weapon,result};
+  };
+  for(const order of ["high-first","low-first"]){
+    const {state,wing,low,high,weapon,result}=setup();
+    const targets=order==="high-first"?[high,low]:[low,high];
+    E.resolveSharedDisarmAttack(state,wing,targets,weapon,result,()=>0.9);
+    assert.deepEqual(result.disarmRerolled,[0],`${order} should reroll die 3 because it Hits the lower target`);
+    assert.equal(result.dice[0],10);
+    assert.equal(result.criticals,1);
+    assert.equal(result.criticalEffectsDisabled,true);
+  }
 });
 
 test("Beta07 defeated active units clear all activation-only HUD effects",()=>{
@@ -2830,8 +2867,43 @@ test("Beta10 mandatory bonus attacks show a small Attack again prompt over the a
   assert.match(css,/\.attack-again-prompt\{pointer-events:none/);
 });
 
-test("Beta10 build and cache tags are synchronized",()=>{
+test("Beta11 dice results wait for human close and expose per-die labels",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(game,/class="dice-roll-close"/);
+  assert.match(game,/class="dice-outcome"/);
+  assert.match(game,/if\(manualClose&&!options\.keepOpen\)/);
+  assert.match(game,/manualClose:!isAiTeam\(attacker\.team\)/);
+  assert.match(css,/\.dice-roll-close/);
+  assert.match(css,/\.dice-outcome/);
+});
+
+test("Beta12 LOS Inspector distinguishes clear LOS blocked only by Engagement",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  const assess=game.match(/function losInspectionAssessment[\s\S]*?function renderLosInspection/)?.[0]||"";
+  assert.match(assess,/inspectionWeaponCanAttackTarget/);
+  assert.match(assess,/E\.engagedTargets\(state,source\)\.length>0/);
+  assert.match(assess,/status:canAttack\?"clear":engagementBlocked\?"engaged":"blocked"/);
+  assert.match(game,/CLEAR LOS · Cannot target — ENGAGED/);
+  assert.match(game,/type:"garrison", id:garrison\.id, team:garrison\.team, faction, q:garrison\.q, r:garrison\.r/);
+  assert.match(css,/\.los-path\.engaged/);
+  assert.match(css,/\.los-engagement-target/);
+});
+
+test("Beta12 dice results fit short screens and trap focus until dismissed",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(game,/lockResolutionModal\(overlay,"\.dice-roll-close:not\(:disabled\)"\)/);
+  assert.match(game,/#dice-roll-overlay\.show\[data-modal-lock='true'\]/);
+  assert.match(game,/releaseResolutionModalLock\(overlay\)/);
+  assert.match(css,/\.dice-roll-overlay \{[^}]*overflow-y:auto/);
+  assert.match(css,/\.dice-roll-card \{[^}]*max-height:calc\(100% - 4px\)[^}]*overflow-y:auto/);
+  assert.match(css,/@media \(max-height: 520px\)/);
+});
+
+test("Beta12 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta10<\/span>/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta10`));
+  assert.match(html,/>Beta12<\/span>/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta12`));
 });

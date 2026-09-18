@@ -1,3 +1,9 @@
+Beta11 English dice readability update (cache build beta11-en)
+- Dice result overlay stays open for human-controlled rolls until closed with ×.
+- Adds per-die result labels and target-number labels for shared AoE attacks.
+- Restores visible gold Critical dice in AoE and adds a subtle sparkle.
+- Fixes shared AoE + Disarm target-order dependence.
+
 Beta10 English summaries + bug fixes (cache build beta10-en2)
 
 Added small English translations below Thai ability descriptions for all 18 units
