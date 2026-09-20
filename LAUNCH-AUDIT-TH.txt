@@ -1,9 +1,13 @@
+Beta14.7 HOTFIX — AI CAMERA FOLLOW
+- กล้องติดตาม active AI หลัง committed movement ทุกครั้ง เพื่อให้การเดินไกลยังอยู่ใน viewport.
+- Gameplay / Rules / AI scoring ไม่เปลี่ยน.
+
 BETA14.6 BEYOND THE TIME BGM
 - เพิ่ม BEYOND THE TIME เข้า Audio selector เป็นตัวเลือกแยกจาก Song 1 / Song 2 / Getter Robo! / Secret / Off.
 - ไฟล์ assets/audio/beyond-the-time-bgm.mp3 บีบอัดเป็น MP3 32 kbps mono / 22.05 kHz ขนาด 987,132 bytes (< 1 MB).
-- Cache/build tag: beta14-6-en
+- Cache/build tag: beta14-7-en
 - Gameplay/Rules ไม่เปลี่ยนจาก Beta14.5.
-- Validation: Core 238 + AI 29 + regression 18 = 285 checks.
+- Validation: Core 239 + AI 29 + regression 18 = 286 checks.
 
 BETA14.5 GETTER ROBO! BGM
 - เพิ่ม Getter Robo! เข้า Audio selector เป็นตัวเลือกแยกจาก Song 1 / Song 2 / Secret / Off.
@@ -21,7 +25,7 @@ BETA14 AZURE FANG MAP ACCURACY UPDATE
 - แก้รูปทรงกระดานเป็น 14 Hex ในคอลัมน์คู่ / 13 Hex ในคอลัมน์คี่; 7 ช่องล่างนอกกระดานไม่ render และไม่ผ่าน movement/LOS
 - Corner Base ฝั่งล่างย้ายไปตำแหน่งจริง q0,r13; Sleeping Leviathan ไม่เปลี่ยน
 
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta14.6
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta14.7
 BETA12 PRE-LAUNCH FIX
 - LOS Inspector ใช้ target legality เดียวกับ combat มากขึ้น: ขณะ Engaged เป้าหมายที่ LOS/ระยะถึงแต่เลือกยิงไม่ได้จะแสดงสถานะสีส้ม ENGAGED แทนสีเขียว
 - SP AoE LOS inspection ตรวจทิศยิงจริงและบังคับว่าทิศนั้นต้องครอบเป้าหมาย Engaged อย่างน้อย 1 จุดเมื่อผู้ยิงกำลัง Engaged

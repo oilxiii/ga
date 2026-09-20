@@ -656,7 +656,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta14.6<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.7<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2378,7 +2378,7 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.6<\/span>/);
+  assert.match(html,/>Beta14.7<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2453,7 +2453,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.6<\/span>/);
+  assert.match(html,/>Beta14.7<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2986,9 +2986,18 @@ test("Beta14 dice results fit short screens and trap focus until dismissed",()=>
   assert.match(css,/@media \(max-height: 520px\)/);
 });
 
-test("Beta14.6 build and cache tags are synchronized",()=>{
+
+
+test("Beta14.7 AI camera follows the active unit after committed movement",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const move=game.match(/function completeMove\(q,r\)[\s\S]*?function adjacentCharKickTargets/)?.[0]||"";
+  assert.match(move,/if\(isAiTeam\(unit\.team\)&&unit\.zone==="board"\)focusCameraOnUnit\(unit\)/);
+  assert.ok(move.indexOf('renderAll();\n    // Keep the camera attached')<move.indexOf('focusCameraOnUnit(unit);'));
+});
+
+test("Beta14.7 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.6<\/span>/);
+  assert.match(html,/>Beta14.7<\/span>/);
   for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
 });
 

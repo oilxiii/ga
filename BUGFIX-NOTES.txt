@@ -1,3 +1,7 @@
+Beta14.7 AI camera follow
+- หลัง AI จบ Move/Advance/Dash/Command Move กล้องจะ recenter ไปยังตำแหน่งใหม่ของ active AI โดยอัตโนมัติ แก้กรณี AI เดินไกลแล้วหลุดกรอบที่กำลังมองเห็น.
+- ไม่มีการเปลี่ยนกติกาหรือ AI decision logic.
+
 Beta14.6 Audio list update
 - Added BEYOND THE TIME as a selectable in-game BGM.
 - Encoded assets/audio/beyond-the-time-bgm.mp3 at 32 kbps mono / 22.05 kHz; final size 987,132 bytes (< 1 MB).

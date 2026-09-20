@@ -2147,6 +2147,10 @@
     if(label==="Advance")state.activation.advanced=true;
     if(wasDeploying)state.justDeployedUnitId=null;
     mode=null;addLog(`${unit.name} ใช้ ${label} ที่ Hex ${q},${r}`);if(callback)callback(moved);renderAll();
+    // Keep the camera attached to the active AI after every committed movement.
+    // The turn-start focus alone is not enough for long Advance/Dash/Command moves,
+    // because the unit can otherwise leave the current board viewport.
+    if(isAiTeam(unit.team)&&unit.zone==="board")focusCameraOnUnit(unit);
   }
 
   function adjacentCharKickTargets(unit) {
