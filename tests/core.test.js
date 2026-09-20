@@ -385,6 +385,44 @@ test("Hover ignores elevation cost only for Wing Zero, not Barbatos", () => {
   assert.equal(E.reachable(s,barbatos,3).has(E.key(6,6)),true);
 });
 
+test("Beta14.8 Hover ignores Water movement penalties but Water still affects attacks", () => {
+  for(const [faction,id] of [["white-devil","wing-zero-ew"],["rival","gundam-epyon"]]){
+    const state=E.setupGame(()=>0.5,{fed:faction,zeon:"fed"});
+    Object.values(state.board).forEach(hex=>{hex.elevation=0;hex.terrain="ground";});
+    state.garrisons=[];
+    const hover=state.units.find(unit=>unit.id===id);
+    hover.zone="board";hover.q=5;hover.r=5;
+    state.board[E.key(5,5)].terrain="water";
+    state.board[E.key(6,5)].elevation=2;
+    assert.equal(E.reachable(state,hover,1).get(E.key(6,5)),1,`${id} Hover must ignore both Water Move -1 and climb cost`);
+  }
+
+  const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
+  Object.values(state.board).forEach(hex=>{hex.elevation=0;hex.terrain="ground";});
+  state.garrisons=[];
+  const barbatos=state.units.find(unit=>unit.id==="barbatos-lupus-rex");
+  barbatos.zone="board";barbatos.q=5;barbatos.r=5;
+  state.board[E.key(5,5)].terrain="water";
+  assert.equal(Math.max(...E.reachable(state,barbatos,2).values()),1,"a non-Hover unit still loses 1 Move when starting in Water");
+
+  const wing=state.units.find(unit=>unit.id==="wing-zero-ew");
+  const enemy=state.units.find(unit=>unit.team!==wing.team);
+  wing.zone="board";wing.q=5;wing.r=5;
+  enemy.zone="board";enemy.q=6;enemy.r=5;
+  state.board[E.key(5,5)].terrain="water";
+  const roll=E.rollAttack(state,wing,enemy,{id:"hover-water-test",strength:1},()=>0.35);
+  assert.equal(roll.accuracy,-1,"Hover applies only during movement; Water Accuracy -1 must remain");
+});
+
+test("Beta14.8 Hover movement UI does not display WATER -1", () => {
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const hoverChecks=[...source.matchAll(/const hasHover=unit\.id==="wing-zero-ew"\|\|unit\.id==="gundam-epyon";/g)];
+  assert.ok(hoverChecks.length>=2,"both adjustable movement and direct movement must recognize Hover");
+  const waterChecks=[...source.matchAll(/waterPenalty=!options\.ignoreWater&&!hasHover&&E\.terrainAt/g)];
+  assert.ok(waterChecks.length>=1,"direct movement hint/range must suppress Water penalty for Hover");
+  assert.match(source,/waterPenalty=!hasHover&&E\.terrainAt\(state,unit\.q,unit\.r\)==="water"\?1:0/);
+});
+
 test("movement still excludes occupied hexes", () => {
   const s=E.setupGame(()=>0.5);
   const unit=s.units.find(x=>x.id==="gundam");
@@ -656,7 +694,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta14.7<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.8<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2378,7 +2416,7 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.7<\/span>/);
+  assert.match(html,/>Beta14.8<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2453,7 +2491,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.7<\/span>/);
+  assert.match(html,/>Beta14.8<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2995,9 +3033,9 @@ test("Beta14.7 AI camera follows the active unit after committed movement",()=>{
   assert.ok(move.indexOf('renderAll();\n    // Keep the camera attached')<move.indexOf('focusCameraOnUnit(unit);'));
 });
 
-test("Beta14.7 build and cache tags are synchronized",()=>{
+test("Beta14.8 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.7<\/span>/);
+  assert.match(html,/>Beta14.8<\/span>/);
   for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
 });
 
