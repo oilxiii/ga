@@ -325,6 +325,64 @@
     [3,10],[4,10],[8,10],[10,10],[13,10]
   ];
 
+  // Scenario data is intentionally separated from the renderer so new maps can be
+  // added without duplicating combat logic. Sleeping Leviathan remains the default.
+  const sleepingLeviathan = {
+    id: "sleeping-leviathan", name: "Sleeping Leviathan", cols: 15, rows: 13,
+    featureCoordinates, elevation1, elevation2, water: []
+  };
+
+  // Azure Fang reconstructed against the official board reference supplied for Beta14.
+  // The printed board has 14 cells in even columns and 13 in odd columns; the seven
+  // bottom odd-column coordinates are outside the physical board. Water is level 0
+  // terrain, while every pink-marked/dark-green hill hex in the reference is level 1.
+  const azureFangFeatures = {
+    bases: [{ q: 14, r: 0, team: "zeon" }, { q: 0, r: 13, team: "fed" }],
+    garrisons: {
+      zeon: [[7,0],[0,5],[2,6],[7,5],[12,5],[3,10],[12,10],[9,12]],
+      fed: [[5,0],[2,3],[11,2],[2,8],[7,7],[12,7],[14,8],[7,12]]
+    },
+    objectives: [[4,4],[8,5],[6,8],[10,9]],
+    energy: [[2,7],[12,6]],
+    upgrades: [[2,1],[7,2],[14,4],[5,5],[7,6],[9,7],[0,9],[7,10],[12,12]]
+  };
+  const azureFangWater = [
+    [3,5],[3,6],[3,7],[3,8],
+    [4,6],[4,7],[4,8],[4,9],
+    [5,6],[5,7],[5,8],[5,9],
+    [6,3],[6,4],[6,5],[6,6],[6,7],[6,8],[6,9],[6,10],
+    [7,3],[7,4],[7,8],[7,9],
+    [8,3],[8,4],[8,5],[8,6],[8,7],[8,8],[8,9],[8,10],
+    [9,3],[9,4],[9,5],[9,6],
+    [10,4],[10,5],[10,6],[10,7],
+    [11,4],[11,5],[11,6],[11,7]
+  ];
+  const azureFangElevation1 = [
+    [0,5],[0,6],[0,8],[0,9],[0,13],
+    [2,1],[2,6],[2,7],[2,10],
+    [3,4],[3,9],[3,10],
+    [4,4],[4,10],
+    [5,0],[5,3],
+    [6,0],[6,1],
+    [7,0],[7,2],[7,10],[7,12],
+    [8,12],[8,13],
+    [9,9],[9,12],
+    [10,3],[10,9],
+    [11,2],[11,3],[11,8],
+    [12,3],[12,6],[12,7],[12,12],
+    [14,0],[14,4],[14,5],[14,7],[14,8]
+  ];
+  const azureFangInvalidCells = [[1,13],[3,13],[5,13],[7,13],[9,13],[11,13],[13,13]];
+  const azureFang = {
+    id: "azure-fang", name: "Azure Fang", cols: 15, rows: 14, invalidCells: azureFangInvalidCells,
+    featureCoordinates: azureFangFeatures, elevation1: azureFangElevation1, elevation2: [], water: azureFangWater
+  };
+
+  const maps = {
+    "sleeping-leviathan": sleepingLeviathan,
+    "azure-fang": azureFang
+  };
+
   const data = {
     teams: {
       fed: { name: "Earth Federation", short: "E.F.S.F.", color: "#36b7ff", phaseTwoTacticDraw: 3 },
@@ -353,7 +411,8 @@
     },
     units,
     tactics,
-    map: { id: "sleeping-leviathan", name: "Sleeping Leviathan", cols: 15, rows: 13, featureCoordinates, elevation1, elevation2 },
+    maps,
+    map: sleepingLeviathan,
     mysteryPool: ["shield","shield","shield","shield","shield","speed","speed","speed","speed","speed","strength","strength","strength","strength","strength"]
   };
 

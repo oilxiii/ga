@@ -533,6 +533,8 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
 .dice-result-item.critical::before { top:5px; right:4px; animation:critical-sparkle-a 1.05s ease-in-out infinite; }
 .dice-result-item.critical::after { top:30px; left:1px; width:5px; height:5px; animation:critical-sparkle-b .86s ease-in-out infinite .16s; }
 .dice-roll-summary { margin-top:20px; min-height:1.4em; color:#86dfff; font-size:.9rem; font-weight:950; letter-spacing:.13em; }
+.dice-roll-actions { display:flex; justify-content:center; margin-top:18px; }
+.dice-roll-ok { min-width:160px; padding-left:28px; padding-right:28px; }
 @keyframes d10-roll { 0%{transform:rotateX(0) rotateY(0) rotateZ(0) scale(.92)} 50%{transform:rotateX(170deg) rotateY(95deg) rotateZ(12deg) scale(1.08)} 100%{transform:rotateX(360deg) rotateY(190deg) rotateZ(0) scale(.92)} }
 @keyframes d10-land { 0%{transform:scale(.65) rotate(-12deg)} 70%{transform:scale(1.14) rotate(3deg)} 100%{transform:scale(1) rotate(0)} }
 @keyframes critical-pulse { from{filter:drop-shadow(0 0 8px #ffd84e) drop-shadow(0 0 15px rgba(255,179,0,.72))} to{filter:drop-shadow(0 0 15px #fff0a1) drop-shadow(0 0 32px #ffae00)} }
@@ -2666,3 +2668,73 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
 .attack-again-prompt text{text-anchor:middle;dominant-baseline:middle;font-family:Arial,sans-serif;paint-order:stroke;stroke:rgba(0,0,0,.62);stroke-width:1.2px;stroke-linejoin:round}
 .attack-again-prompt .attack-again-title{fill:#fff;font-size:9px;font-weight:900;letter-spacing:.35px}
 .attack-again-prompt .attack-again-subtitle{fill:#bfefff;font-size:7px;font-weight:700;letter-spacing:.18px}
+
+/* Beta13 — scenario selection */
+.scenario-select {
+  position:absolute; inset:0; z-index:26; display:grid; place-items:center; padding:clamp(14px,4vw,34px);
+  opacity:0; visibility:hidden; pointer-events:none;
+  background:radial-gradient(circle at 50% 35%,rgba(18,68,101,.78),rgba(0,5,11,.96) 72%);
+  backdrop-filter:blur(8px); transition:opacity .2s ease,visibility .2s ease;
+}
+.scenario-select.show { opacity:1; visibility:visible; pointer-events:auto; }
+.scenario-select:not(.show) :is(button,[tabindex]) { visibility:hidden; }
+.scenario-select-panel {
+  position:relative; width:min(500px,94%); max-height:92%; overflow:auto; padding:24px 22px 18px;
+  border:1px solid rgba(105,211,255,.62); color:#edf9ff;
+  background:linear-gradient(150deg,rgba(9,34,53,.98),rgba(3,10,18,.985));
+  box-shadow:0 30px 90px rgba(0,0,0,.72),inset 0 0 50px rgba(55,180,236,.07);
+  clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px));
+}
+.scenario-select-panel h2 { margin:7px 0 4px; font-size:clamp(1.55rem,5vw,2.25rem); }
+.scenario-select-panel > p { margin:0 0 16px; color:#a9bfd1; }
+.scenario-options { display:grid; gap:12px; }
+.scenario-option {
+  position:relative; display:grid; grid-template-columns:138px 1fr auto; gap:13px; align-items:center; width:100%; padding:9px;
+  border:1px solid rgba(119,190,226,.3); color:#eef9ff; background:linear-gradient(115deg,rgba(14,39,57,.96),rgba(5,17,28,.96));
+  text-align:left; cursor:pointer; overflow:hidden; transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;
+}
+.scenario-option:hover,.scenario-option:focus-visible { transform:translateY(-2px); border-color:#7bdfff; box-shadow:0 0 24px rgba(71,192,245,.28); outline:none; }
+.scenario-option.azure:hover,.scenario-option.azure:focus-visible { border-color:#78e4c0; box-shadow:0 0 24px rgba(61,218,165,.24); }
+.scenario-preview { display:block; height:92px; overflow:hidden; border:1px solid rgba(214,238,250,.35); background:#07111b; }
+.scenario-preview img { width:100%; height:100%; display:block; object-fit:cover; }
+.scenario-copy { min-width:0; }
+.scenario-copy strong,.scenario-copy small,.scenario-copy em { display:block; }
+.scenario-copy strong { font-size:.9rem; letter-spacing:.055em; }
+.scenario-copy small { margin-top:4px; color:#71d8ff; font-size:.58rem; font-weight:900; letter-spacing:.12em; }
+.scenario-option.azure .scenario-copy small { color:#7ce5bc; }
+.scenario-copy em { margin-top:7px; color:#9fb4c5; font-size:.62rem; font-style:normal; line-height:1.35; }
+.scenario-option > i { color:#6bd7ff; font-size:.55rem; font-style:normal; font-weight:950; letter-spacing:.11em; transform:rotate(-90deg); }
+.scenario-select-back { margin-top:10px; }
+
+/* Azure Fang battlefield theme */
+.hex.map-azure-fang.elevation-0 polygon { fill:#355b35; stroke:rgba(166,219,166,.48); }
+.hex.map-azure-fang.elevation-1 polygon { fill:#123d2b; stroke:#38a66e; stroke-width:2; }
+.hex.map-azure-fang.elevation-2 polygon { fill:#123d2b; stroke:#38a66e; stroke-width:2; }
+.hex.map-azure-fang.terrain-water polygon { fill:#17688f; stroke:#67c9f2; stroke-width:1.55; }
+.hex.map-azure-fang.terrain-water .elevation-label { fill:rgba(220,247,255,.72); }
+
+/* Beta14.1: Azure terrain rules are intentionally more specific than the base
+   battlefield palette, so interaction states must be re-declared after them.
+   Without these rules legal Deploy/Advance hexes existed in game logic but
+   stayed visually green on Azure Fang. */
+.hex.map-azure-fang.reachable polygon { fill:#175c71; stroke:#6ee6ff; stroke-width:2.4; filter:drop-shadow(0 0 7px #26ccff); }
+.hex.map-azure-fang.terrain-water.reachable polygon { fill:#1685a9; stroke:#9aeeff; stroke-width:2.4; filter:drop-shadow(0 0 7px #26ccff); }
+.hex.map-azure-fang.targetable polygon,.hex.map-azure-fang.aoe-visible polygon { fill:#8c2431; stroke:#ff9aa7; stroke-width:2.4; filter:drop-shadow(0 0 8px #ff405a); }
+.hex.map-azure-fang.terrain-water.targetable polygon,.hex.map-azure-fang.terrain-water.aoe-visible polygon { fill:#7d3448; stroke:#ff9aa7; stroke-width:2.4; }
+.hex.map-azure-fang.aoe-blocked polygon { fill:#535860; stroke:#aeb6c1; stroke-width:2.2; filter:drop-shadow(0 0 6px rgba(180,190,204,.55)); }
+.hex.map-azure-fang.char-kick-target polygon { fill:#b50d29; stroke:#fff1f3; stroke-width:3.4; animation:char-kick-hex-pulse .68s ease-in-out infinite alternate; }
+.hex.map-azure-fang.selected polygon { stroke:#fff; stroke-width:3; filter:drop-shadow(0 0 7px #fff); }
+.water-mark { fill:rgba(205,244,255,.62); font-size:10px; font-weight:900; pointer-events:none; }
+
+@media (max-width:560px) {
+  .scenario-select { padding:10px; }
+  .scenario-select-panel { width:min(430px,96%); padding:18px 14px 13px; }
+  .scenario-option { grid-template-columns:112px 1fr; gap:10px; }
+  .scenario-preview { height:76px; }
+  .scenario-option > i { display:none; }
+  .scenario-copy strong { font-size:.78rem; }
+  .scenario-copy em { font-size:.57rem; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .scenario-select,.scenario-option { transition-duration:.01ms !important; }
+}

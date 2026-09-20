@@ -22,7 +22,8 @@
   function attackOutcomeStats(state, unit, target, weapon, engine) {
     const elevation = Math.sign(engine.elevationAt(state, unit.q, unit.r) - engine.elevationAt(state, target.q, target.r));
     const targeted = unit.id === "guntank" && sumUpgrades(unit) >= 2 ? 1 : 0;
-    const accuracy = elevation + targeted+(unit.tempAccuracy||0);
+    const water = (engine.terrainAt(state,unit.q,unit.r)==="water"||engine.terrainAt(state,target.q,target.r)==="water") ? -1 : 0;
+    const accuracy = elevation + water + targeted+(unit.tempAccuracy||0);
     const critFloor = Number.isFinite(unit.critFloorOverride)?unit.critFloorOverride:(unit.critBoost || unit.id === "wing-zero-ew" || (unit.id === "guncannon" && sumUpgrades(unit) >= 2)) ? 7 : 9;
     let hitFaces = 0;
     let criticalFaces = 0;

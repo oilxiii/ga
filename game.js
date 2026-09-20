@@ -20,6 +20,7 @@
   let humanTeam = null;
   let aiTeam = null;
   let matchFactions = { fed:"fed", zeon:"zeon" };
+  let selectedScenarioId = D.map?.id || "sleeping-leviathan";
   let aiThinkingTimer = null;
   let aiBusy = false;
   let aiPerforming = false;
@@ -196,6 +197,8 @@
     const sources = {
       song1: "assets/audio/battle-bgm.mp3",
       song2: "assets/audio/title-bgm.mp3",
+      getter: "assets/audio/getter-robo-bgm.mp3",
+      beyond: "assets/audio/beyond-the-time-bgm.mp3",
       secret: "assets/audio/secret-mazinger-z-bgm.mp3"
     };
     const tracks = new Map();
@@ -304,6 +307,8 @@
     const one=$("#title-one-player");
     const two=$("#title-two-player");
     const factionSelect=$("#faction-select");
+    const scenarioSelect=$("#scenario-select");
+    const scenarioButtons=[...document.querySelectorAll("[data-scenario]")];
     const gameShell=$(".game-shell");
     const clearNotice=()=>{notice?.classList.remove("show","warning");};
     const resumeTitleMusic=()=>{
@@ -314,6 +319,7 @@
     TitleBGM.start();
     let selectingMode=null;
     let firstFaction=null;
+    let pendingFactions=null;
     const selectTitle=$("#faction-select-title");
     const selectDescription=$("#faction-select-description");
     const selectEyebrow=$("#faction-select-eyebrow");
@@ -346,6 +352,15 @@
       factionSelect.classList.add("show");
       factionSelect.setAttribute("aria-hidden","false");
       factionButtons.find(button=>!button.disabled)?.focus();
+    };
+    const showScenarioStep=(nextMode,factions)=>{
+      selectingMode=nextMode;
+      pendingFactions={...factions};
+      factionSelect?.classList.remove("show","opponent-step","secret-revealed");
+      factionSelect?.setAttribute("aria-hidden","true");
+      scenarioSelect?.classList.add("show");
+      scenarioSelect?.setAttribute("aria-hidden","false");
+      scenarioButtons[0]?.focus();
     };
     const launch=(nextMode,factions)=>{
       if(screen.classList.contains("leaving"))return;
@@ -389,8 +404,24 @@
       SFX.menuConfirm();
       const faction=button.dataset.faction;
       if(!firstFaction){firstFaction=faction;showFactionStep(selectingMode,2);return;}
-      launch(selectingMode,{fed:firstFaction,zeon:faction});
+      showScenarioStep(selectingMode,{fed:firstFaction,zeon:faction});
     }));
+    scenarioButtons.forEach(button=>button.addEventListener("click",()=>{
+      if(!pendingFactions)return;
+      SFX.menuConfirm();
+      selectedScenarioId=D.maps?.[button.dataset.scenario]?button.dataset.scenario:"sleeping-leviathan";
+      D.map=D.maps?.[selectedScenarioId]||D.map;
+      scenarioSelect?.classList.remove("show");
+      scenarioSelect?.setAttribute("aria-hidden","true");
+      launch(selectingMode,pendingFactions);
+    }));
+    $("#scenario-select-back")?.addEventListener("click",()=>{
+      SFX.menuConfirm();
+      scenarioSelect?.classList.remove("show");
+      scenarioSelect?.setAttribute("aria-hidden","true");
+      pendingFactions=null;
+      showFactionStep(selectingMode,2);
+    });
     $("#faction-select-back")?.addEventListener("click",()=>{
       SFX.menuConfirm();
       if(firstFaction){firstFaction=null;showFactionStep(selectingMode,1);return;}
@@ -831,9 +862,12 @@
     BGM.stop();
     const screen=$("#title-screen");
     const factionSelect=$("#faction-select");
+    const scenarioSelect=$("#scenario-select");
     const gameShell=$(".game-shell");
     factionSelect?.classList.remove("show","opponent-step","secret-revealed");
     factionSelect?.setAttribute("aria-hidden","true");
+    scenarioSelect?.classList.remove("show");
+    scenarioSelect?.setAttribute("aria-hidden","true");
     $("#secret-team-toggle")?.setAttribute("aria-expanded","false");
     $("#secret-team-drawer")?.setAttribute("aria-hidden","true");
     document.querySelectorAll("#secret-team-drawer [data-faction]").forEach(button=>button.tabIndex=-1);
@@ -872,7 +906,9 @@
     menuView = "main";
     transitionBusy = false;
     hidePhaseTransition();
-    addLog("เริ่มภารกิจ Sleeping Leviathan — Mystery Upgrade ถูกสุ่ม 9 จาก 15 ชิ้นแล้ว");
+    const boardEl=$("#board");
+    boardEl?.setAttribute("aria-label",`กระดาน Hex ${D.map.name}`);
+    addLog(`เริ่มภารกิจ ${D.map.name} — Mystery Upgrade ถูกสุ่ม 9 จาก 15 ชิ้นแล้ว`);
     startActivation(true);
   }
 
@@ -1258,6 +1294,7 @@
 
   function renderBoard() {
     const size = 27, x0 = 72, y0 = 32, dx = size*1.5, dy = Math.sqrt(3)*size;
+    $("#board")?.setAttribute("viewBox",`0 0 780 ${D.map.rows>13?680:650}`);
     const active = activeUnit();
     const losMaximumRange=active?Math.max(0,...inspectionWeaponsFor(active).map(weaponRange)):0;
     const encounterTargets=active?E.engagedTargets(state,active):[];
@@ -1265,9 +1302,11 @@
     let defs = "";
     let cells = "";
     for (let q=0;q<D.map.cols;q++) for (let r=0;r<D.map.rows;r++) {
+      if(!E.inBounds(q,r))continue;
       const cx=x0+q*dx, cy=y0+(r+(q&1)*.5)*dy;
       const hex=state.board[E.key(q,r)];
-      const cls=["hex",`elevation-${hex.elevation}`];
+      const cls=["hex",`elevation-${hex.elevation}`,`map-${D.map.id}`];
+      if(hex.terrain==="water")cls.push("terrain-water");
       if (mode?.type === "move" && mode.targets.has(E.key(q,r))) cls.push("reachable");
       if (mode?.type === "aoe-confirm" && mode.blockedTargets?.has(E.key(q,r))) cls.push("aoe-blocked");
       if (mode?.type === "aoe-confirm" && mode.previewTargets?.has(E.key(q,r))) cls.push("aoe-visible");
@@ -1281,6 +1320,7 @@
       cells += `<g class="${cls.join(" ")}" data-q="${q}" data-r="${r}">
         <polygon points="${hexPoints(cx,cy,size-1)}"></polygon>
         <text class="elevation-label" x="${cx-18}" y="${cy-14}">L${hex.elevation}</text>
+        ${hex.terrain==="water"?`<text class="water-mark" x="${cx}" y="${cy+4}" text-anchor="middle">≈</text>`:""}
         ${f ? f.icon
           ? `<image class="feature-token ${f.type} ${mode?.type === "char-kick" && isTargetable(q,r) ? "char-kick-victim" : ""} ${losGarrison?"los-inspectable":""} ${losGarrisonBlocked?"los-blocked-target":""} ${losGarrisonEngaged?"los-engagement-target":""}" href="${f.icon}" x="${cx-14}" y="${cy-14}" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>${f.hp!==undefined?`<circle class="token-counter-bg ${f.team}" cx="${cx+11}" cy="${cy+10}" r="7"></circle><text class="token-counter" x="${cx+11}" y="${cy+10}">${f.hp}</text>`:""}`
           : `<g class="objective-flag ${f.team}" aria-label="Objective ${f.team === "neutral" ? "ยังไม่มีผู้ครอบครอง" : `ครอบครองโดย ${teamName(f.team)}`}"><title>Objective · ${D.rules.objective?.phaseVp ?? 5} VP เมื่อจบ Phase</title><path class="objective-pole" d="M ${cx-7} ${cy+13} V ${cy-12}"></path><path class="objective-cloth" d="M ${cx-6} ${cy-11} L ${cx+11} ${cy-6} L ${cx-6} ${cy+1} Z"></path><path class="objective-base" d="M ${cx-13} ${cy+13} H ${cx-1}"></path></g>` : ""}
@@ -1326,6 +1366,7 @@
   function unitHudHtml(unit,{showAi=false}={}) {
     const effects=[...unitMapEffects(unit)];
     if(unit.zone!=="reserve"&&E.engagedTargets(state,unit).length)effects.push({type:"encounter",kind:"status",text:"E",title:"Engagement — Move -1 และการโจมตีต้องมีเป้าหมายที่กำลัง Engage อย่างน้อย 1 ตัว"});
+    if(unit.zone!=="reserve"&&E.terrainAt(state,unit.q,unit.r)==="water")effects.push({type:"water",kind:"status",text:"≈",title:"Water — เริ่มการเคลื่อนที่ Move -1 · Attack ที่เกี่ยวข้อง Accuracy -1"});
     if(unit.berserkActive)effects.push({type:"berserk",kind:"temporary",text:"BZK",title:"Berserk Active"});
     if(unit.movementBonus>0)effects.push({type:"move-bonus",kind:"temporary",text:`M+${unit.movementBonus}`,title:`Move Bonus +${unit.movementBonus} ใน Activation นี้`});
     const effectHtml=effects.map(effect=>{
@@ -1464,11 +1505,16 @@
       item("Wait",a.actionUsed?"END":"PRIMARY ACTION REQUIRED","end",!a.actionUsed,"danger")
     ]).join("");
     const weapons=unit.weapons.map((weapon,index)=>item(weapon.name,`R${weapon.range}${weapon.ignoreLos?" · IGNORE LOS":""} · S${weapon.strength} · TL${weapon.timeline}`,`weapon-${index}`,a.actionUsed)).join("")+item("‹ Back","COMMAND","back");
-    menu.innerHTML=`<div class="command-caption"><span>${menuView==="weapons"?"WEAPON":"COMMAND"}</span><span>${unit.weaponBadge||unit.model}</span></div><div class="command-list">${menuView==="weapons"?weapons:main}</div>`;
+    const energizeMenu=item("Confirm Energize","+1 ENERGY · TL2","confirm-energize")+item("‹ Back","COMMAND","back");
+    const menuLabel=menuView==="weapons"?"WEAPON":menuView==="energize"?"ENERGIZE":"COMMAND";
+    const menuItems=menuView==="weapons"?weapons:menuView==="energize"?energizeMenu:main;
+    menu.innerHTML=`<div class="command-caption"><span>${menuLabel}</span><span>${unit.weaponBadge||unit.model}</span></div><div class="command-list">${menuItems}</div>`;
     menu.querySelectorAll("[data-menu-action]").forEach(btn=>btn.addEventListener("click",()=>{
       if(isAiTeam(unit.team))return;
       const action=btn.dataset.menuAction;
       if(action==="attack-menu"){menuView="weapons";renderActions();return;}
+      if(action==="energize"){menuView="energize";renderActions();return;}
+      if(action==="confirm-energize"){menuOpen=false;menuView="main";handleAction("energize");return;}
       if(action==="back"){menuView="main";renderActions();return;}
       if(action.startsWith("weapon-")){
         const weapon=unit.weapons[Number(action.split("-")[1])];
@@ -1593,16 +1639,17 @@
     if(diceAnimationTimer)clearTimeout(diceAnimationTimer);
     if(diceRollInterval)clearInterval(diceRollInterval);
     const dice=result.dice.map((die,index)=>diceItemHtml(die,index)).join("");
-    overlay.innerHTML=`<div class="dice-roll-card"><button type="button" class="dice-roll-close" aria-label="Close dice results" title="Close" disabled>×</button><span class="eyebrow">D10 // ${escapeFxText(label)}</span><h2 class="dice-roll-title">ROLLING…</h2><div class="animated-dice-grid">${dice}</div>${diceTargetLegendHtml(display)}<div class="dice-roll-summary" aria-live="polite">ROLLING</div></div>`;
+    overlay.innerHTML=`<div class="dice-roll-card"><button type="button" class="dice-roll-close" aria-label="Close dice results" title="Close" disabled>×</button><span class="eyebrow">D10 // ${escapeFxText(label)}</span><h2 class="dice-roll-title">ROLLING…</h2><div class="animated-dice-grid">${dice}</div>${diceTargetLegendHtml(display)}<div class="dice-roll-summary" aria-live="polite">ROLLING</div><div class="dice-roll-actions"><button type="button" class="primary-btn dice-roll-ok" ${manualClose?"":"hidden"} disabled>OK</button></div></div>`;
     overlay.classList.add("show");
     overlay.tabIndex=-1;
-    lockResolutionModal(overlay,".dice-roll-close:not(:disabled)");
+    lockResolutionModal(overlay,".dice-roll-close:not(:disabled),.dice-roll-ok:not(:disabled)");
     overlay.focus({preventScroll:true});
     const nodes=[...overlay.querySelectorAll(".rolling-d10")];
     const closeButton=overlay.querySelector(".dice-roll-close");
+    const okButton=overlay.querySelector(".dice-roll-ok");
     const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const rollTime=reduced?80:850;
-    const holdTime=reduced?220:700;
+    const holdTime=(reduced?220:700)+(options.aiRoll?1000:0);
     const epoch=gameEpoch;
     let completed=false;
     const finish=()=>{
@@ -1615,6 +1662,7 @@
       onComplete();
     };
     closeButton?.addEventListener("click",finish);
+    okButton?.addEventListener("click",finish);
     diceRollInterval=setInterval(()=>nodes.forEach(node=>{node.querySelector(".dice-face").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
     diceAnimationTimer=setTimeout(()=>{
       if(epoch!==gameEpoch){if(diceRollInterval)clearInterval(diceRollInterval);diceRollInterval=null;return;}
@@ -1622,11 +1670,12 @@
       diceRollInterval=null;
       nodes.forEach((node,index)=>revealDiceNode(node,result,index,sharedThreshold,display));
       closeButton.disabled=false;
+      if(manualClose&&okButton){okButton.hidden=false;okButton.disabled=false;}
       overlay.querySelector(".dice-roll-title").textContent=sharedThreshold?"SHARED ATTACK ROLL":result.criticals?"CRITICAL!":"ATTACK ROLL";
       overlay.querySelector(".dice-roll-summary").textContent=sharedThreshold?`${result.criticals} CRITICAL · RESULTS BY TARGET`:`${result.hits} HIT · ${result.criticals} CRITICAL`;
       if(manualClose&&!options.keepOpen){
         diceAnimationTimer=null;
-        closeButton.focus({preventScroll:true});
+        (okButton||closeButton).focus({preventScroll:true});
         return;
       }
       diceAnimationTimer=setTimeout(()=>{
@@ -1644,7 +1693,7 @@
     const grid=overlay?.querySelector(".animated-dice-grid");
     const existing=grid?[...grid.querySelectorAll(".rolling-d10")]:[];
     if(!overlay?.classList.contains("show")||!grid||existing.length!==startIndex){
-      showDiceRoll(result,label,onComplete,{manualClose:!!options.manualClose});
+      showDiceRoll(result,label,onComplete,{manualClose:!!options.manualClose,aiRoll:!!options.aiRoll});
       return;
     }
     if(diceAnimationTimer)clearTimeout(diceAnimationTimer);
@@ -1663,10 +1712,12 @@
     overlay.querySelector(".dice-roll-title").textContent=`CRITICAL · +${extra.length} DICE`;
     overlay.querySelector(".dice-roll-summary").textContent=`${priorHits} HIT · ${priorCriticals} CRITICAL · +${extra.length} DICE`;
     const oldClose=overlay.querySelector(".dice-roll-close");
+    const oldOk=overlay.querySelector(".dice-roll-ok");
     if(oldClose)oldClose.disabled=true;
+    if(oldOk){oldOk.disabled=true;if(options.manualClose)oldOk.hidden=false;}
     const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const rollTime=reduced?80:850;
-    const holdTime=reduced?220:700;
+    const holdTime=(reduced?220:700)+(options.aiRoll?1000:0);
     const epoch=gameEpoch;
     let completed=false;
     const finish=()=>{
@@ -1680,6 +1731,8 @@
     };
     const replacement=oldClose?.cloneNode(true);
     if(oldClose&&replacement){oldClose.replaceWith(replacement);replacement.addEventListener("click",finish);}
+    const okReplacement=oldOk?.cloneNode(true);
+    if(oldOk&&okReplacement){oldOk.replaceWith(okReplacement);okReplacement.addEventListener("click",finish);}
     diceRollInterval=setInterval(()=>newNodes.forEach(node=>{node.querySelector(".dice-face").textContent=String(Math.floor(visualRandom()*10)+1);}),reduced?80:65);
     diceAnimationTimer=setTimeout(()=>{
       if(epoch!==gameEpoch){if(diceRollInterval)clearInterval(diceRollInterval);diceRollInterval=null;return;}
@@ -1687,12 +1740,14 @@
       diceRollInterval=null;
       newNodes.forEach(node=>{const index=Number(node.dataset.index);revealDiceNode(node,result,index,false,null);});
       const closeButton=overlay.querySelector(".dice-roll-close");
+      const okButton=overlay.querySelector(".dice-roll-ok");
       if(closeButton)closeButton.disabled=false;
+      if(options.manualClose&&okButton){okButton.hidden=false;okButton.disabled=false;}
       overlay.querySelector(".dice-roll-title").textContent=result.criticals?"CRITICAL! · EXTRA DICE":"ATTACK ROLL · EXTRA DICE";
       overlay.querySelector(".dice-roll-summary").textContent=`${result.hits} HIT · ${result.criticals} CRITICAL`;
       if(options.manualClose){
         diceAnimationTimer=null;
-        closeButton?.focus({preventScroll:true});
+        (okButton||closeButton)?.focus({preventScroll:true});
         return;
       }
       diceAnimationTimer=setTimeout(()=>{
@@ -1709,7 +1764,7 @@
   function showAttackDiceRoll(result,weapon,label,onComplete=()=>{},attacker=null){
     const keepOpen=keepVulcanDiceOpen(weapon,result);
     const ownerTeam=attacker?.team||result?.displayOwnerTeam||activeUnit()?.team||null;
-    showDiceRoll(result,label,onComplete,{keepOpen,manualClose:!!ownerTeam&&!isAiTeam(ownerTeam)&&!keepOpen});
+    showDiceRoll(result,label,onComplete,{keepOpen,manualClose:!!ownerTeam&&!isAiTeam(ownerTeam)&&!keepOpen,aiRoll:!!ownerTeam&&isAiTeam(ownerTeam)});
   }
 
   function offerAnotherTimeline(attacker,defender,weapon,result,onComplete=()=>{}) {
@@ -1738,7 +1793,7 @@
       E.rerollAttackDie(state,attacker,defender,weapon,result,index);
       const rerollView={dice:[result.dice[index]],results:[result.results[index]],hits:result.results[index]==="hit"?1:0,criticals:result.results[index]==="critical"?1:0};
       lastDice=result;addLog(`AI · Newtype Instincts: ทอยลูกที่ ${index+1} ใหม่ ${previous} → ${result.dice[index]}`);renderAll();
-      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete,{manualClose:!isAiTeam(attacker.team)});
+      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete,{manualClose:!isAiTeam(attacker.team),aiRoll:isAiTeam(attacker.team)});
       return;
     }
     const modal=ensureModal();
@@ -1749,7 +1804,7 @@
       E.rerollAttackDie(state,attacker,defender,weapon,result,index);
       const rerollView={dice:[result.dice[index]],results:[result.results[index]],hits:result.results[index]==="hit"?1:0,criticals:result.results[index]==="critical"?1:0};
       lastDice=result;addLog(`Newtype Instincts: Gundam ทอยลูกที่ ${index+1} ใหม่ ${previous} → ${result.dice[index]}`);closeModal();renderAll();
-      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete,{manualClose:!isAiTeam(attacker.team)});
+      showDiceRoll(rerollView,"NEWTYPE INSTINCTS",onComplete,{manualClose:!isAiTeam(attacker.team),aiRoll:isAiTeam(attacker.team)});
     }));
     modal.querySelector("#skip-newtype").addEventListener("click",()=>{result.rerollEligible=false;closeModal();onComplete();});
   }
@@ -1765,7 +1820,7 @@
     const changes=(result.disarmRerolled||[]).map(index=>`${before[index]}→${result.dice[index]}`);
     addLog(`${attacker.name}: Disarm ${changes.length?`ทอย Hit ใหม่ ${changes.join(", ")}`:"ไม่มีผล Hit ให้ทอยใหม่"} และปิด Critical Effect ของการโจมตีนี้`);
     renderAll();
-    if(changes.length)showDiceRoll(result,"DISARM",onComplete,{sharedThreshold:!!result.sharedThreshold,aoeDisplay:result.aoeDisplay,manualClose:!isAiTeam(attacker.team)});
+    if(changes.length)showDiceRoll(result,"DISARM",onComplete,{sharedThreshold:!!result.sharedThreshold,aoeDisplay:result.aoeDisplay,manualClose:!isAiTeam(attacker.team),aiRoll:isAiTeam(attacker.team)});
     else onComplete();
   }
 
@@ -1844,6 +1899,7 @@
     if(!unit||unit.zone==="reserve")return false;
     if(movementDraft?.unitId===unit.id&&movementDraft.movementType===movementType)return openMovementDraft(unit);
     const engaged=E.engagedTargets(state,unit);
+    const waterPenalty=E.terrainAt(state,unit.q,unit.r)==="water"?1:0;
     const reachable=E.reachable(state,unit,allowance);
     const wasDeploying=unit.zone==="deploying";
     if(!reachable.size&&wasDeploying){
@@ -1854,8 +1910,8 @@
       origin:{q:unit.q,r:unit.r,zone:unit.zone},
       targets:new Set(reachable.keys()),
       allowance,
-      effectiveAllowance:Math.max(0,allowance-(engaged.length?1:0)),
-      engaged:engaged.length>0,
+      effectiveAllowance:Math.max(0,allowance-(engaged.length?1:0)-waterPenalty),
+      engaged:engaged.length>0, waterPenalty:waterPenalty>0,
       placed:false,
       cost,label,movementType,primaryAction
     };
@@ -1883,7 +1939,7 @@
       type:"move",unitId:unit.id,targets:new Set(draft.targets),cost:0,label:draft.label,afterMove:null,
       primaryAction:draft.primaryAction,allowStay:false,adjustableMovement:true,returnMenu:"main",
       origin:{q:draft.origin.q,r:draft.origin.r},allowance:draft.allowance,reachOptions:{},onCancel:()=>cancelMovementDraft(),
-      hint:`${draft.label}: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged?` จาก ${draft.allowance} เพราะ ENCOUNTER -1`:""}) — ยืนยันเมื่อเลือก Action อื่น`
+      hint:`${draft.label}: เลือกตำแหน่งใหม่ภายในพื้นที่เดิม (งบ ${draft.effectiveAllowance}${draft.engaged||draft.waterPenalty?` จาก ${draft.allowance}${draft.engaged?" · ENGAGED -1":""}${draft.waterPenalty?" · WATER -1":""}`:""}) — ยืนยันเมื่อเลือก Action อื่น`
     };
     menuOpen=true;renderAll();return true;
   }
@@ -1938,7 +1994,8 @@
   function startMoveFor(unit,allowance,cost,label,afterMove,options={}) {
     if(!unit||unit.zone==="reserve")return false;
     const engaged=options.ignoreEngagement?[]:E.engagedTargets(state,unit);
-    const effectiveAllowance=Math.max(0,allowance-(engaged.length?1:0));
+    const waterPenalty=!options.ignoreWater&&E.terrainAt(state,unit.q,unit.r)==="water"?1:0;
+    const effectiveAllowance=Math.max(0,allowance-(engaged.length?1:0)-waterPenalty);
     const reachable=E.reachable(state,unit,allowance,{ignoreElevation:!!options.ignoreElevation||unit.id==="wing-zero-ew"||unit.id==="gundam-epyon",ignoreEngagement:!!options.ignoreEngagement});
     if(options.destinationFilter){for(const target of [...reachable.keys()]){const [q,r]=E.fromKey(target);if(!options.destinationFilter({q,r}))reachable.delete(target);}}
     if(!reachable.size&&unit.zone==="deploying"){
@@ -1948,7 +2005,7 @@
     // Critical follow-ups opt into staying explicitly so declining them remains legal.
     const allowStay=options.allowStay??false;
     if(!reachable.size&&!allowStay){addLog(`${label}: ไม่มีช่องปลายทางที่ถูกกติกา`);renderAll();return false;}
-    mode={type:"move",unitId:unit.id,targets:new Set(reachable.keys()),cost,label,afterMove,primaryAction:!!options.primaryAction,allowStay,returnMenu:options.returnMenu||"main",onCancel:options.onCancel,origin:{q:unit.q,r:unit.r},allowance,reachOptions:{ignoreElevation:!!options.ignoreElevation||unit.id==="wing-zero-ew"||unit.id==="gundam-epyon",ignoreEngagement:!!options.ignoreEngagement},hint:`${label}: เลือกช่องสีฟ้า (งบการเคลื่อนที่ ${effectiveAllowance}${engaged.length?` จาก ${allowance} เพราะ ENGAGED -1`:""}; การขึ้นที่สูงใช้เพิ่ม 1 ต่อระดับ)`};
+    mode={type:"move",unitId:unit.id,targets:new Set(reachable.keys()),cost,label,afterMove,primaryAction:!!options.primaryAction,allowStay,returnMenu:options.returnMenu||"main",onCancel:options.onCancel,origin:{q:unit.q,r:unit.r},allowance,reachOptions:{ignoreElevation:!!options.ignoreElevation||unit.id==="wing-zero-ew"||unit.id==="gundam-epyon",ignoreEngagement:!!options.ignoreEngagement},hint:`${label}: เลือกช่องสีฟ้า (งบการเคลื่อนที่ ${effectiveAllowance}${engaged.length||waterPenalty?` จาก ${allowance}${engaged.length?" · ENGAGED -1":""}${waterPenalty?" · WATER -1":""}`:""}; การขึ้นที่สูงใช้เพิ่ม 1 ต่อระดับ)`};
     menuOpen=true;
     renderAll();
     return true;
@@ -2397,7 +2454,7 @@
         });
       };
       offerShieldAt(0);
-    }),{sharedThreshold:true,aoeDisplay:master.aoeDisplay,manualClose:!isAiTeam(attacker.team)});
+    }),{sharedThreshold:true,aoeDisplay:master.aoeDisplay,manualClose:!isAiTeam(attacker.team),aiRoll:isAiTeam(attacker.team)});
   }
 
   function resolveGarrisonAttack(attacker,garrison,weapon,options={}) {
@@ -2516,7 +2573,7 @@
       lastDice.extraDiceResolved=true;
       E.addAttackDice(state,attacker,defender,weapon,lastDice,2);
       addLog(`${weapon.name} Critical: ทอยลูกเต๋าเพิ่ม 2 ลูก`);
-      renderAll();appendDiceRoll(lastDice,previousDiceCount,`${weapon.name.toUpperCase()} · EXTRA DICE`,onComplete,{manualClose:!isAiTeam(attacker.team)});return;
+      renderAll();appendDiceRoll(lastDice,previousDiceCount,`${weapon.name.toUpperCase()} · EXTRA DICE`,onComplete,{manualClose:!isAiTeam(attacker.team),aiRoll:isAiTeam(attacker.team)});return;
     }
     if(weapon.effect==="shieldBreak"){
       if(defender.upgrades?.shield>0)destroyUpgradeToken(defender,"shield",weapon.name);
@@ -3063,7 +3120,7 @@
       selectEnemy(unit,3,"Critical Shot: เลือกศัตรู",target=>{spend();applyDebuff(target,"fracture");addLog(`${target.name} ติด Fracture`);});
     } else if (unit.id==="guntank") {
       spend(); const dice=Array.from({length:5},()=>Math.floor(Math.random()*10)+1); const crit=dice.filter(x=>x>=9).length; lastDice={dice,results:dice.map(x=>x>=9?"critical":"miss"),hits:0,criticals:crit,damage:crit,accuracy:0};
-      renderAll();showDiceRoll(lastDice,"SATURATED FIRE",()=>{const targets=E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=4&&E.hasLineOfSight(state,unit,x));targets.forEach(x=>damageUnit(unit,x,crit,"Saturated Fire"));addLog(`Saturated Fire: ${crit} Critical — สร้าง Damage ${crit} แก่ศัตรู ${targets.length} ตัวใน Range 4 และ Line of Sight`);renderAll();},{manualClose:!isAiTeam(unit.team)});return;
+      renderAll();showDiceRoll(lastDice,"SATURATED FIRE",()=>{const targets=E.livingEnemies(state,unit).filter(x=>E.distance(unit,x)<=4&&E.hasLineOfSight(state,unit,x));targets.forEach(x=>damageUnit(unit,x,crit,"Saturated Fire"));addLog(`Saturated Fire: ${crit} Critical — สร้าง Damage ${crit} แก่ศัตรู ${targets.length} ตัวใน Range 4 และ Line of Sight`);renderAll();},{manualClose:!isAiTeam(unit.team),aiRoll:isAiTeam(unit.team)});return;
     } else if (unit.id==="chars-zaku") {
       beginAttack(unit.weapons[0],{free:true,onDeclare:spend});
     }
@@ -3810,7 +3867,7 @@
 
   function showRules() {
     const modal=ensureModal();
-    modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — Char’s Zaku II ทั้งสองแบบและ Red Gundam (Three Times Faster) Dash ได้เพิ่ม 1 ช่อง</li><li>Speed เพิ่มระยะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วน Hover ไม่สนผลภูมิประเทศ</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป</li><li>ทุกฝ่ายเริ่มด้วย Tactic 3 ใบ; E.F.S.F. และ ZEON จั่วเพิ่ม 3 ใบหลัง Phase 1 ส่วน White Devil, The Rival, Secret และ GQX มี 3 ใบตลอดเกม</li><li>ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation; การ์ด ATTACK ใช้ Primary Action ด้วย</li><li>War Edge, God Drill, Twin Buster Rifle และ Breast Fire เป็น AoE แบบ SP: ทอยครั้งเดียว ไม่โจมตีฝ่ายเดียวกันหรือ Base และใช้แนวเล็งพิเศษที่ Unit/Garrison ไม่บัง</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest; จุดของศัตรูต้องถูกล้างเป็นกลางก่อนยึด</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ ${D.rules.objective?.phaseVp ?? 5} VP ต่อจุดเมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และทำลาย/Rescue Garrison ได้ 2 VP</li></ul></div>`;
+    modal.innerHTML=`<div class="modal-card"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">CORE FLOW // V1</span><h2>กติกาย่อ</h2><ul class="rules-list"><li>ทุก Unit เริ่มใน Reserve; เมื่อ Timeline มาถึงจึง Deploy บน Base และต้อง Advance ออกจาก Base</li><li>Advance เดินได้สูงสุด 3 ช่องและไม่เสีย Timeline; Dash เดินได้สูงสุด 2 ช่องและเสีย Timeline 2 — Char’s Zaku II ทั้งสองแบบและ Red Gundam (Three Times Faster) Dash ได้เพิ่ม 1 ช่อง</li><li>Speed เพิ่มระยะ Advance; การขึ้นที่สูงใช้ระยะเพิ่ม 1 ต่อระดับ ส่วน Hover ไม่สนผลภูมิประเทศ</li><li>คลิกหัว Unit ที่กำลังทำงานเพื่อเปิด Command จากนั้นใช้ Advance ได้ 1 ครั้งและ Primary Action 1 ครั้ง</li><li>Timeline มีช่อง 1–10 ต่อ Phase และค่า Timeline ของ Action จะเลื่อนไอคอนไปยังช่องที่จะ Activate ครั้งถัดไป</li><li>ทุกฝ่ายเริ่มด้วย Tactic 3 ใบ; E.F.S.F. และ ZEON จั่วเพิ่ม 3 ใบหลัง Phase 1 ส่วน White Devil, The Rival, Secret และ GQX มี 3 ใบตลอดเกม</li><li>ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation; การ์ด ATTACK ใช้ Primary Action ด้วย</li><li>War Edge, God Drill, Twin Buster Rifle และ Breast Fire เป็น AoE แบบ SP: ทอยครั้งเดียว ไม่โจมตีฝ่ายเดียวกันหรือ Base และใช้แนวเล็งพิเศษที่ Unit/Garrison ไม่บัง</li><li>d10: 4–8 = Hit, 9–10 = Critical; ยิงจากที่สูงได้ Accuracy +1 และยิงขึ้นที่สูงได้ -1</li><li>Azure Fang: Unit ที่เริ่มการเคลื่อนที่ใน Water ลดระยะ 1 Hex; Attack ที่เกี่ยวข้องกับ Unit ใน Water ได้ Accuracy -1</li><li>Shield ที่ Active ป้องกัน Damage ชิ้นละ 1 แล้วคว่ำจนถึงต้น Activation ถัดไป, Strength เพิ่มลูกเต๋า, Speed เพิ่มระยะ Advance</li><li>เมื่อจบ Activation บนหรือติดกับ Objective จะ Contest; จุดของศัตรูต้องถูกล้างเป็นกลางก่อนยึด</li><li>Garrison มี HP 1; Objective ที่ครอบครองให้ ${D.rules.objective?.phaseVp ?? 5} VP ต่อจุดเมื่อจบแต่ละ Phase; ทำลาย Unit ได้ VP ตามการ์ด และทำลาย/Rescue Garrison ได้ 2 VP</li></ul></div>`;
     modal.classList.add("show");
     lockResolutionModal(modal,".modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);
@@ -3833,7 +3890,7 @@
   function showSoundMenu() {
     const modal=ensureModal();
     const current=soundMuted?"off":BGM.getSelection();
-    modal.innerHTML=`<div class="modal-card sound-menu-modal"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">AUDIO</span><h2>เพลงในเกม</h2><p>เลือกเพลงที่จะเล่นระหว่างการต่อสู้ หรือปิดเสียงทั้งหมด</p><div class="sound-choice-list"><button class="action-btn sound-choice ${current==="song1"?"selected":""}" data-sound-choice="song1"><strong>เพลง 1</strong><small>Battle BGM</small></button><button class="action-btn sound-choice ${current==="song2"?"selected":""}" data-sound-choice="song2"><strong>เพลง 2</strong><small>Alternate BGM</small></button><button class="action-btn sound-choice ${current==="secret"?"selected":""}" data-sound-choice="secret"><strong>เพลง Secret</strong><small>Mazinger Z (SRW Z)</small></button><button class="action-btn sound-choice danger ${current==="off"?"selected":""}" data-sound-choice="off"><strong>ปิดเสียง</strong><small>ปิดทั้ง BGM และ Sound Effects</small></button></div></div>`;
+    modal.innerHTML=`<div class="modal-card sound-menu-modal"><button class="modal-close" aria-label="ปิด">×</button><span class="eyebrow">AUDIO</span><h2>เพลงในเกม</h2><p>เลือกเพลงที่จะเล่นระหว่างการต่อสู้ หรือปิดเสียงทั้งหมด</p><div class="sound-choice-list"><button class="action-btn sound-choice ${current==="song1"?"selected":""}" data-sound-choice="song1"><strong>เพลง 1</strong><small>Battle BGM</small></button><button class="action-btn sound-choice ${current==="song2"?"selected":""}" data-sound-choice="song2"><strong>เพลง 2</strong><small>Alternate BGM</small></button><button class="action-btn sound-choice ${current==="getter"?"selected":""}" data-sound-choice="getter"><strong>Getter Robo!</strong><small>Getter Robo! BGM</small></button><button class="action-btn sound-choice ${current==="beyond"?"selected":""}" data-sound-choice="beyond"><strong>BEYOND THE TIME</strong><small>BEYOND THE TIME BGM</small></button><button class="action-btn sound-choice ${current==="secret"?"selected":""}" data-sound-choice="secret"><strong>เพลง Secret</strong><small>Mazinger Z (SRW Z)</small></button><button class="action-btn sound-choice danger ${current==="off"?"selected":""}" data-sound-choice="off"><strong>ปิดเสียง</strong><small>ปิดทั้ง BGM และ Sound Effects</small></button></div></div>`;
     modal.classList.add("show");
     lockResolutionModal(modal,"[data-sound-choice],.modal-close");
     modal.querySelector(".modal-close").addEventListener("click",closeModal);

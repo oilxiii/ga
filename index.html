@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
-  <title>Gundam Assemble — Sleeping Leviathan</title>
-  <link rel="stylesheet" href="styles.css?v=beta12-en">
+  <title>Gundam Assemble — Online</title>
+  <link rel="stylesheet" href="styles.css?v=beta14-6-en">
 </head>
 <body class="title-active">
   <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
@@ -73,6 +73,26 @@
           <button id="faction-select-back" class="faction-select-back" type="button">‹ กลับหน้า Title</button>
         </div>
       </section>
+      <section id="scenario-select" class="scenario-select" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="scenario-select-title" aria-describedby="scenario-select-description">
+        <div class="scenario-select-panel" tabindex="-1">
+          <span class="eyebrow">SELECT MAP</span>
+          <h2 id="scenario-select-title">เลือกสนามรบ</h2>
+          <p id="scenario-select-description">เลือก Scenario ก่อนเริ่มภารกิจ</p>
+          <div class="scenario-options">
+            <button type="button" class="scenario-option sleeping" data-scenario="sleeping-leviathan">
+              <span class="scenario-preview"><img src="assets/scenarios/sleeping-leviathan-preview.jpg" alt="Sleeping Leviathan map preview"></span>
+              <span class="scenario-copy"><strong>SLEEPING LEVIATHAN</strong><small>ORIGINAL BATTLEFIELD</small><em>Central high ground · Standard terrain</em></span>
+              <i aria-hidden="true">SELECT</i>
+            </button>
+            <button type="button" class="scenario-option azure" data-scenario="azure-fang">
+              <span class="scenario-preview"><img src="assets/scenarios/azure-fang-preview.jpg?v=beta14-6-en" alt="Azure Fang map preview"></span>
+              <span class="scenario-copy"><strong>AZURE FANG</strong><small>WATER BATTLEFIELD</small><em>Corner Bases · Water · Level 1 hills</em></span>
+              <i aria-hidden="true">SELECT</i>
+            </button>
+          </div>
+          <button id="scenario-select-back" class="faction-select-back scenario-select-back" type="button">‹ กลับไปเลือกทีม</button>
+        </div>
+      </section>
     </div>
   </section>
 
@@ -87,7 +107,7 @@
         <div id="zeon-score" class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> <b id="zeon-team-name">ZEON</b></span></div>
       </section>
       <div class="topbar-actions">
-        <span class="build-version" title="Game build version">Beta12</span>
+        <span class="build-version" title="Game build version">Beta14.6</span>
         <button id="sound-btn" class="icon-btn" type="button" aria-label="เลือกเพลงและเสียง" title="เลือกเพลงและเสียง" aria-pressed="false">🔊</button>
         <button id="restart-btn" class="icon-btn" type="button" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
       </div>
@@ -112,7 +132,7 @@
           </div>
         </div>
         <div id="board-wrap" class="board-wrap">
-          <svg id="board" viewBox="0 0 780 650" role="application" aria-label="กระดาน Hex Sleeping Leviathan"></svg>
+          <svg id="board" viewBox="0 0 780 650" role="application" aria-label="กระดาน Hex Gundam Assemble"></svg>
           <nav id="command-menu" class="unit-command-menu" aria-label="คำสั่งยูนิต"></nav>
         </div>
       </div>
@@ -136,9 +156,9 @@
     </div>
   </div>
 
-  <script src="data.js?v=beta12-en"></script>
-  <script src="engine.js?v=beta12-en"></script>
-  <script src="ai.js?v=beta12-en"></script>
-  <script src="game.js?v=beta12-en"></script>
+  <script src="data.js?v=beta14-6-en"></script>
+  <script src="engine.js?v=beta14-6-en"></script>
+  <script src="ai.js?v=beta14-6-en"></script>
+  <script src="game.js?v=beta14-6-en"></script>
 </body>
 </html>

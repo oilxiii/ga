@@ -1,10 +1,21 @@
-GUNDAM ASSEMBLE // ONLINE — Six Teams Beta12
+- Beta14.6 BEYOND THE TIME BGM: เพิ่ม BEYOND THE TIME เข้าเมนูเพลงในเกมเป็นตัวเลือกแยก โดยบีบอัดไฟล์เสียงเหลือ 987,132 bytes (< 1 MB) ที่ MP3 32 kbps mono / 22.05 kHz; Gameplay/Rules ไม่เปลี่ยนจาก Beta14.5.
+- Beta14.5 Getter Robo! BGM: เพิ่ม Getter Robo! เข้าเมนูเพลงในเกมเป็นตัวเลือกแยก โดยบีบอัดไฟล์เสียงเหลือ 961,140 bytes (< 1 MB) ที่ MP3 64 kbps stereo; Gameplay/Rules ไม่เปลี่ยนจาก Beta14.4.
+- Beta14.4 Azure Fang Preview Fix: ครอปรูป Preview ในหน้า Select Map ใหม่ให้พอดีกับสนามและตัดขอบกระดาษสีขาว/เส้นแดงด้านขวาที่ติดมาจากภาพต้นฉบับ โดยไม่เปลี่ยน Gameplay.
+- Beta14.3 UX: Energize now opens a confirm step with ‹ Back before spending Energy/Timeline; human dice results add a bottom OK button equivalent to ×; AI dice results remain visible about 1 second longer before continuing.
+- Beta14.2 Azure Fang Elevation Fix: แก้เนินสีชมพู/เขียวเข้มทั้งหมด 40 ช่องจาก Level 2 เป็น Level 1 ตามกระดานจริง ทำให้ Dash ระยะ 2 สามารถขึ้นเนินที่อยู่ติดกันได้ตามกติกา; คงสีเนินเขียวเข้มเดิมไว้ใน UI.
+- Beta14.1 Azure Fang Highlight Fix: แก้ interaction-state CSS ของ Azure Fang ที่ไปทับสี Reachable/Targetable ทำให้ช่องเดินที่ถูกกติกาใน Deploy/Advance มีอยู่จริงแต่ยังแสดงเป็นสีพื้นแผนที่; เพิ่ม state override สำหรับ Reachable, Targetable/AoE, Blocked, Char Kick และ Selected.
+- Beta14 Azure Fang Accuracy: ถอดตำแหน่งจากภาพอ้างอิงใหม่ทั้งกระดาน — แก้รูปทรงขอบล่างของแผนที่, Corner Base, Garrison, Objective, Energy, Upgrade, Water และ Level 1 Hill ให้ตรงภาพที่ผู้ใช้ส่งมา.
+- Beta14 Board Shape: Azure Fang ใช้ 14 Hex ในคอลัมน์คู่ / 13 Hex ในคอลัมน์คี่ (203 Hex ที่เล่นได้) และตัด 7 ช่องนอกกระดานด้านล่างออกจาก movement/LOS/rendering.
+- Beta13 Scenario Select: หลังเลือกทีมครบแล้ว เกมเปิด SELECT MAP พร้อมภาพ Preview ของ Sleeping Leviathan และ Azure Fang ก่อนเริ่ม Match.
+- Beta13 Azure Fang: เพิ่ม Corner Bases, setup Token แยกตาม Scenario, Water terrain และ Level 1 hill theme; Restart คงแผนที่ที่เลือกไว้.
+- Water: เริ่มการเคลื่อนที่ใน Water ลดระยะ 1 Hex; Attack ที่เกี่ยวข้องกับ Unit ใน Water Accuracy -1.
+GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.6
 - Beta12 Pre-Launch UX: Line of Sight inspection now honors Engagement. A target with clear geometry that cannot legally be selected because the attacker is Engaged is shown as an orange ENGAGED result instead of green. Special AoE inspection also checks a legal firing direction rather than only raw line geometry.
 - Beta12 Dice Modal: dice results now scroll safely on short/landscape screens, use a compact short-height layout, and share the game modal focus lock so keyboard focus cannot move to controls behind the result dialog.
 - Beta11 Dice Readability / AoE UX: Attack dice results for human-controlled attacks now stay open until the × button is pressed. Each die has a small HIT / MISS / CRIT label. Shared AoE rolls label per target number (for example HIT 1 · MISS 2), safely restore green when a die Hits every AoE target, keep mixed-threshold dice neutral, and keep Critical dice gold. AoE target numbers are listed under the roll. Critical dice also receive a small sparkle/glint treatment.
 - Beta11 AoE Disarm: shared AoE Disarm no longer depends on whichever target happens to be first. A non-Critical shared die is rerolled if it counts as a Hit against at least one affected target; Critical results are preserved and printed Critical Hit Effects remain disabled as normal.
 - English + Bugfix build beta10-en2: แก้ 8 บั๊กที่ยืนยันแล้ว: Dash cancel/Timeline, Char Kick ก่อน Iron Grip, Vulcan/Disarm, Breast Fire/Disarm, Rex Claws ใส่ Garrison เปิด Annihilate, Drive Them Back ไม่ทำดาเมจซ้ำใน Reserve, Push/Pull เก็บของเมื่อจบการเคลื่อนที่ และ Epic Shot ตรวจ LOS ของพันธมิตร; AI ใช้การประเมินที่ตรงกัน คงคำแปลอังกฤษครบเดิม ดู BUGFIX-NOTES.txt
-- Current validation: Core 232 + AI 29 + regression cases 18 = 279 checks.
+- Current validation: Core 238 + AI 29 + regression cases 18 = 285 checks.
 - Beta10 Bonus Attack UX: เมื่อผู้เล่นต้องเลือกเป้าหมายสำหรับการโจมตีซ้ำแบบบังคับ เกมจะแสดง bubble เล็กเหนือ Unit ว่า “Attack again / Select a target” สำหรับ Vidar Handgun, EVA-01 Progressive Knife, Barbatos Annihilate และ Crimson Execution; bubble หายทันทีเมื่อออกจาก target-selection flow และไม่แสดงในเทิร์น AI.
 - Beta09 GQX Rules/Disarm Fix: Disarm ยังคง reroll Hit และปิดเฉพาะ Critical Hit Effect ของอาวุธ แต่ไม่ลบผล Critical; Omega Psycommu Active ยัง Trigger จาก Critical และ KIRA KIRA! ยังเพิ่ม Damage ต่อ Critical ได้ตามปกติ.
 - Beta09 GQX UI/Docs Fix: HUD ของ GFreD แสดง Nyaan Focus แทน Mazin Power, Dash preview แสดง follow-up ที่ถูกต้องสำหรับ Shuji Kick/Char Kick, และกติกาย่อ/README ระบุ Three Times Faster ของ Red Gundam กับ fixed Tactic ของ GQX.

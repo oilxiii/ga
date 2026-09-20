@@ -34,7 +34,9 @@ test("1 Player asks for the human team and then a different AI opponent", () => 
   assert.match(html,/<strong>GQX<\/strong><span>GQUUUUUUX TEAM<\/span>/);
   assert.match(game,/setSecretRevealed\(false\)/);
   assert.match(game, /button\.disabled=step===2&&button\.dataset\.faction===firstFaction/);
-  assert.match(game, /launch\(selectingMode,\{fed:firstFaction,zeon:faction\}\)/);
+  assert.match(game, /showScenarioStep\(selectingMode,\{fed:firstFaction,zeon:faction\}\)/);
+  assert.match(html,/data-scenario="sleeping-leviathan"/);
+  assert.match(html,/data-scenario="azure-fang"/);
   assert.match(game, /humanTeam=nextMode==="ai"\?"fed":null/);
   assert.match(game, /aiTeam=nextMode==="ai"\?"zeon":null/);
   assert.match(game, /else if\(matchMode==="hotseat"\) showPassOverlay/);

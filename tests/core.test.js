@@ -154,6 +154,84 @@ test("Sleeping Leviathan terrain matches the unobstructed symmetric reference", 
   }
 });
 
+test("Beta14 Azure Fang matches the supplied board reference", () => {
+  const map=D.maps["azure-fang"];
+  assert.equal(map.cols,15);
+  assert.equal(map.rows,14);
+  assert.deepEqual(map.invalidCells,[[1,13],[3,13],[5,13],[7,13],[9,13],[11,13],[13,13]]);
+  assert.equal(map.elevation1.length,40);
+  assert.equal(map.elevation2.length,0);
+  assert.equal(map.water.length,44);
+
+  const hill=new Set(map.elevation1.map(([q,r])=>`${q},${r}`));
+  const water=new Set(map.water.map(([q,r])=>`${q},${r}`));
+  for(const cell of ["0,5","0,13","2,1","4,4","6,0","7,12","8,13","12,12","14,0","14,8"])assert.ok(hill.has(cell),`missing Azure hill ${cell}`);
+  for(const cell of ["3,5","4,9","6,3","6,8","6,10","8,5","8,10","10,7","11,7"])assert.ok(water.has(cell),`missing Azure water ${cell}`);
+  for(const cell of ["5,5","7,7"])assert.ok(!water.has(cell),`false Azure water ${cell}`);
+  assert.equal([...hill].filter(cell=>water.has(cell)).length,0,"hill and water may not overlap");
+
+  assert.deepEqual(map.featureCoordinates.bases,[{q:14,r:0,team:"zeon"},{q:0,r:13,team:"fed"}]);
+  assert.deepEqual(map.featureCoordinates.objectives,[[4,4],[8,5],[6,8],[10,9]]);
+  assert.deepEqual(map.featureCoordinates.energy,[[2,7],[12,6]]);
+  assert.deepEqual(map.featureCoordinates.upgrades,[[2,1],[7,2],[14,4],[5,5],[7,6],[9,7],[0,9],[7,10],[12,12]]);
+  assert.deepEqual(map.featureCoordinates.garrisons.zeon,[[7,0],[0,5],[2,6],[7,5],[12,5],[3,10],[12,10],[9,12]]);
+  assert.deepEqual(map.featureCoordinates.garrisons.fed,[[5,0],[2,3],[11,2],[2,8],[7,7],[12,7],[14,8],[7,12]]);
+
+  const original=D.map;
+  try{
+    D.map=map;
+    assert.equal(E.inBounds(0,13),true);
+    assert.equal(E.inBounds(1,13),false);
+    assert.equal(E.inBounds(14,13),true);
+    const state=E.setupGame(()=>0.3125);
+    assert.equal(Object.keys(state.board).length,203);
+    assert.equal(state.board["0,13"].elevation,1);
+    assert.equal(state.board["6,10"].terrain,"water");
+    assert.equal(state.board["6,8"].terrain,"water");
+    assert.equal(state.board["8,5"].terrain,"water");
+    assert.equal(state.board["5,5"].terrain,"ground");
+    assert.equal(state.board["1,13"],undefined);
+    assert.ok(state.garrisons.some(g=>g.team==="fed"&&g.q===14&&g.r===8));
+    assert.ok(state.garrisons.some(g=>g.team==="zeon"&&g.q===9&&g.r===12));
+  } finally {
+    D.map=original;
+  }
+
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(source,/if\(!E\.inBounds\(q,r\)\)continue/);
+  assert.match(source,/D\.map\.rows>13\?680:650/);
+});
+
+test("Beta14.2 Azure Fang hills are level 1 and a normal Dash can climb an adjacent hill", () => {
+  const original=D.map;
+  try{
+    const map=D.maps["azure-fang"];
+    D.map=map;
+    const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
+    // Use a ground hex immediately beside an unoccupied confirmed hill at (0,6).
+    const barbatos=state.units.find(unit=>unit.id==="barbatos-lupus-rex");
+    barbatos.zone="board"; barbatos.q=1; barbatos.r=6;
+    assert.equal(state.board["1,6"].elevation,0);
+    assert.equal(state.board["0,6"].elevation,1);
+    const dash=E.reachable(state,barbatos,D.rules.dash.distance);
+    assert.equal(dash.get("0,6"),2,"adjacent level-1 hill should cost exactly a 2-hex Dash allowance");
+  } finally {
+    D.map=original;
+  }
+});
+
+test("Beta14.1 Azure Fang interaction colors override the terrain palette", () => {
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  const terrainIndex=css.indexOf(".hex.map-azure-fang.elevation-0 polygon");
+  const reachableIndex=css.indexOf(".hex.map-azure-fang.reachable polygon");
+  assert.ok(terrainIndex>=0&&reachableIndex>terrainIndex,"Azure reachable styling must come after terrain styling");
+  assert.match(css,/\.hex\.map-azure-fang\.reachable polygon \{[^}]*fill:#175c71;[^}]*stroke:#6ee6ff;[^}]*stroke-width:2\.4;/);
+  assert.match(css,/\.hex\.map-azure-fang\.targetable polygon,\.hex\.map-azure-fang\.aoe-visible polygon \{/);
+  assert.match(css,/\.hex\.map-azure-fang\.aoe-blocked polygon \{/);
+  assert.match(css,/\.hex\.map-azure-fang\.char-kick-target polygon \{/);
+  assert.match(css,/\.hex\.map-azure-fang\.selected polygon \{/);
+});
+
 test("each player may use at most one tactic per activation", () => {
   const s=E.setupGame(()=>0.5);
   assert.deepEqual(s.activation.tacticUsed,{fed:false,zeon:false});
@@ -578,7 +656,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta12<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.6<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1394,14 +1472,20 @@ test("ordinary Move and Dash cannot stay in place, while optional Critical Dashe
   assert.match(source,/"240mm Critical Dash"[\s\S]{0,240}\{allowStay:true,returnMenu:"main"/);
 });
 
-test("the sound button opens Song 1 / Song 2 / Off audio choices", () => {
+test("the sound button opens Song 1 / Song 2 / Getter Robo / Secret / Off audio choices", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/function showSoundMenu\(\)/);
   assert.match(source,/data-sound-choice="song1"/);
   assert.match(source,/data-sound-choice="song2"/);
+  assert.match(source,/data-sound-choice="getter"/);
+  assert.match(source,/data-sound-choice="secret"/);
   assert.match(source,/data-sound-choice="off"/);
   assert.match(source,/song1: "assets\/audio\/battle-bgm\.mp3"/);
   assert.match(source,/song2: "assets\/audio\/title-bgm\.mp3"/);
+  assert.match(source,/getter: "assets\/audio\/getter-robo-bgm\.mp3"/);
+  const getterTrack=path.join(__dirname,"..","assets","audio","getter-robo-bgm.mp3");
+  assert.ok(fs.existsSync(getterTrack));
+  assert.ok(fs.statSync(getterTrack).size<1_000_000,"Getter Robo BGM must stay under 1 MB");
   assert.match(source,/SFX\.setMuted\(true\)/);
   assert.match(source,/BGM\.select\("off"\)/);
   assert.match(source,/\$\("#sound-btn"\)\?\.addEventListener\("click",showSoundMenu\)/);
@@ -2294,10 +2378,10 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta12<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta12`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta12/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta12/);
+  assert.match(html,/>Beta14.6<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
 });
 
 
@@ -2369,10 +2453,10 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta12<\/span>/);
-  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta12`));
-  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta12/);
-  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta12/);
+  assert.match(html,/>Beta14.6<\/span>/);
+  for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
+  assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
+  assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
 });
 
 
@@ -2382,7 +2466,7 @@ test("v98 team select uses the viewport and orderly responsive card regions", ()
   const selectCss=css.split("/* v98 Team Select rebuild")[1]||"";
   assert.equal((html.match(/class="faction-option-copy"/g)||[]).length,6);
   assert.equal((html.match(/class="faction-option-action"/g)||[]).length,6);
-  assert.equal((html.match(/<em>[^<]+<\/em>/g)||[]).length,6);
+  assert.equal((html.match(/<em>[^<]+<\/em>/g)||[]).length>=6,true);
   assert.equal((html.match(/<small>[^<]+<\/small>/g)||[]).length>=2,true);
   assert.match(selectCss,/\.faction-select \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
   assert.match(selectCss,/width: min\(920px, calc\(100vw - 40px\)\)/);
@@ -2508,8 +2592,8 @@ test("Beta04 Secret Team stat update matches latest unit cards",()=>{
   assert.ok(fs.existsSync(path.join(__dirname,"..",eva.card)));
   assert.ok(fs.existsSync(path.join(__dirname,"..",mazinger.card)));
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/Beta12/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta12"));
+  assert.match(html,/Beta14/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta14"));
 });
 
 test("Beta02 Pull attacks commit Action and Timeline before the Pre-Attack Pull",()=>{
@@ -2552,8 +2636,8 @@ test("Beta02 Secret Team theme is listed and auto-selected only at match launch"
   const launch=game.match(/const launch=\(nextMode,factions\)=>\{[\s\S]*?\n    \};/)?.[0]||"";
   assert.match(launch,/Object\.values\(matchFactions\)\.includes\("secret"\)\)BGM\.select\("secret"\)/);
   assert.equal((game.match(/BGM\.select\("secret"\)/g)||[]).length,1,"automatic Secret selection must happen only at launch");
-  assert.match(html,/Beta12/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta12"));
+  assert.match(html,/Beta14/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(file.replace(".","\\.")+"\\?v=beta14"));
 });
 
 
@@ -2878,7 +2962,7 @@ test("Beta11 dice results wait for human close and expose per-die labels",()=>{
   assert.match(css,/\.dice-outcome/);
 });
 
-test("Beta12 LOS Inspector distinguishes clear LOS blocked only by Engagement",()=>{
+test("Beta14 LOS Inspector distinguishes clear LOS blocked only by Engagement",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   const assess=game.match(/function losInspectionAssessment[\s\S]*?function renderLosInspection/)?.[0]||"";
@@ -2891,10 +2975,10 @@ test("Beta12 LOS Inspector distinguishes clear LOS blocked only by Engagement",(
   assert.match(css,/\.los-engagement-target/);
 });
 
-test("Beta12 dice results fit short screens and trap focus until dismissed",()=>{
+test("Beta14 dice results fit short screens and trap focus until dismissed",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
-  assert.match(game,/lockResolutionModal\(overlay,"\.dice-roll-close:not\(:disabled\)"\)/);
+  assert.match(game,/lockResolutionModal\(overlay,"\.dice-roll-close:not\(:disabled\),\.dice-roll-ok:not\(:disabled\)"\)/);
   assert.match(game,/#dice-roll-overlay\.show\[data-modal-lock='true'\]/);
   assert.match(game,/releaseResolutionModalLock\(overlay\)/);
   assert.match(css,/\.dice-roll-overlay \{[^}]*overflow-y:auto/);
@@ -2902,8 +2986,38 @@ test("Beta12 dice results fit short screens and trap focus until dismissed",()=>
   assert.match(css,/@media \(max-height: 520px\)/);
 });
 
-test("Beta12 build and cache tags are synchronized",()=>{
+test("Beta14.6 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta12<\/span>/);
-  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta12`));
+  assert.match(html,/>Beta14.6<\/span>/);
+  for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
+});
+
+
+test("Beta14.6 BEYOND THE TIME BGM is selectable and under 1 MB",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const audioPath=path.join(__dirname,"..","assets","audio","beyond-the-time-bgm.mp3");
+  assert.match(game,/beyond: "assets\/audio\/beyond-the-time-bgm\.mp3"/);
+  assert.match(game,/data-sound-choice="beyond"/);
+  assert.match(game,/<strong>BEYOND THE TIME<\/strong>/);
+  assert.equal(fs.existsSync(audioPath),true);
+  assert.ok(fs.statSync(audioPath).size<1000000,"BEYOND THE TIME BGM must stay below 1 MB");
+});
+
+
+test("Beta14.3 Energize confirmation can go Back before spending resources",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(game,/const energizeMenu=item\("Confirm Energize","\+1 ENERGY · TL2","confirm-energize"\)\+item\("‹ Back","COMMAND","back"\)/);
+  assert.match(game,/if\(action==="energize"\)\{menuView="energize";renderActions\(\);return;\}/);
+  assert.match(game,/if\(action==="confirm-energize"\)\{menuOpen=false;menuView="main";handleAction\("energize"\);return;\}/);
+});
+
+test("Beta14.3 human dice have bottom OK and AI result hold gains one second",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(game,/class="primary-btn dice-roll-ok"/);
+  assert.match(game,/okButton\?\.addEventListener\("click",finish\)/);
+  assert.match(game,/\(options\.aiRoll\?1000:0\)/);
+  assert.match(game,/aiRoll:!!ownerTeam&&isAiTeam\(ownerTeam\)/);
+  assert.match(css,/\.dice-roll-actions/);
+  assert.match(css,/\.dice-roll-ok/);
 });

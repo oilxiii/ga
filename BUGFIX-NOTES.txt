@@ -1,3 +1,24 @@
+Beta14.6 Audio list update
+- Added BEYOND THE TIME as a selectable in-game BGM.
+- Encoded assets/audio/beyond-the-time-bgm.mp3 at 32 kbps mono / 22.05 kHz; final size 987,132 bytes (< 1 MB).
+- No gameplay/rules changes.
+
+Beta14.5 Audio list update
+- Added Getter Robo! as a selectable in-game BGM.
+- Encoded assets/audio/getter-robo-bgm.mp3 at 64 kbps stereo; final size 961,140 bytes (< 1 MB).
+- No gameplay/rules changes.
+
+- Beta14.4 Azure Fang map-select preview: removed the accidental white/red page strip on the right side of the source preview image. Gameplay is unchanged.
+Beta14.3
+- Energize is now reversible before commitment: selecting it opens a confirmation submenu with ‹ Back; only Confirm Energize spends TL2 and grants +1 Energy.
+- Human dice result dialogs now include a bottom OK button with the same behavior as the top-right ×.
+- AI dice result dialogs hold the resolved dice for an additional 1 second before auto-closing/continuing.
+Beta14.2
+- Beta14.2 Azure Fang: corrected all 40 hill hexes from elevation 2 to elevation 1. Adjacent uphill movement now costs 2 movement points total (1 hex + 1 climb), so a normal Dash can enter the hill. Hill visuals remain dark green.
+Beta14.1
+- Azure Fang: fixed CSS specificity that hid legal Deploy/Advance movement highlights on ground and hill hexes. Reachable hexes now render cyan as intended; interaction-state precedence is also restored for targeting, AoE blocked/visible, Char Kick, and selected hexes.
+- Movement logic itself was verified unchanged: Azure Fang Deploy from either corner Base returns legal reachable hexes.
+
 Beta12 Pre-Launch UX fixes (cache build beta12-en)
 - LOS Inspector now distinguishes true legal targets from clear-LOS targets blocked by Engagement; those are orange and report “CLEAR LOS · Cannot target — ENGAGED”.
 - Special AoE LOS inspection checks whether a legal firing direction can actually affect the inspected target while respecting Engagement.

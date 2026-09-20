@@ -7,7 +7,10 @@
   const key = (q, r) => `${q},${r}`;
   const fromKey = value => value.split(",").map(Number);
   const timelineSlot = value => ((value - 1) % 10) + 1;
-  const inBounds = (q, r) => q >= 0 && q < DATA.map.cols && r >= 0 && r < DATA.map.rows;
+  const inBounds = (q, r) => {
+    if(q < 0 || q >= DATA.map.cols || r < 0 || r >= DATA.map.rows)return false;
+    return !(DATA.map.invalidCells||[]).some(([iq,ir])=>iq===q&&ir===r);
+  };
 
   function matchSidePalette(factions, team) {
     const faction=factions?.[team]||team;
@@ -84,6 +87,10 @@
     return state.board[key(q, r)]?.elevation ?? 0;
   }
 
+  function terrainAt(state, q, r) {
+    return state.board[key(q, r)]?.terrain || "ground";
+  }
+
   function unitAt(state, q, r) {
     return state.units.find(unit => unit.zone === "board" && unit.q === q && unit.r === r) || null;
   }
@@ -105,6 +112,7 @@
     const sameElevation = aElev === tElev;
     const inspectPath = path => {
       for (const hex of path.slice(1,-1)) {
+        if(!inBounds(hex.q,hex.r))return {clear:false,path,blocker:{...hex,type:"edge"}};
         const hexElevation=elevationAt(state,hex.q,hex.r);
         // p.20: terrain above both endpoints always blocks. If the endpoints are at
         // different elevations, terrain level with the higher endpoint also blocks.
@@ -152,7 +160,7 @@
     if (distance(attacker,target) <= 1) return true;
     const firingElevation = elevationAt(state, attacker.q, attacker.r);
     const inspectPath = path => !path.slice(1,-1).some(hex =>
-      elevationAt(state,hex.q,hex.r) > firingElevation
+      !inBounds(hex.q,hex.r) || elevationAt(state,hex.q,hex.r) > firingElevation
     );
     return lineVariants(attacker,target).some(inspectPath);
   }
@@ -182,7 +190,9 @@
 
   function reachable(state, unit, allowance, options = {}) {
     const engagementPenalty = !options.ignoreEngagement && engagedTargets(state, unit).length ? 1 : 0;
-    const effectiveAllowance = Math.max(0, allowance - engagementPenalty);
+    // Water: a Unit that begins a movement in Water has its movement reduced by 1 Hex.
+    const waterPenalty = !options.ignoreWater && terrainAt(state,unit.q,unit.r)==="water" ? 1 : 0;
+    const effectiveAllowance = Math.max(0, allowance - engagementPenalty - waterPenalty);
     const start = key(unit.q, unit.r);
     const startElevation = elevationAt(state, unit.q, unit.r);
     // Ignoring terrain costs does not switch off the unit's normal Jump state.
@@ -314,12 +324,14 @@
   }
 
   function boardData() {
-    const e1 = new Set(DATA.map.elevation1.map(([q,r]) => key(q,r)));
-    const e2 = new Set(DATA.map.elevation2.map(([q,r]) => key(q,r)));
+    const e1 = new Set((DATA.map.elevation1||[]).map(([q,r]) => key(q,r)));
+    const e2 = new Set((DATA.map.elevation2||[]).map(([q,r]) => key(q,r)));
+    const water = new Set((DATA.map.water||[]).map(([q,r]) => key(q,r)));
     const board = {};
     for (let q = 0; q < DATA.map.cols; q++) {
       for (let r = 0; r < DATA.map.rows; r++) {
-        board[key(q,r)] = { q, r, elevation: e2.has(key(q,r)) ? 2 : e1.has(key(q,r)) ? 1 : 0 };
+        if(!inBounds(q,r))continue;
+        board[key(q,r)] = { q, r, elevation: e2.has(key(q,r)) ? 2 : e1.has(key(q,r)) ? 1 : 0, terrain: water.has(key(q,r)) ? "water" : "ground" };
       }
     }
     return board;
@@ -493,7 +505,9 @@
   function attackAccuracy(state,attacker,defender){
     const elevationMod=Math.sign(elevationAt(state,attacker.q,attacker.r)-elevationAt(state,defender.q,defender.r));
     const targeted=attacker.id==="guntank"&&Object.values(attacker.upgrades).reduce((a,b)=>a+b,0)>=2?1:0;
-    return elevationMod+targeted+(attacker.tempAccuracy||0);
+    // Water applies -1 Accuracy to an attack involving a Unit in Water.
+    const waterMod=(terrainAt(state,attacker.q,attacker.r)==="water"||terrainAt(state,defender.q,defender.r)==="water")?-1:0;
+    return elevationMod+waterMod+targeted+(attacker.tempAccuracy||0);
   }
 
   function attackCritFloor(attacker){
@@ -718,7 +732,7 @@
     for (const objective of state.objectives) if (objective.owner) state.vp[objective.owner] += points;
   }
 
-  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, rerollAttackPool, resolveDisarmAttack, resolveSharedDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
+  const api = { key, fromKey, timelineSlot, inBounds, matchSidePalette, neighbors, distance, line, lineVariants, elevationAt, terrainAt, unitAt, garrisonAt, baseAt, lineOfSightDetails, hasLineOfSight, hasTwinBusterLine, engagedEnemies, engagedGarrisons, engagedTargets, reachable, pushDirectionOptions, pullDirectionOptions, forcedPushStep, shuffle, setupGame, dealTacticHand, dealTacticHands, retireTacticCard, advanceUnitTimeline, chooseNextUnit, livingEnemies, legalWeaponTargets, rollAttack, attackResultFromDice, rerollAttackPool, resolveDisarmAttack, resolveSharedDisarmAttack, rerollAttackDie, addAttackDice, reactivateShields, applyDamage, pickupAt, recordGarrisonRescue, contestObjectives, defeatUnit, beginDeploy, redeploy, scoreObjectives };
   root.GA_ENGINE = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

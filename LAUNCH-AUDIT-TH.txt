@@ -1,12 +1,35 @@
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta12
+BETA14.6 BEYOND THE TIME BGM
+- เพิ่ม BEYOND THE TIME เข้า Audio selector เป็นตัวเลือกแยกจาก Song 1 / Song 2 / Getter Robo! / Secret / Off.
+- ไฟล์ assets/audio/beyond-the-time-bgm.mp3 บีบอัดเป็น MP3 32 kbps mono / 22.05 kHz ขนาด 987,132 bytes (< 1 MB).
+- Cache/build tag: beta14-6-en
+- Gameplay/Rules ไม่เปลี่ยนจาก Beta14.5.
+- Validation: Core 238 + AI 29 + regression 18 = 285 checks.
+
+BETA14.5 GETTER ROBO! BGM
+- เพิ่ม Getter Robo! เข้า Audio selector เป็นตัวเลือกแยกจาก Song 1 / Song 2 / Secret / Off.
+- ไฟล์ assets/audio/getter-robo-bgm.mp3 บีบอัดเป็น MP3 64 kbps stereo ขนาด 961,140 bytes (< 1 MB).
+- Cache/build tag: beta14-5-en
+- Gameplay/Rules ไม่เปลี่ยนจาก Beta14.4.
+
+BETA14.4 MAP SELECT PREVIEW FIX
+- ครอป Azure Fang preview ให้จบตรงขอบกระดาน ตัดแถบกระดาษสีขาว/เส้นแดงด้านขวาที่ติดมาจาก source
+- เพิ่ม cache-busting query ให้ Azure Fang preview เพื่อให้ GitHub Pages/browser โหลดภาพใหม่ทันที
+- Gameplay/data/rules ไม่เปลี่ยน
+
+BETA14 AZURE FANG MAP ACCURACY UPDATE
+- ถอด Azure Fang ใหม่จากภาพอ้างอิง: Water 44 ช่อง, Level 1 Hill 40 ช่อง และตำแหน่ง setup token ตรงกับภาพ
+- แก้รูปทรงกระดานเป็น 14 Hex ในคอลัมน์คู่ / 13 Hex ในคอลัมน์คี่; 7 ช่องล่างนอกกระดานไม่ render และไม่ผ่าน movement/LOS
+- Corner Base ฝั่งล่างย้ายไปตำแหน่งจริง q0,r13; Sleeping Leviathan ไม่เปลี่ยน
+
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta14.6
 BETA12 PRE-LAUNCH FIX
 - LOS Inspector ใช้ target legality เดียวกับ combat มากขึ้น: ขณะ Engaged เป้าหมายที่ LOS/ระยะถึงแต่เลือกยิงไม่ได้จะแสดงสถานะสีส้ม ENGAGED แทนสีเขียว
 - SP AoE LOS inspection ตรวจทิศยิงจริงและบังคับว่าทิศนั้นต้องครอบเป้าหมาย Engaged อย่างน้อย 1 จุดเมื่อผู้ยิงกำลัง Engaged
 - Dice result รองรับจอเตี้ย/landscape ด้วย vertical scroll + compact breakpoint; ปุ่ม × ยังอยู่ด้านบนและผลทั้งหมดเลื่อนอ่านได้
 - Dice result ใช้ shared modal focus lock/inert; Tab ไม่สามารถหลุดไป control ด้านหลังระหว่างหน้าผลลูกเต๋า
 - ไม่แก้ข้อความภาษา/Localization ตามคำสั่งผู้ใช้
-- Cache/build tag: beta12-en
-- Validation: Core 232 + AI 29 + regression 18 = 279 checks ผ่านทั้งหมด
+- Cache/build tag: beta14-4-en
+- Validation: Core 237 + AI 29 + regression 18 = 284 checks ผ่านทั้งหมด
 
 BETA11 DICE / AOE UX
 - Human dice results wait for × close; per-die HIT/MISS/CRIT labels added.
@@ -19,7 +42,7 @@ BETA10 UPDATE
 - ครอบคลุม Vidar Handgun Critical, EVA-01 Progressive Knife Critical, Barbatos Annihilate และ Crimson Execution
 - Prompt แสดงเฉพาะฝั่งผู้เล่น ไม่แสดงในเทิร์น AI และหายเมื่อ target-selection flow จบ
 - ไม่เปลี่ยนกฎ Action, Timeline, Target legality หรือ bonus-attack resolution
-- Cache/build tag: beta12-en
+- Cache/build tag: beta14-3-en
 - ผลทดสอบ Beta12: Core 232 + AI 29 = 261 checks ผ่านทั้งหมด + regression 18 checks
 
 BETA09 UPDATE
