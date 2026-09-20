@@ -1,3 +1,8 @@
+Beta14.8 Hover / Water rules fix
+- Hover (Wing Gundam Zero [EW] / Gundam Epyon) now ignores Azure Fang Water's Move -1 during movement, matching “ignore terrain effects during movement”.
+- Hover continues to ignore elevation climb cost. It does NOT cancel Water Accuracy -1 during attacks.
+- Human movement hints no longer show WATER -1 for Hover; AI uses the same engine movement rule.
+
 Beta14.7 AI camera follow
 - หลัง AI จบ Move/Advance/Dash/Command Move กล้องจะ recenter ไปยังตำแหน่งใหม่ของ active AI โดยอัตโนมัติ แก้กรณี AI เดินไกลแล้วหลุดกรอบที่กำลังมองเห็น.
 - ไม่มีการเปลี่ยนกติกาหรือ AI decision logic.

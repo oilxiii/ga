@@ -190,8 +190,10 @@
 
   function reachable(state, unit, allowance, options = {}) {
     const engagementPenalty = !options.ignoreEngagement && engagedTargets(state, unit).length ? 1 : 0;
-    // Water: a Unit that begins a movement in Water has its movement reduced by 1 Hex.
-    const waterPenalty = !options.ignoreWater && terrainAt(state,unit.q,unit.r)==="water" ? 1 : 0;
+    // Hover ignores terrain effects during movement. That includes Azure Fang's
+    // "start in Water: Move -1" penalty as well as elevation climb costs.
+    const hasHover = unit?.id === "wing-zero-ew" || unit?.id === "gundam-epyon";
+    const waterPenalty = !options.ignoreWater && !hasHover && terrainAt(state,unit.q,unit.r)==="water" ? 1 : 0;
     const effectiveAllowance = Math.max(0, allowance - engagementPenalty - waterPenalty);
     const start = key(unit.q, unit.r);
     const startElevation = elevationAt(state, unit.q, unit.r);
@@ -226,7 +228,7 @@
         if ((isEnemyUnit || isEnemyGarrison) && !jumpsOverEnemy) continue;
 
         const currentElevation = elevationAt(state, q, r);
-        const ignoresTerrainElevation = !!options.ignoreElevation || unit.id === "wing-zero-ew" || unit.id === "gundam-epyon";
+        const ignoresTerrainElevation = !!options.ignoreElevation || hasHover;
         // Rule (p.17, Jumping): while jumping, the unit's starting elevation remains
         // its reference height for the whole movement. Returning from lower terrain
         // to that starting elevation costs only the entered hex; extra climb cost is

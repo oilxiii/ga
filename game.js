@@ -1899,7 +1899,8 @@
     if(!unit||unit.zone==="reserve")return false;
     if(movementDraft?.unitId===unit.id&&movementDraft.movementType===movementType)return openMovementDraft(unit);
     const engaged=E.engagedTargets(state,unit);
-    const waterPenalty=E.terrainAt(state,unit.q,unit.r)==="water"?1:0;
+    const hasHover=unit.id==="wing-zero-ew"||unit.id==="gundam-epyon";
+    const waterPenalty=!hasHover&&E.terrainAt(state,unit.q,unit.r)==="water"?1:0;
     const reachable=E.reachable(state,unit,allowance);
     const wasDeploying=unit.zone==="deploying";
     if(!reachable.size&&wasDeploying){
@@ -1994,7 +1995,8 @@
   function startMoveFor(unit,allowance,cost,label,afterMove,options={}) {
     if(!unit||unit.zone==="reserve")return false;
     const engaged=options.ignoreEngagement?[]:E.engagedTargets(state,unit);
-    const waterPenalty=!options.ignoreWater&&E.terrainAt(state,unit.q,unit.r)==="water"?1:0;
+    const hasHover=unit.id==="wing-zero-ew"||unit.id==="gundam-epyon";
+    const waterPenalty=!options.ignoreWater&&!hasHover&&E.terrainAt(state,unit.q,unit.r)==="water"?1:0;
     const effectiveAllowance=Math.max(0,allowance-(engaged.length?1:0)-waterPenalty);
     const reachable=E.reachable(state,unit,allowance,{ignoreElevation:!!options.ignoreElevation||unit.id==="wing-zero-ew"||unit.id==="gundam-epyon",ignoreEngagement:!!options.ignoreEngagement});
     if(options.destinationFilter){for(const target of [...reachable.keys()]){const [q,r]=E.fromKey(target);if(!options.destinationFilter({q,r}))reachable.delete(target);}}
@@ -2005,7 +2007,7 @@
     // Critical follow-ups opt into staying explicitly so declining them remains legal.
     const allowStay=options.allowStay??false;
     if(!reachable.size&&!allowStay){addLog(`${label}: ไม่มีช่องปลายทางที่ถูกกติกา`);renderAll();return false;}
-    mode={type:"move",unitId:unit.id,targets:new Set(reachable.keys()),cost,label,afterMove,primaryAction:!!options.primaryAction,allowStay,returnMenu:options.returnMenu||"main",onCancel:options.onCancel,origin:{q:unit.q,r:unit.r},allowance,reachOptions:{ignoreElevation:!!options.ignoreElevation||unit.id==="wing-zero-ew"||unit.id==="gundam-epyon",ignoreEngagement:!!options.ignoreEngagement},hint:`${label}: เลือกช่องสีฟ้า (งบการเคลื่อนที่ ${effectiveAllowance}${engaged.length||waterPenalty?` จาก ${allowance}${engaged.length?" · ENGAGED -1":""}${waterPenalty?" · WATER -1":""}`:""}; การขึ้นที่สูงใช้เพิ่ม 1 ต่อระดับ)`};
+    mode={type:"move",unitId:unit.id,targets:new Set(reachable.keys()),cost,label,afterMove,primaryAction:!!options.primaryAction,allowStay,returnMenu:options.returnMenu||"main",onCancel:options.onCancel,origin:{q:unit.q,r:unit.r},allowance,reachOptions:{ignoreElevation:!!options.ignoreElevation||unit.id==="wing-zero-ew"||unit.id==="gundam-epyon",ignoreEngagement:!!options.ignoreEngagement},hint:`${label}: เลือกช่องสีฟ้า (งบการเคลื่อนที่ ${effectiveAllowance}${engaged.length||waterPenalty?` จาก ${allowance}${engaged.length?" · ENGAGED -1":""}${waterPenalty?" · WATER -1":""}`:""}${hasHover?"; HOVER: ไม่สนผลภูมิประเทศระหว่างเคลื่อนที่":"; การขึ้นที่สูงใช้เพิ่ม 1 ต่อระดับ"})`};
     menuOpen=true;
     renderAll();
     return true;
