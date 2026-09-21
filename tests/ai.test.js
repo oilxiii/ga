@@ -447,3 +447,46 @@ test("Beta09 AI can evaluate GQX attacks and its shared Tactics",()=>{
   assert.equal(A.shouldUseResponse(another,{diceCount:5,attackRollDamage:0}),true);
   assert.equal(A.shouldUseResponse(another,{diceCount:5,attackRollDamage:5}),false);
 });
+
+
+test("HARD AI treats a reachable Objective capture as a strategic movement target", () => {
+  const state = E.setupGame(() => 0.5);
+  state.aiMode = "hard";
+  state.round = 9;
+  const char = place(state.units.find(unit => unit.id === "chars-zaku"), 5, 8);
+  state.units.filter(unit => unit.id !== char.id).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [];
+  state.energy = [];
+  state.upgrades = [];
+  state.objectives = [{ id:"obj-test", q:5, r:5, owner:null }];
+  const choice = A.chooseObjectiveMove(state, char, [E.key(5,7),E.key(5,6)], D, E);
+  assert.ok(choice);
+  assert.equal(choice.q,5);
+  assert.equal(choice.r,6);
+  assert.equal(choice.action,"capture");
+  assert.ok(choice.objectiveScore > 100);
+  state.aiMode = "normal";
+  assert.equal(A.chooseObjectiveMove(state, char, [E.key(5,7),E.key(5,6)], D, E), null, "NORMAL must keep the old policy");
+});
+
+test("HARD AI conserves premium ATTACK tactics and high-TL weapons against a 1 HP Garrison", () => {
+  const state = E.setupGame(() => 0.5, { fed:"white-devil", zeon:"zeon" });
+  state.aiMode = "hard";
+  state.activation = { actionUsed:false, tacticUsed:{fed:false,zeon:false} };
+  const hero = place(state.units.find(unit => unit.id === "hero-gundam"), 5, 5);
+  state.units.filter(unit => unit.id !== hero.id).forEach(unit => { unit.zone = "reserve"; unit.q = null; unit.r = null; });
+  state.garrisons = [{ id:"zeon-test-garrison", team:"zeon", q:5, r:6, hp:1, maxHp:1 }];
+  state.objectives = [];
+  state.energy = [];
+  state.upgrades = [];
+  state.hands.fed = ["epic-shot"];
+  const normal = A.attacksFrom(state, hero, D, E);
+  const cheap = normal.find(choice => choice.weapon.id === "hero-vulcan");
+  const expensive = normal.find(choice => choice.weapon.id === "hero-beam-saber");
+  assert.ok(cheap?.garrisonEfficient, "the reliable TL2 option should be marked economical");
+  assert.ok(expensive?.garrisonEfficiencySuppressed, "the higher-TL finisher should be suppressed");
+  assert.ok(cheap.score > expensive.score);
+  const tactic = A.tacticAttacksFrom(state, hero, D, E)[0];
+  assert.equal(tactic?.tactic?.id, "epic-shot");
+  assert.ok(tactic.score < cheap.score - 40, "Epic Shot should be strongly conserved when the normal attack is already reliable");
+});

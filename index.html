@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06111d">
   <title>Gundam Assemble — Online</title>
-  <link rel="stylesheet" href="styles.css?v=beta14-11-en">
+  <link rel="stylesheet" href="styles.css?v=beta14-12-en">
 </head>
 <body class="title-active">
   <section id="title-screen" class="title-screen show" aria-label="Gundam Assemble Online title screen">
@@ -23,6 +23,13 @@
           <span id="faction-select-eyebrow" class="eyebrow">SELECT TEAM</span>
           <h2 id="faction-select-title">เลือกฝ่ายของคุณ</h2>
           <p id="faction-select-description">AI จะควบคุมฝ่ายตรงข้าม ใช้กติกาเดียวกับผู้เล่น และไม่เห็นข้อมูลลับของคุณ</p>
+          <div id="ai-mode-select" class="ai-mode-select" aria-label="Mode" hidden>
+            <span class="ai-mode-label">MODE</span>
+            <div class="ai-mode-buttons" role="group" aria-label="AI mode">
+              <button type="button" class="ai-mode-option selected" data-ai-mode="normal" aria-pressed="true"><strong>NORMAL</strong><small>STANDARD</small></button>
+              <button type="button" class="ai-mode-option" data-ai-mode="hard" aria-pressed="false"><strong>HARD</strong><small>TACTICAL</small></button>
+            </div>
+          </div>
           <div id="faction-options-shell" class="faction-options-shell">
             <div class="faction-groups" aria-label="ทีมที่เปิดเผย">
               <section class="faction-group" aria-labelledby="team-group-classic">
@@ -85,7 +92,7 @@
               <i aria-hidden="true">SELECT</i>
             </button>
             <button type="button" class="scenario-option azure" data-scenario="azure-fang">
-              <span class="scenario-preview"><img src="assets/scenarios/azure-fang-preview.jpg?v=beta14-11-en" alt="Azure Fang map preview"></span>
+              <span class="scenario-preview"><img src="assets/scenarios/azure-fang-preview.jpg?v=beta14-12-en" alt="Azure Fang map preview"></span>
               <span class="scenario-copy"><strong>AZURE FANG</strong><small>WATER BATTLEFIELD</small><em>Corner Bases · Water · Level 1 hills</em></span>
               <i aria-hidden="true">SELECT</i>
             </button>
@@ -107,7 +114,7 @@
         <div id="zeon-score" class="score zeon"><small>VP</small><strong id="zeon-vp">0</strong><span><em id="zeon-controller" class="controller-badge"></em> <b id="zeon-team-name">ZEON</b></span></div>
       </section>
       <div class="topbar-actions">
-        <span class="build-version" title="Game build version">Beta14.11</span>
+        <span class="build-version" title="Game build version">Beta14.12</span>
         <button id="sound-btn" class="icon-btn" type="button" aria-label="เลือกเพลงและเสียง" title="เลือกเพลงและเสียง" aria-pressed="false">🔊</button>
         <button id="restart-btn" class="icon-btn" type="button" aria-label="เริ่มเกมใหม่" title="เริ่มเกมใหม่">↻</button>
       </div>
@@ -156,9 +163,9 @@
     </div>
   </div>
 
-  <script src="data.js?v=beta14-11-en"></script>
-  <script src="engine.js?v=beta14-11-en"></script>
-  <script src="ai.js?v=beta14-11-en"></script>
-  <script src="game.js?v=beta14-11-en"></script>
+  <script src="data.js?v=beta14-12-en"></script>
+  <script src="engine.js?v=beta14-12-en"></script>
+  <script src="ai.js?v=beta14-12-en"></script>
+  <script src="game.js?v=beta14-12-en"></script>
 </body>
 </html>

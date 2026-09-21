@@ -1481,6 +1481,32 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
 }
 .faction-select.opponent-step .faction-select-panel > p { color:#dcb2b8; }
 .faction-select.opponent-step .faction-select-panel h2 { color:#fff4f5; }
+.ai-mode-select {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:10px;
+  align-items:center;
+  margin:12px 0 0;
+  padding:9px 10px;
+  border:1px solid rgba(var(--select-accent-rgb),.24);
+  background:rgba(var(--select-accent-rgb),.045);
+}
+.ai-mode-select[hidden] { display:none !important; }
+.ai-mode-label { color:var(--select-accent); font:950 .64rem/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.18em; }
+.ai-mode-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.ai-mode-option {
+  min-height:38px;
+  padding:6px 9px;
+  border:1px solid rgba(var(--select-accent-rgb),.24);
+  color:#b9c8d2;
+  background:rgba(2,10,18,.72);
+  text-align:left;
+}
+.ai-mode-option strong,.ai-mode-option small { display:block; }
+.ai-mode-option strong { color:inherit; font-size:.72rem; letter-spacing:.09em; }
+.ai-mode-option small { margin-top:3px; color:#738a99; font-size:.48rem; letter-spacing:.1em; }
+.ai-mode-option.selected { border-color:var(--select-accent); color:#fff; background:rgba(var(--select-accent-rgb),.14); box-shadow:inset 3px 0 0 var(--select-accent),0 0 14px rgba(var(--select-accent-rgb),.12); }
+.ai-mode-option:focus-visible { outline:2px solid var(--select-accent); outline-offset:2px; }
 .faction-options-shell {
   position:relative;
 }
@@ -2642,9 +2668,59 @@ body.modal-open { overflow: hidden; overscroll-behavior: none; }
   }
   #game-modal .unit-card-modal .modal-card-image.unit-sheet {
     width: 100%;
-    max-height: none;
+    max-height: 60dvh;
+    object-fit: contain;
     margin-top: 0;
   }
+}
+
+/* Beta14.12 mobile tactic-card containment: card reveals never exceed the usable viewport. */
+@media (max-width: 680px) {
+  #game-modal .tactic-confirm-modal {
+    width:100%;
+    max-height:calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding:16px 12px 12px;
+    overflow:hidden;
+  }
+  #game-modal .tactic-confirm-modal > .eyebrow,
+  #game-modal .tactic-confirm-modal > h2 { padding-right:42px; }
+  #game-modal .tactic-confirm-layout {
+    grid-template-columns:1fr;
+    gap:10px;
+    min-height:0;
+    max-height:calc(100dvh - 82px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    padding:1px 2px max(8px,env(safe-area-inset-bottom));
+  }
+  #game-modal .tactic-confirm-layout .modal-card-image {
+    width:auto;
+    max-width:min(220px,62vw);
+    max-height:38dvh;
+    object-fit:contain;
+    margin:0 auto;
+    flex:none;
+  }
+  #game-modal .tactic-confirm-layout > div { min-width:0; }
+  #game-modal .tactic-confirm-layout h3 { margin:0 40px 5px 0; font-size:1.05rem; }
+  #game-modal .tactic-confirm-layout p { margin:7px 0; line-height:1.4; overflow-wrap:anywhere; }
+  #game-modal .tactic-confirm-modal .modal-actions {
+    position:sticky;
+    bottom:0;
+    z-index:5;
+    margin-top:10px;
+    padding:8px 0 max(2px,env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(5,14,24,0),rgba(5,14,24,.96) 28%);
+  }
+  #game-modal .tactic-confirm-modal .modal-actions button { min-height:42px; }
+  .ai-mode-select { grid-template-columns:1fr; gap:7px; padding:8px; }
+  .ai-mode-label { font-size:.58rem; }
+}
+@media (max-height: 520px) and (min-width: 520px) {
+  #game-modal .tactic-confirm-modal { max-height:calc(100dvh - 12px); padding:12px; }
+  #game-modal .tactic-confirm-layout { grid-template-columns:minmax(120px,170px) minmax(0,1fr); max-height:calc(100dvh - 38px); align-items:start; }
+  #game-modal .tactic-confirm-layout .modal-card-image { width:100%; max-width:170px; max-height:62dvh; }
 }
 
 /* Beta09 // GQX rules/UI fixes; team drawer layout retained from Beta08. */

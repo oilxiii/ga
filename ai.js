@@ -3,6 +3,47 @@
 
   const keyOf = (engine, item) => engine.key(item.q, item.r);
   const sumUpgrades = unit => Object.values(unit.upgrades || {}).reduce((sum, value) => sum + value, 0);
+  const hardMode = state => state?.aiMode === "hard";
+
+  function objectiveOpportunityAt(state, unit, q, r, data, engine) {
+    const probe = { ...unit, q, r, zone: "board" };
+    const units = state.units.map(candidate => candidate.id === unit.id ? probe : candidate);
+    const phaseVp = data.rules.objective?.phaseVp ?? 5;
+    const lateUrgency = Math.max(0, (state.round || 1) - 6) * 10 + Math.max(0, (state.phase || 1) - 1) * 6;
+    let score = 0;
+    let bestAction = "none";
+    let bestValue = 0;
+    let bestObjective = null;
+    for (const objective of state.objectives || []) {
+      if (engine.distance(probe, objective) > 1) continue;
+      const nearby = units.filter(candidate => candidate.zone === "board" && engine.distance(candidate, objective) <= 1);
+      const friendly = nearby.filter(candidate => candidate.team === unit.team).length;
+      const enemy = nearby.filter(candidate => candidate.team !== unit.team).length;
+      let value = 0;
+      let action = "contest";
+      if (friendly > enemy) {
+        if (objective.owner === unit.team) {
+          action = "hold";
+          value = 34 + enemy * 10 + lateUrgency * 0.25;
+        } else if (objective.owner) {
+          action = "neutralize";
+          value = 105 + phaseVp * 6 + lateUrgency;
+        } else {
+          action = "capture";
+          value = 92 + phaseVp * 6 + lateUrgency;
+        }
+      } else if (friendly === enemy) {
+        action = "contest";
+        value = objective.owner === unit.team ? 28 + enemy * 8 : objective.owner ? 22 : 14;
+      } else if (objective.owner === unit.team) {
+        action = "threatened";
+        value = 10;
+      }
+      score += value;
+      if (value > bestValue) { bestValue = value; bestAction = action; bestObjective = objective; }
+    }
+    return { score, action: bestAction, objective: bestObjective, value: bestValue };
+  }
 
   function attackDice(unit, target, weapon) {
     const damageTaken=Math.max(0,(unit.maxHp||unit.hp)-unit.hp);
@@ -182,6 +223,36 @@
     return { score, ...stats };
   }
 
+  function applyHardGarrisonEfficiency(state, choices) {
+    if (!hardMode(state)) return;
+    const groups = new Map();
+    for (const choice of choices) {
+      if (!choice.isGarrison || !choice.target?.id) continue;
+      if (!groups.has(choice.target.id)) groups.set(choice.target.id, []);
+      groups.get(choice.target.id).push(choice);
+    }
+    for (const group of groups.values()) {
+      const reliable = group.filter(choice => !choice.weapon?.aoe && choice.killChance >= 0.45);
+      if (!reliable.length) continue;
+      const minTimeline = Math.min(...reliable.map(choice => choice.weapon.timeline));
+      const economical = reliable
+        .filter(choice => choice.weapon.timeline === minTimeline)
+        .sort((a, b) => b.score - a.score)[0];
+      if (!economical) continue;
+      economical.score += 14;
+      economical.garrisonEfficient = true;
+      for (const choice of group) {
+        if (choice === economical) continue;
+        const enemyUnitHit = (choice.aoeTargets || []).some(id => state.units.some(unit => unit.id === id && unit.team === choice.target.team));
+        const multiTarget = (choice.aoeTargets || []).length > 1;
+        if (choice.weapon?.aoe && (enemyUnitHit || multiTarget)) continue;
+        if (choice.weapon.timeline <= minTimeline) continue;
+        choice.score = Math.min(choice.score, economical.score - 18 - (choice.weapon.timeline - minTimeline) * 5);
+        choice.garrisonEfficiencySuppressed = true;
+      }
+    }
+  }
+
   function applyTimelineEfficiency(choices) {
     const RISKY_FINISH_THRESHOLD = 0.50;
     const groups = new Map();
@@ -261,6 +332,7 @@
       }
     }
     applyTimelineEfficiency(choices);
+    applyHardGarrisonEfficiency(state, choices);
     return choices.sort((a, b) => b.score - a.score);
   }
 
@@ -271,11 +343,24 @@
   function tacticAttacksFrom(state,unit,data,engine){
     if(state.activation?.tacticUsed?.[unit.team]||state.activation?.actionUsed)return [];
     const cards=(state.hands?.[unit.team]||[]).map(id=>data.tactics.find(card=>card.id===id)).filter(card=>card?.timing==="ATTACK"&&(!card.unitOnly||card.unitOnly===unit.id));
+    const normalChoices=hardMode(state)?attacksFrom(state,unit,data,engine):[];
     const original=unit.weapons;
     const choices=[];
     for(const card of cards){
       unit.weapons=[card.weapon];
-      attacksFrom(state,unit,data,engine).forEach(choice=>choices.push({...choice,tactic:card,score:choice.score+6}));
+      attacksFrom(state,unit,data,engine).forEach(choice=>{
+        let score=choice.score+6;
+        if(hardMode(state)&&choice.isGarrison){
+          const aoeTargetCount=(choice.aoeTargets||[]).length;
+          const hitsEnemyUnit=(choice.aoeTargets||[]).some(id=>state.units.some(target=>target.id===id&&target.team!==unit.team));
+          const multiTargetValue=aoeTargetCount>1;
+          const normalFinish=normalChoices.find(normal=>normal.target?.id===choice.target?.id&&normal.killChance>=0.45);
+          if(normalFinish&&!hitsEnemyUnit&&!multiTargetValue)score-=72;
+          else if(!hitsEnemyUnit&&!multiTargetValue)score-=10;
+          if(card.weapon?.aoe&&aoeTargetCount<=1&&!hitsEnemyUnit)score-=24;
+        }
+        choices.push({...choice,tactic:card,score});
+      });
     }
     unit.weapons=original;
     return choices.sort((a,b)=>b.score-a.score);
@@ -312,6 +397,12 @@
       const distance = engine.distance(probe, objective);
       if (distance <= 1) score += objective.owner === unit.team ? 25 : 72;
       score -= Math.min(distance, 8) * (objective.owner === unit.team ? 0.4 : 1.8);
+    }
+    if (hardMode(state)) {
+      // HARD mode treats a real capture/neutralize at end of Activation as a
+      // strategic action, not merely another positional bonus. This also scales
+      // toward the end of a Phase when each Objective is about to score.
+      score += objectiveOpportunityAt(state, unit, q, r, data, engine).score * 0.62;
     }
     for (const garrison of state.garrisons) {
       const distance = engine.distance(probe, garrison);
@@ -356,6 +447,19 @@
     // still override this bias, so the AI does not chase loot blindly.
     if(pickup&&pickup.score>=best.score-18)return pickup;
     return best;
+  }
+
+  function chooseObjectiveMove(state, unit, candidateKeys, data, engine) {
+    if (!hardMode(state)) return null;
+    const current = objectiveOpportunityAt(state, unit, unit.q, unit.r, data, engine);
+    const candidates = [...candidateKeys].map(value => {
+      const [q, r] = engine.fromKey(value);
+      const opportunity = objectiveOpportunityAt(state, unit, q, r, data, engine);
+      const gain = opportunity.score - current.score;
+      const positional = positionScore(state, unit, q, r, data, engine);
+      return { q, r, gain, objectiveScore: opportunity.score, action: opportunity.action, objective: opportunity.objective, score: positional + opportunity.score * 0.35 };
+    }).filter(candidate => candidate.objectiveScore > 0 && candidate.gain > 0);
+    return candidates.sort((a,b)=>b.objectiveScore-a.objectiveScore||b.gain-a.gain||b.score-a.score||a.q-b.q||a.r-b.r)[0]||null;
   }
 
   function canReachEnemy(state, unit, distance, data, engine, includeGarrisons = true) {
@@ -508,7 +612,7 @@
     return false;
   }
 
-  const api = { attacksFrom, tacticAttacksFrom, chooseAttack, positionScore, chooseMove, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, choosePullDirection, chooseUpgrade, shouldUseResponse };
+  const api = { attacksFrom, tacticAttacksFrom, chooseAttack, positionScore, chooseMove, chooseObjectiveMove, objectiveOpportunityAt, commandTacticScore, chooseCommandTactic, chooseModeTarget, choosePushDirection, choosePullDirection, chooseUpgrade, shouldUseResponse };
   root.GA_AI = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

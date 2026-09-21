@@ -1,3 +1,8 @@
+Beta14.12
+- Added MODE selector for 1 Player opponent selection. NORMAL is default and preserves the Beta14.11 AI policy.
+- HARD mode adds Objective-aware primary-action decisions and avoids wasting high-TL/ATTACK Tactics on 1 HP Garrisons when an economical normal attack is reliable.
+- Mobile Tactic/AI card reveals are constrained to the usable viewport with internal scrolling and safe-area handling.
+
 - Beta14.11: attack-prep Command abilities can no longer consume Energy after the unit has no remaining attack opportunity; UI shows NO ATTACK LEFT and useUnitAbility has a second guard. Checkmate stays available if Crimson Execution can still provide a free attack.
 Beta14.8 Hover / Water rules fix
 - Hover (Wing Gundam Zero [EW] / Gundam Epyon) now ignores Azure Fang Water's Move -1 during movement, matching “ignore terrain effects during movement”.

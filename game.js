@@ -17,6 +17,7 @@
   let transitionBusy = false;
   let gameEpoch = 0;
   let matchMode = "hotseat";
+  let matchAiMode = "normal";
   let humanTeam = null;
   let aiTeam = null;
   let matchFactions = { fed:"fed", zeon:"zeon" };
@@ -334,6 +335,7 @@
     let selectingMode=null;
     let firstFaction=null;
     let pendingFactions=null;
+    let selectedAiMode="normal";
     const selectTitle=$("#faction-select-title");
     const selectDescription=$("#faction-select-description");
     const selectEyebrow=$("#faction-select-eyebrow");
@@ -341,6 +343,13 @@
     const secretToggle=$("#secret-team-toggle");
     const secretDrawer=$("#secret-team-drawer");
     const secretButtons=[...factionSelect.querySelectorAll("#secret-team-drawer [data-faction]")];
+    const aiModeSelect=$("#ai-mode-select");
+    const aiModeButtons=[...factionSelect.querySelectorAll("[data-ai-mode]")];
+    const setAiMode=value=>{
+      selectedAiMode=value==="hard"?"hard":"normal";
+      aiModeButtons.forEach(button=>{const selected=button.dataset.aiMode===selectedAiMode;button.classList.toggle("selected",selected);button.setAttribute("aria-pressed",selected?"true":"false");});
+    };
+    aiModeButtons.forEach(button=>button.addEventListener("click",()=>{SFX.menuConfirm();setAiMode(button.dataset.aiMode);}));
     const setSecretRevealed=(revealed,{focus=false}={})=>{
       factionSelect.classList.toggle("secret-revealed",revealed);
       secretToggle?.setAttribute("aria-expanded",revealed?"true":"false");
@@ -359,6 +368,8 @@
       selectingMode=nextMode;
       setSecretRevealed(false);
       factionSelect.classList.toggle("opponent-step",step===2);
+      const showAiMode=nextMode==="ai"&&step===2;
+      if(aiModeSelect)aiModeSelect.hidden=!showAiMode;
       factionButtons.forEach(button=>{button.disabled=step===2&&button.dataset.faction===firstFaction;});
       selectEyebrow.textContent=nextMode==="ai"?(step===1?"1 PLAYER // YOUR TEAM":"1 PLAYER // AI OPPONENT"):(step===1?"2 PLAYER // PLAYER 1":"2 PLAYER // PLAYER 2");
       selectTitle.textContent=step===1?"เลือกทีมของคุณ":nextMode==="ai"?"เลือกทีมคู่ต่อสู้":"ผู้เล่น 2 เลือกทีม";
@@ -379,6 +390,7 @@
     const launch=(nextMode,factions)=>{
       if(screen.classList.contains("leaving"))return;
       matchMode=nextMode;
+      matchAiMode=nextMode==="ai"?selectedAiMode:"normal";
       matchFactions={...factions};
       humanTeam=nextMode==="ai"?"fed":null;
       aiTeam=nextMode==="ai"?"zeon":null;
@@ -412,6 +424,7 @@
       one.inert=true;
       two.inert=true;
       firstFaction=null;
+      setAiMode("normal");
       showFactionStep("ai",1);
     });
     factionButtons.forEach(button=>button.addEventListener("click",()=>{
@@ -870,6 +883,7 @@
     menuView="main";
     transitionBusy=false;
     matchMode="hotseat";
+    matchAiMode="normal";
     humanTeam=null;
     aiTeam=null;
     matchFactions={ fed:"fed", zeon:"zeon" };
@@ -880,6 +894,7 @@
     const gameShell=$(".game-shell");
     factionSelect?.classList.remove("show","opponent-step","secret-revealed");
     factionSelect?.setAttribute("aria-hidden","true");
+    if($("#ai-mode-select"))$("#ai-mode-select").hidden=true;
     scenarioSelect?.classList.remove("show");
     scenarioSelect?.setAttribute("aria-hidden","true");
     $("#secret-team-toggle")?.setAttribute("aria-expanded","false");
@@ -911,6 +926,7 @@
     {const diceOverlay=$("#dice-roll-overlay");if(diceOverlay){releaseResolutionModalLock(diceOverlay);diceOverlay.classList.remove("show");}}
     closeModal();
     state = E.setupGame(Math.random,matchFactions);
+    state.aiMode = matchMode==="ai"?matchAiMode:"normal";
     lastDice = null;
     mode = null;
     pendingAttack = null;
@@ -923,6 +939,7 @@
     const boardEl=$("#board");
     boardEl?.setAttribute("aria-label",`กระดาน Hex ${D.map.name}`);
     addLog(`เริ่มภารกิจ ${D.map.name} — Mystery Upgrade ถูกสุ่ม 9 จาก 15 ชิ้นแล้ว`);
+    if(matchMode==="ai")addLog(`MODE · ${matchAiMode.toUpperCase()}`);
     startActivation(true);
   }
 
@@ -3806,6 +3823,20 @@
     const normalAttack=A.chooseAttack(state,unit,D,E);
     const tacticAttack=A.tacticAttacksFrom?.(state,unit,D,E)?.[0]||null;
     const attack=tacticAttack&&(!normalAttack||tacticAttack.score>normalAttack.score)?tacticAttack:normalAttack;
+    const dashAllowance=D.rules.dash.distance+dashBonus(unit)+(unit.movementBonus||0);
+    const dashReachable=E.reachable(state,unit,dashAllowance);
+    const hardObjective=A.chooseObjectiveMove?.(state,unit,dashReachable.keys(),D,E)||null;
+    const lateObjective=state.aiMode==="hard"&&(state.round||1)>=8;
+    const objectiveBeatsAttack=hardObjective&&["capture","neutralize"].includes(hardObjective.action)&&hardObjective.gain>=18&&hardObjective.objectiveScore>=(attack?.score??0)+(lateObjective?-6:8);
+    if(objectiveBeatsAttack){
+      addLog(`AI HARD · ${unit.name} เลือก ${hardObjective.action==="capture"?"ยึด":"ล้าง"} Objective แทนการโจมตี`);renderAll();
+      const started=startMove(dashAllowance,D.rules.dash.timeline,"Dash",moved=>afterUnitMove(unit,"dash",null,moved),{primaryAction:true});
+      if(started){
+        aiPreferredTargetKey=E.key(hardObjective.q,hardObjective.r);
+        scheduleAiResolveMode();
+        aiWaitForSettled(unit,()=>aiFinishTurn(unit));return;
+      }
+    }
     const rescue=state.garrisons.filter(garrison=>garrison.team===unit.team&&E.distance(unit,garrison)<=1).sort((a,b)=>E.distance(unit,a)-E.distance(unit,b))[0];
     if(rescue&&(!attack||attack.score<68)){
       addLog(`AI · ${unit.name} เลือก Rescue เพื่อทำคะแนน`);renderAll();
@@ -3828,8 +3859,6 @@
       }else beginChosenAttack();
       return;
     }
-    const dashAllowance=D.rules.dash.distance+dashBonus(unit)+(unit.movementBonus||0);
-    const dashReachable=E.reachable(state,unit,dashAllowance);
     const dashChoice=A.chooseMove(state,unit,dashReachable.keys(),D,E,false);
     const currentScore=A.positionScore(state,unit,unit.q,unit.r,D,E);
     // Dash costs real Timeline, so the AI only spends it when the destination is

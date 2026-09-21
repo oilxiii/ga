@@ -694,7 +694,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta14.11<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.12<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -2416,7 +2416,7 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.11<\/span>/);
+  assert.match(html,/>Beta14.12<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2491,7 +2491,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.11<\/span>/);
+  assert.match(html,/>Beta14.12<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -3054,9 +3054,9 @@ test("Beta14.11 attack-prep Commands lock after the last attack opportunity",()=
   assert.match(game,/if\(typeof attackPrepCommandExpired==="function"&&attackPrepCommandExpired\(unit,ability\)\)/);
   assert.match(game,/!canUseCommandAbility\(unit,unit\.command\)\|\|annihilateUnavailable/);
 });
-test("Beta14.11 build and cache tags are synchronized",()=>{
+test("Beta14.12 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.11<\/span>/);
+  assert.match(html,/>Beta14.12<\/span>/);
   for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
 });
 
@@ -3088,4 +3088,30 @@ test("Beta14.3 human dice have bottom OK and AI result hold gains one second",()
   assert.match(game,/aiRoll:!!ownerTeam&&isAiTeam\(ownerTeam\)/);
   assert.match(css,/\.dice-roll-actions/);
   assert.match(css,/\.dice-roll-ok/);
+});
+
+
+test("Beta14.12 opponent screen exposes MODE with NORMAL default and HARD option",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(html,/id="ai-mode-select"[^>]*hidden/);
+  assert.match(html,/class="ai-mode-label">MODE<\/span>/);
+  assert.match(html,/data-ai-mode="normal"[^>]*aria-pressed="true"[\s\S]*?<strong>NORMAL<\/strong>/);
+  assert.match(html,/data-ai-mode="hard"[^>]*aria-pressed="false"[\s\S]*?<strong>HARD<\/strong>/);
+  assert.match(game,/let matchAiMode = "normal"/);
+  assert.match(game,/selectedAiMode="normal"/);
+  assert.match(game,/const showAiMode=nextMode==="ai"&&step===2/);
+  assert.match(game,/matchAiMode=nextMode==="ai"\?selectedAiMode:"normal"/);
+  assert.match(game,/state\.aiMode = matchMode==="ai"\?matchAiMode:"normal"/);
+  assert.match(css,/\.ai-mode-option\.selected/);
+});
+
+test("Beta14.12 mobile card reveals stay inside the usable viewport",()=>{
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(css,/Beta14\.12 mobile tactic-card containment/);
+  assert.match(css,/#game-modal \.tactic-confirm-modal \{[\s\S]*?max-height:calc\(100dvh/);
+  assert.match(css,/#game-modal \.tactic-confirm-layout \{[\s\S]*?overflow-y:auto/);
+  assert.match(css,/#game-modal \.tactic-confirm-layout \.modal-card-image \{[\s\S]*?max-height:38dvh;[\s\S]*?object-fit:contain/);
+  assert.match(css,/#game-modal \.unit-card-modal \.modal-card-image\.unit-sheet \{[\s\S]*?max-height: 60dvh;[\s\S]*?object-fit: contain/);
 });
