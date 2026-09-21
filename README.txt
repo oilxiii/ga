@@ -1,3 +1,6 @@
+- Beta14.11 Pre-Attack Ability Guard: ป้องกัน Command ที่มีผลเฉพาะการโจมตี (Full Power, Checkmate, Mazin Power, Machu Kira Kira, Nyaan Focus) ไม่ให้กดเมื่อไม่มีการโจมตีเหลือใน Activation; ปุ่มจะแสดง NO ATTACK LEFT และไม่เสีย Energy. Checkmate ยังใช้ได้ถ้า Crimson Execution ยังพร้อมให้โจมตีฟรีภายหลัง.
+- Beta14.10 Terminology Consistency: เปลี่ยน legacy terminology ที่เหลือใน UI, EVA-01 text, README และ internal presentation identifiers ให้เป็น ENGAGED/Engagement ทั้งหมด เพื่อให้ตรงศัพท์กติกา. Gameplay/Rules ไม่เปลี่ยนจาก Beta14.9.
+- Beta14.9 Engagement Visibility: Unit ที่กำลัง Engage จะแสดงป้าย ENGAGED ค้างบนตัว Unit และมีวง outline สีส้มบาง ๆ รอบ Token ตลอดเวลาที่สถานะยังอยู่; อัปเดตทันทีเมื่อเข้า/ออก Engagement. Gameplay/Rules ไม่เปลี่ยนจาก Beta14.8.
 - Beta14.8 Hover/Water Rules Fix: Hover ของ Wing Gundam Zero [EW] และ Gundam Epyon ไม่รับ Water Move -1 ระหว่างการเคลื่อนที่ และยังไม่เสียค่า climb จาก Elevation; Water Accuracy -1 ตอนโจมตียังคงทำงานตามปกติ.
 - Beta14.7 AI camera tracking: หลัง AI ยืนยันการเคลื่อนที่ทุกครั้ง กล้องจะเลื่อนไปจับ active AI ที่ตำแหน่งใหม่อัตโนมัติ ทำให้ Advance / Dash / Command Move ระยะไกลไม่หลุด viewport. Gameplay/Rules ไม่เปลี่ยน.
 - Beta14.6 BEYOND THE TIME BGM: เพิ่ม BEYOND THE TIME เข้าเมนูเพลงในเกมเป็นตัวเลือกแยก โดยบีบอัดไฟล์เสียงเหลือ 987,132 bytes (< 1 MB) ที่ MP3 32 kbps mono / 22.05 kHz; Gameplay/Rules ไม่เปลี่ยนจาก Beta14.5.
@@ -11,13 +14,13 @@
 - Beta13 Scenario Select: หลังเลือกทีมครบแล้ว เกมเปิด SELECT MAP พร้อมภาพ Preview ของ Sleeping Leviathan และ Azure Fang ก่อนเริ่ม Match.
 - Beta13 Azure Fang: เพิ่ม Corner Bases, setup Token แยกตาม Scenario, Water terrain และ Level 1 hill theme; Restart คงแผนที่ที่เลือกไว้.
 - Water: เริ่มการเคลื่อนที่ใน Water ลดระยะ 1 Hex; Attack ที่เกี่ยวข้องกับ Unit ใน Water Accuracy -1.
-GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.8
+GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.11
 - Beta12 Pre-Launch UX: Line of Sight inspection now honors Engagement. A target with clear geometry that cannot legally be selected because the attacker is Engaged is shown as an orange ENGAGED result instead of green. Special AoE inspection also checks a legal firing direction rather than only raw line geometry.
 - Beta12 Dice Modal: dice results now scroll safely on short/landscape screens, use a compact short-height layout, and share the game modal focus lock so keyboard focus cannot move to controls behind the result dialog.
 - Beta11 Dice Readability / AoE UX: Attack dice results for human-controlled attacks now stay open until the × button is pressed. Each die has a small HIT / MISS / CRIT label. Shared AoE rolls label per target number (for example HIT 1 · MISS 2), safely restore green when a die Hits every AoE target, keep mixed-threshold dice neutral, and keep Critical dice gold. AoE target numbers are listed under the roll. Critical dice also receive a small sparkle/glint treatment.
 - Beta11 AoE Disarm: shared AoE Disarm no longer depends on whichever target happens to be first. A non-Critical shared die is rerolled if it counts as a Hit against at least one affected target; Critical results are preserved and printed Critical Hit Effects remain disabled as normal.
 - English + Bugfix build beta10-en2: แก้ 8 บั๊กที่ยืนยันแล้ว: Dash cancel/Timeline, Char Kick ก่อน Iron Grip, Vulcan/Disarm, Breast Fire/Disarm, Rex Claws ใส่ Garrison เปิด Annihilate, Drive Them Back ไม่ทำดาเมจซ้ำใน Reserve, Push/Pull เก็บของเมื่อจบการเคลื่อนที่ และ Epic Shot ตรวจ LOS ของพันธมิตร; AI ใช้การประเมินที่ตรงกัน คงคำแปลอังกฤษครบเดิม ดู BUGFIX-NOTES.txt
-- Current validation: Core 241 + AI 29 + regression cases 18 = 288 checks.
+- Current validation: Core 242 + AI 29 + regression cases 18 = 289 checks.
 - Beta10 Bonus Attack UX: เมื่อผู้เล่นต้องเลือกเป้าหมายสำหรับการโจมตีซ้ำแบบบังคับ เกมจะแสดง bubble เล็กเหนือ Unit ว่า “Attack again / Select a target” สำหรับ Vidar Handgun, EVA-01 Progressive Knife, Barbatos Annihilate และ Crimson Execution; bubble หายทันทีเมื่อออกจาก target-selection flow และไม่แสดงในเทิร์น AI.
 - Beta09 GQX Rules/Disarm Fix: Disarm ยังคง reroll Hit และปิดเฉพาะ Critical Hit Effect ของอาวุธ แต่ไม่ลบผล Critical; Omega Psycommu Active ยัง Trigger จาก Critical และ KIRA KIRA! ยังเพิ่ม Damage ต่อ Critical ได้ตามปกติ.
 - Beta09 GQX UI/Docs Fix: HUD ของ GFreD แสดง Nyaan Focus แทน Mazin Power, Dash preview แสดง follow-up ที่ถูกต้องสำหรับ Shuji Kick/Char Kick, และกติกาย่อ/README ระบุ Three Times Faster ของ Red Gundam กับ fixed Tactic ของ GQX.
@@ -75,7 +78,7 @@ GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.8
 - v80 Stability / Ability Audit Fix: แก้ Hacking System ให้ Resolve ครบทุก Garrison และไม่ค้าง state, Progressive Knife ให้ Fracture ทำงานในการโจมตีซ้ำโดยไม่ chain ครั้งที่ 3, No Escape ตรวจ LOS, Checkmate ให้ผู้เล่นเลือก Upgrade, War Edge ใช้ Exploit Weakness แบบ shared roll อย่างคงที่, ล็อก focus ของ resolution modal ทุกชนิด, ปรับ AI ให้เข้าใจ effect สำคัญ/ใช้ Motorcycle ก่อน Advance เมื่อคุ้ม, แก้ชื่อ Heat Rod/Bazooka ใน log และ sync cache/docs.
 - v79 Unit HUD + Garrison Record: แถบ Unit Data แบ่งครึ่งเป็นสถานะ/อัปเกรดของยูนิตและสถิติ Garrison DESTROYED/RESCUED ของฝ่ายที่กำลัง Active.
 - v78 Vulcan Dice UX: เมื่อ Vulcan Cannons ของ Gundam [Hero of Side 7] ติด Critical ลูกเต๋า 3 ลูกแรกจะค้างผลเดิมบนหน้าต่างเดิม แล้วเพิ่ม/หมุนเฉพาะลูกเต๋าใหม่ 2 ลูกข้างกัน ก่อนสรุปผลรวม 5 ลูก โดยไม่ทอยหรือ Animate ลูกเดิมซ้ำ.
-- v77 Encounter Fix: Encounter ยังถูก Trigger เฉพาะศัตรูติดกันระดับเดียวกัน แต่เมื่อถูก Encounter แล้วสามารถโจมตีศัตรูทุกตัวที่อยู่ติดกันได้ รวมถึงต่างระดับ และอาวุธยิงอย่าง Bazooka ไม่ถูกปิดโดย Encounter.
+- v77 Engagement Fix: Engagement ยังถูก Trigger เฉพาะศัตรูติดกันระดับเดียวกัน แต่เมื่อถูก Engaged แล้วสามารถโจมตีศัตรูทุกตัวที่อยู่ติดกันได้ รวมถึงต่างระดับ และอาวุธยิงอย่าง Bazooka ไม่ถูกปิดโดย Engagement.
 - v76 Five Teams: เพิ่ม White Devil, The Rival และ Secret จนครบ 5 ทีม ทีมละ 3 Unit; เพิ่ม Epic Shot, War Edge, Berserk, God Drill และ Jet Scrander พร้อมข้อจำกัดยูนิต; War Edge/God Drill ใช้ระบบ AoE SP และแนวเล็งพิเศษเดียวกับ Twin Buster; ทีมใหม่มี Tactic 3 ใบตั้งแต่ต้นและไม่จั่วเพิ่มหลัง Phase 1; AI เลือกทีม/ยูนิต/การ์ดใหม่ได้ตามข้อมูลเปิดเผย.
 - v75 Two-Color Team Palette: สีทีมบนสนามเหลือเพียงแดงและน้ำเงิน; ZEON ได้สีแดงและ E.F.S.F. ได้สีน้ำเงินเป็นลำดับแรก ส่วน Secret Team ใช้สีที่เหลือตามคู่แข่งในแมตช์เดียวกัน ทั้ง Unit, Timeline, HUD, Objective ที่ยึดแล้ว, Base และ Garrison; ตัดสี/Token เขียวออก และคงธง Objective กลางเป็นสีเหลือง.
 - v74 Deadend / Rules Audit Fix: แก้ AI deadlock เมื่อแท็บถูกพักระหว่างเอฟเฟกต์เล็ง, ล็อก Focus ของ Response modal, รักษา Response chain ของ Vidar Handgun และ Beam Saber Critical Move, กัน Shattered Formation ทำ Damage ใส่ Unit ที่กลับ Reserve, แก้ Twin Buster 6 ทิศบริเวณขอบแผนที่/LOS Inspector/RNaN, แก้ Forward Artillery ให้ยึดฝั่งจริง, ให้ AI ประเมิน Twin Buster แยกทีละทิศ, ห้าม Move/Dash ปกติยืนยันช่องเดิม และแยก RNG ของ Animation ออกจาก RNG ผลเกม.
@@ -116,9 +119,9 @@ GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.8
 - หน้า Title ใช้เพลง Title ตามเดิม; เมื่อเริ่มเกมทั่วไปจะใช้เพลงที่เลือกไว้ และถ้าแมตช์มี Secret Team อย่างน้อยหนึ่งฝ่ายจะเลือกเพลง Secret: Mazinger Z (SRW Z) อัตโนมัติครั้งเดียว
 - ปุ่มลำโพงมุมขวาบนเปิดเมนูเลือก เพลง 1 / เพลง 2 / เพลง Secret / ปิดเสียง; ตัวเลือกปิดเสียงจะปิดทั้ง BGM และ Sound Effects
 - AI เว้นจังหวะก่อนเลือกคำสั่งและกล้องจะติดตาม Unit ของ AI เมื่อเริ่ม Activation
-- ENCOUNTER จะแสดงเหนือเป้าหมายที่ต้องโจมตีก่อน และ MOVE -1 จะแสดงเหนือ Unit ที่ถูกลดระยะเดิน
+- ENGAGED จะแสดงเหนือเป้าหมายที่ต้องโจมตีก่อน และ MOVE -1 จะแสดงเหนือ Unit ที่ถูกลดระยะเดิน
 - กล้องติดตาม Unit ที่กำลังเล่นทุกฝ่าย; ใน Hot-seat จะเลื่อนหลังผู้เล่นกดพร้อม
-- ป้าย ENCOUNTER และ MOVE -1 ถูกวาดบนชั้นหน้าสุดของกระดานเพื่อไม่ให้ Hex หรือ Token บัง
+- ป้าย ENGAGED และ MOVE -1 ถูกวาดบนชั้นหน้าสุดของกระดานเพื่อไม่ให้ Hex หรือ Token บัง
 - Move ของผู้เล่นสามารถเลือกตำแหน่งใหม่ภายในพื้นที่เดิมได้จนกว่าจะเลือก Action อื่น จึงค่อยยืนยันการเดินและเก็บ Token
 - คลิก Unit ตัวอื่นบนแผนที่ได้ทั้งฝ่ายเดียวกันและศัตรูเพื่อเปิดดู Unit Card แบบเต็มแผ่น; Unit ที่กำลังทำงานยังเปิด Command Menu ตามเดิม
 - Dash ของผู้เล่นปรับตำแหน่งซ้ำได้ภายในพื้นที่เดิมเหมือน Move; หัก Timeline, เก็บ Token และตรวจ Response หลัง Dash (Char Kick / Shuji Kick) เมื่อยืนยัน Action อื่นเท่านั้น

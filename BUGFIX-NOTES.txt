@@ -1,3 +1,4 @@
+- Beta14.11: attack-prep Command abilities can no longer consume Energy after the unit has no remaining attack opportunity; UI shows NO ATTACK LEFT and useUnitAbility has a second guard. Checkmate stays available if Crimson Execution can still provide a free attack.
 Beta14.8 Hover / Water rules fix
 - Hover (Wing Gundam Zero [EW] / Gundam Epyon) now ignores Azure Fang Water's Move -1 during movement, matching “ignore terrain effects during movement”.
 - Hover continues to ignore elevation climb cost. It does NOT cancel Water Accuracy -1 during attacks.

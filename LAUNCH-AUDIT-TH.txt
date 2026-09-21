@@ -1,3 +1,18 @@
+Beta14.11 PRE-ATTACK ABILITY GUARD
+==================================
+- Pure attack-prep Command abilities are disabled once no attack opportunity remains in the activation.
+- Protected abilities: Full Power, Checkmate, Mazin Power, Machu Kira Kira, Nyaan Focus.
+- Disabled buttons show NO ATTACK LEFT; stale/direct activation is also blocked before Energy is spent.
+- Checkmate remains legal after the Primary Action only when Crimson Execution is still in hand and unused, preserving the legal free-attack combo.
+- Cache/build tag: beta14-11-en
+
+Beta14.10 TERMINOLOGY HOTFIX — ENGAGED CONSISTENCY
+- Unit ที่กำลัง Engage แสดงป้าย ENGAGED ค้างบน Token และมี outline สีส้มบาง ๆ รอบ Token.
+- สถานะคำนวณจาก engine.engagedTargets() เดียวกับกฎ Move -1/target restriction จึงหายทันทีเมื่อหลุด Engagement.
+- Gameplay / Rules ไม่เปลี่ยนจาก Beta14.8.
+- Cache/build tag: beta14-10-en
+- Validation: Core 242 + AI 29 + regression 18 = 289 checks.
+
 Beta14.8 HOTFIX — HOVER / WATER RULES
 - Hover ของ Wing Gundam Zero [EW] และ Gundam Epyon ไม่รับ Water Move -1 ระหว่างการเคลื่อนที่ และไม่เสียค่า climb จาก Elevation.
 - Water Accuracy -1 ยังมีผลตามปกติเมื่อ Hover Unit มีส่วนในการโจมตี เพราะ Hover ระบุเฉพาะระหว่างการเคลื่อนที่.
@@ -32,7 +47,7 @@ BETA14 AZURE FANG MAP ACCURACY UPDATE
 - แก้รูปทรงกระดานเป็น 14 Hex ในคอลัมน์คู่ / 13 Hex ในคอลัมน์คี่; 7 ช่องล่างนอกกระดานไม่ render และไม่ผ่าน movement/LOS
 - Corner Base ฝั่งล่างย้ายไปตำแหน่งจริง q0,r13; Sleeping Leviathan ไม่เปลี่ยน
 
-GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta14.8
+GUNDAM ASSEMBLE // ONLINE — BUILD AUDIT Beta14.11
 BETA12 PRE-LAUNCH FIX
 - LOS Inspector ใช้ target legality เดียวกับ combat มากขึ้น: ขณะ Engaged เป้าหมายที่ LOS/ระยะถึงแต่เลือกยิงไม่ได้จะแสดงสถานะสีส้ม ENGAGED แทนสีเขียว
 - SP AoE LOS inspection ตรวจทิศยิงจริงและบังคับว่าทิศนั้นต้องครอบเป้าหมาย Engaged อย่างน้อย 1 จุดเมื่อผู้ยิงกำลัง Engaged
@@ -228,7 +243,7 @@ AUDIT UPDATE v87
 AUDIT UPDATE v86
 - เพิ่ม regression test ที่วางทั้ง Terrain สูงและ Unit ขวางแนวยิง แล้วยืนยันว่า Rocket Punch ยังเลือก Unit และ Garrison ภายใน Range 3 เป็นเป้าหมายได้.
 - เมนู Rocket Punch แสดง IGNORE LOS และหน้าต่างเลือกเป้าหมายระบุชัดว่าไม่ตรวจ Line of Sight.
-- แยกข้อความกรณีไม่มีเป้าหมายของ Rocket Punch ออกจากข้อความ LOS ของอาวุธทั่วไป เพื่อลดการตีความผิดเมื่อเป้าหมายอยู่นอก Range หรือถูก Encounter จำกัด.
+- แยกข้อความกรณีไม่มีเป้าหมายของ Rocket Punch ออกจากข้อความ LOS ของอาวุธทั่วไป เพื่อลดการตีความผิดเมื่อเป้าหมายอยู่นอก Range หรือถูก Engagement จำกัด.
 - ผลทดสอบ v86: Core 183 + AI 23 = 206 tests ผ่านทั้งหมด.
 
 วันที่ตรวจ: 16 กันยายน 2026

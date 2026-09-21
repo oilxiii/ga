@@ -48,7 +48,21 @@
     return activation.commandUsed;
   }
   function commandAbilityUsed(ability) { return !!(ability?.id&&commandUsageMap()[ability.id]); }
-  function canUseCommandAbility(unit,ability) { return !!ability&&!commandAbilityUsed(ability)&&unit.energy>=Math.max(0,ability.energy||0); }
+  function hasPendingAttackOpportunity(unit) {
+    if(!state?.activation?.actionUsed)return true;
+    // Checkmate can still matter after the Primary Action if Red Comet can still
+    // make Crimson Execution's free Heat Hawk attack in this activation.
+    if(unit?.id==="red-comet-zaku"){
+      const owner=unit.team;
+      const crimsonReady=state.hands?.[owner]?.includes("crimson-execution")&&!state.usedTactics?.has(`${owner}:crimson-execution`)&&!state.activation.tacticUsed?.[owner];
+      if(crimsonReady)return true;
+    }
+    return false;
+  }
+  function attackPrepCommandExpired(unit,ability) {
+    return ["full-power","checkmate","mazin-power","machu-kira-kira","nyaan-focus"].includes(ability?.id)&&!hasPendingAttackOpportunity(unit);
+  }
+  function canUseCommandAbility(unit,ability) { return !!ability&&!commandAbilityUsed(ability)&&unit.energy>=Math.max(0,ability.energy||0)&&!attackPrepCommandExpired(unit,ability); }
   function markCommandAbilityUsed(ability) { if(ability?.id)commandUsageMap()[ability.id]=true; }
   function factionForSide(team) { return state?.factions?.[team] || matchFactions[team] || team; }
   function teamMeta(team) { return D.teams[factionForSide(team)] || D.teams[team]; }
@@ -1179,11 +1193,11 @@
     }).join("")}</g>`;
   }
 
-  function encounterMarker(cx,cy,text,kind) {
-    const width=text==="ENCOUNTER"?82:64;
+  function engagedMarker(cx,cy,text,kind) {
+    const width=text==="ENGAGED"?82:64;
     const height=22;
     const y=Math.max(4,Math.min(624,cy-67));
-    return `<g class="encounter-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
+    return `<g class="engaged-marker ${kind}" transform="translate(${cx-width/2} ${y})" aria-label="${text}"><rect width="${width}" height="${height}" rx="5"></rect><text x="${width/2}" y="${height/2}" dominant-baseline="central" text-anchor="middle">${text}</text></g>`;
   }
 
   function sameInspectionTarget(a,b) {
@@ -1297,8 +1311,8 @@
     $("#board")?.setAttribute("viewBox",`0 0 780 ${D.map.rows>13?680:650}`);
     const active = activeUnit();
     const losMaximumRange=active?Math.max(0,...inspectionWeaponsFor(active).map(weaponRange)):0;
-    const encounterTargets=active?E.engagedTargets(state,active):[];
-    const hasEncounter=encounterTargets.length>0;
+    const engagedTargets=active?E.engagedTargets(state,active):[];
+    const hasEngagement=engagedTargets.length>0;
     let defs = "";
     let cells = "";
     for (let q=0;q<D.map.cols;q++) for (let r=0;r<D.map.rows;r++) {
@@ -1332,12 +1346,16 @@
       const clip=`clip-${unit.id}`;
       defs += `<clipPath id="${clip}"><circle cx="${cx}" cy="${cy-2}" r="17"></circle></clipPath>`;
       const teamClass=unit.team;
+      const engagedTargets=E.engagedTargets(state,unit);
+      const isEngaged=engagedTargets.length>0;
       const losInspectable=losInspection.enabled&&active&&unit.team!==active.team&&E.distance(active,unit)<=losMaximumRange;
       const losBlocked=losInspectable&&blockedForEveryInRangeWeapon(active,unit);
       const losEngagementBlocked=losInspectable&&engagementBlockedForLosInspection(active,unit);
-      units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""} ${losInspectable?"los-inspectable":""} ${losBlocked?"los-blocked-target":""} ${losEngagementBlocked?"los-engagement-target":""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
+      units += `<g class="unit-node ${unit.id===state.activeUnitId?"active":""} ${unit.id===state.justDeployedUnitId?"deploying":""} ${isEngaged?"engaged":""} ${mode?.type === "char-kick" && isTargetable(unit.q,unit.r) ? "char-kick-victim" : ""} ${losInspectable?"los-inspectable":""} ${losBlocked?"los-blocked-target":""} ${losEngagementBlocked?"los-engagement-target":""}" data-unit-id="${unit.id}" data-q="${unit.q}" data-r="${unit.r}">
         <circle class="unit-base ${teamClass}" cx="${cx}" cy="${cy}" r="20"></circle>
+        ${isEngaged?`<circle class="engaged-outline" cx="${cx}" cy="${cy}" r="22.25"></circle>`:""}
         <image class="unit-portrait" href="${unit.icon}" x="${cx-18}" y="${cy-20}" width="36" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clip})"></image>
+        ${isEngaged?`<g class="engaged-persistent-badge" aria-label="ENGAGED · Move -1"><rect x="${cx-21}" y="${cy-29}" width="42" height="11" rx="4"></rect><text x="${cx}" y="${cy-23.4}">ENGAGED</text></g>`:""}
         ${unit.id===state.activeUnitId ? `<g class="active-turn-marker" aria-hidden="true">
           <path class="active-turn-triangle" d="M ${cx-7} ${cy-31} L ${cx+7} ${cy-31} L ${cx} ${cy-22} Z"></path>
         </g>` : ""}
@@ -1349,23 +1367,23 @@
         <text class="unit-name" x="${cx}" y="${cy+34}">${unit.name === "Zaku II" ? unit.role : unit.name}</text>
       </g>`;
     }
-    let encounterLayer="";
-    if(active&&hasEncounter){
+    let engagedLayer="";
+    if(active&&hasEngagement){
       const activeCx=x0+active.q*dx,activeCy=y0+(active.r+(active.q&1)*.5)*dy;
-      encounterLayer+=encounterMarker(activeCx,activeCy,"MOVE -1","penalty");
-      encounterTargets.forEach(target=>{
+      engagedLayer+=engagedMarker(activeCx,activeCy,"MOVE -1","penalty");
+      engagedTargets.forEach(target=>{
         const targetCx=x0+target.q*dx,targetCy=y0+(target.r+(target.q&1)*.5)*dy;
-        encounterLayer+=encounterMarker(targetCx,targetCy,"ENCOUNTER","target");
+        engagedLayer+=engagedMarker(targetCx,targetCy,"ENGAGED","target");
       });
     }
     const losLayer=renderLosInspection(active,x0,y0,dx,dy);
-    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="los-overlay-layer">${losLayer}</g><g class="encounter-overlay-layer">${encounterLayer}</g>`;
+    $("#board").innerHTML=`<defs>${defs}</defs>${cells}${units}<g class="los-overlay-layer">${losLayer}</g><g class="engaged-overlay-layer">${engagedLayer}</g>`;
     $("#board").querySelectorAll("[data-q]").forEach(node => node.addEventListener("click", event => handleHexClick(Number(node.dataset.q),Number(node.dataset.r),event)));
   }
 
   function unitHudHtml(unit,{showAi=false}={}) {
     const effects=[...unitMapEffects(unit)];
-    if(unit.zone!=="reserve"&&E.engagedTargets(state,unit).length)effects.push({type:"encounter",kind:"status",text:"E",title:"Engagement — Move -1 และการโจมตีต้องมีเป้าหมายที่กำลัง Engage อย่างน้อย 1 ตัว"});
+    if(unit.zone!=="reserve"&&E.engagedTargets(state,unit).length)effects.push({type:"engaged",kind:"status",text:"E",title:"Engagement — Move -1 และการโจมตีต้องมีเป้าหมายที่กำลัง Engage อย่างน้อย 1 ตัว"});
     if(unit.zone!=="reserve"&&E.terrainAt(state,unit.q,unit.r)==="water")effects.push({type:"water",kind:"status",text:"≈",title:"Water — เริ่มการเคลื่อนที่ Move -1 · Attack ที่เกี่ยวข้อง Accuracy -1"});
     if(unit.berserkActive)effects.push({type:"berserk",kind:"temporary",text:"BZK",title:"Berserk Active"});
     if(unit.movementBonus>0)effects.push({type:"move-bonus",kind:"temporary",text:`M+${unit.movementBonus}`,title:`Move Bonus +${unit.movementBonus} ใน Activation นี้`});
@@ -1498,8 +1516,8 @@
       item(adjustingDash?"ปรับตำแหน่ง Dash":"Dash",adjustingDash?"เลือกใหม่ในพื้นที่เดิม":`${dashDistance} HEX · TL${D.rules.dash.timeline}`,"dash",a.actionUsed&&!adjustingDash),
       item("Energize","+1 ENERGY · TL2","energize",a.actionUsed),
       item("Rescue","GARRISON · TL2","rescue",a.actionUsed||!hasOwnGarrisonInRange(unit)),
-      unit.command?item(unit.command.name,unit.command.energy?`⚡${unit.command.energy}`:"COMMAND","ability",commandAbilityUsed(unit.command)||unit.energy<(unit.command.energy||0)||annihilateUnavailable):"",
-      unit.command2?item(unit.command2.name,unit.command2.energy?`⚡${unit.command2.energy}`:"COMMAND","ability2",commandAbilityUsed(unit.command2)||unit.energy<(unit.command2.energy||0)):"",
+      unit.command?item(unit.command.name,attackPrepCommandExpired(unit,unit.command)?"NO ATTACK LEFT":unit.command.energy?`⚡${unit.command.energy}`:"COMMAND","ability",!canUseCommandAbility(unit,unit.command)||annihilateUnavailable):"",
+      unit.command2?item(unit.command2.name,attackPrepCommandExpired(unit,unit.command2)?"NO ATTACK LEFT":unit.command2.energy?`⚡${unit.command2.energy}`:"COMMAND","ability2",!canUseCommandAbility(unit,unit.command2)):"",
       item("Tactic",`${state.hands[unit.team].filter(id=>!isUsed(id,unit.team)).length} CARDS`,"tactics"),
       item("Unit Card","INFO","info"),
       item("Wait",a.actionUsed?"END":"PRIMARY ACTION REQUIRED","end",!a.actionUsed,"danger")
@@ -3116,7 +3134,10 @@
   function useUnitAbility(unit,slot=1) {
     const ability=slot===2?unit.command2:unit.command;
     const energyCost=Math.max(0,ability?.energy||0);
-    if (!canUseCommandAbility(unit,ability)) return;
+    if (!canUseCommandAbility(unit,ability)) {
+      if(typeof attackPrepCommandExpired==="function"&&attackPrepCommandExpired(unit,ability)){addLog(`${ability.name}: ไม่มีการโจมตีเหลือใน Activation นี้ — ไม่เสีย Energy`);menuOpen=true;renderAll();}
+      return;
+    }
     const spend=()=>{unit.energy-=energyCost;markCommandAbilityUsed(ability);};
     if (unit.id==="gundam") {
       const allies=state.units.filter(x=>x.team===unit.team&&x.zone==="board"&&E.distance(unit,x)<=3&&E.hasLineOfSight(state,unit,x)&&totalUpgrades(x)<=1);

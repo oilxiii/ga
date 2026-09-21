@@ -694,7 +694,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta14.8<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.11<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1439,21 +1439,21 @@ test("v88 every AI Tactic type pauses on a centered card until the player closes
   assert.match(primary,/showAiTacticCard\(attack\.tactic,beginChosenAttack\)/);
 });
 
-test("AI pacing, active-unit focus, and Encounter overlays remain enabled", () => {
+test("AI pacing, active-unit focus, and Engaged overlays remain enabled", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
   assert.match(source,/const AI_PACE = Object\.freeze\(\{ firstTurn: 1450, turnStart: 1200/);
   assert.match(source,/function focusCameraOnUnit\(unit\)/);
   assert.match(source,/focusCameraOnUnit\(unit\);[\s\S]{0,80}scheduleAiTurn/);
   assert.match(source,/E\.engagedTargets\(state,active\)/);
-  assert.match(source,/encounterMarker\(activeCx,activeCy,"MOVE -1","penalty"\)/);
-  assert.match(source,/encounterMarker\(targetCx,targetCy,"ENCOUNTER","target"\)/);
-  assert.match(css,/\.encounter-marker\.target rect/);
+  assert.match(source,/engagedMarker\(activeCx,activeCy,"MOVE -1","penalty"\)/);
+  assert.match(source,/engagedMarker\(targetCx,targetCy,"ENGAGED","target"\)/);
+  assert.match(css,/\.engaged-marker\.target rect/);
   assert.match(css,/\.unit-node\.turn-camera-focus \.unit-base/);
   assert.match(source,/else if\(matchMode==="hotseat"\) showPassOverlay/);
   assert.match(source,/ready\.addEventListener\("click", \(\) => \{[\s\S]{0,180}focusCameraOnUnit\(unit\)/);
   assert.match(source,/else \{[\s\S]{0,100}pass-overlay[\s\S]{0,100}focusCameraOnUnit\(unit\)/);
-  assert.match(source,/\$\("#board"\)\.innerHTML=`<defs>\$\{defs\}<\/defs>\$\{cells\}\$\{units\}<g class="los-overlay-layer">\$\{losLayer\}<\/g><g class="encounter-overlay-layer">/);
+  assert.match(source,/\$\("#board"\)\.innerHTML=`<defs>\$\{defs\}<\/defs>\$\{cells\}\$\{units\}<g class="los-overlay-layer">\$\{losLayer\}<\/g><g class="engaged-overlay-layer">/);
 });
 
 test("clicking another allied or enemy map Unit opens its full Unit Card", () => {
@@ -2193,7 +2193,7 @@ test("Epyon gains Strength against abnormal targets and ignores elevation moveme
   const reachable=E.reachable(state,epyon,1);assert.ok(reachable instanceof Map);
 });
 
-test("EVA-01 ignores Encounter and Berserk upgrades are removed on defeat",()=>{
+test("EVA-01 ignores Engagement and Berserk upgrades are removed on defeat",()=>{
   const state=E.setupGame(()=>.5,{fed:"secret",zeon:"fed"});
   const eva=state.units.find(unit=>unit.id==="eva-01"),enemy=state.units.find(unit=>unit.id==="gundam");
   Object.assign(eva,{zone:"board",q:5,r:5,hp:0,berserkActive:true,upgrades:{shield:3,speed:3,strength:3}});Object.assign(enemy,{zone:"board",q:5,r:4});
@@ -2276,8 +2276,8 @@ test("v79 unit HUD exposes compact effect icons and per-side Garrison record", (
   assert.match(source,/destroyedGarrisons\?\.\[unit\.team\]/);
   assert.match(source,/rescuedGarrisons\?\.\[unit\.team\]/);
   assert.match(source,/E\.engagedTargets\(state,unit\)\.length/);
-  assert.match(source,/type:"encounter"/);
-  assert.match(css,/\.hud-effect\.effect-encounter/);
+  assert.match(source,/type:"engaged"/);
+  assert.match(css,/\.hud-effect\.effect-engaged/);
   assert.match(css,/\.active-hud-inner \{ display:grid; grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);/);
   assert.match(css,/\.garrison-record-grid/);
   assert.match(css,/\.hud-effect/);
@@ -2416,7 +2416,7 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.8<\/span>/);
+  assert.match(html,/>Beta14.11<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2470,8 +2470,8 @@ test("v91 Command usage is tracked per ability id rather than once per unit acti
   assert.match(source,/commandUsageMap\(\)\[ability\.id\]/);
   assert.match(source,/function markCommandAbilityUsed\(ability\)/);
   assert.match(source,/commandUsageMap\(\)\[ability\.id\]=true/);
-  assert.match(source,/commandAbilityUsed\(unit\.command\)/);
-  assert.match(source,/commandAbilityUsed\(unit\.command2\)/);
+  assert.match(source,/!canUseCommandAbility\(unit,unit\.command\)\|\|annihilateUnavailable/);
+  assert.match(source,/!canUseCommandAbility\(unit,unit\.command2\)/);
   assert.doesNotMatch(source,/state\.activation\.commandUsed\s*===?\s*true/);
   assert.doesNotMatch(source,/state\.activation\.commandUsed\s*=\s*true/);
 });
@@ -2480,7 +2480,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const useAbility=source.match(/function useUnitAbility\(unit,slot=1\)[\s\S]*?function selectEnemy/)?.[0]||"";
   assert.match(useAbility,/const ability=slot===2\?unit\.command2:unit\.command/);
-  assert.match(useAbility,/if \(!canUseCommandAbility\(unit,ability\)\) return/);
+  assert.match(useAbility,/if \(!canUseCommandAbility\(unit,ability\)\) \{/);
   assert.match(useAbility,/markCommandAbilityUsed\(ability\)/);
   const aiFollow=source.match(/function aiUseAnnihilateFollowUp[\s\S]*?function aiFinishTurn/)?.[0]||"";
   assert.match(aiFollow,/canUseCommandAbility\(unit,unit\.command\)/);
@@ -2491,7 +2491,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.8<\/span>/);
+  assert.match(html,/>Beta14.11<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -3033,9 +3033,30 @@ test("Beta14.7 AI camera follows the active unit after committed movement",()=>{
   assert.ok(move.indexOf('renderAll();\n    // Keep the camera attached')<move.indexOf('focusCameraOnUnit(unit);'));
 });
 
-test("Beta14.8 build and cache tags are synchronized",()=>{
+test("Beta14.10 engaged units keep a persistent ENGAGED badge and thin outline",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","styles.css"),"utf8");
+  assert.match(game,/const engagedTargets=E\.engagedTargets\(state,unit\)/);
+  assert.match(game,/\$\{isEngaged\?"engaged":""\}/);
+  assert.match(game,/class="engaged-outline"/);
+  assert.match(game,/class="engaged-persistent-badge"[\s\S]*?>ENGAGED<\/text>/);
+  assert.match(css,/\.engaged-outline \{[^}]*stroke: #ffb240;[^}]*stroke-width: 1\.6;/);
+  assert.match(css,/\.engaged-persistent-badge rect \{[^}]*stroke: #ffc469;/);
+});
+
+
+
+test("Beta14.11 attack-prep Commands lock after the last attack opportunity",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(game,/\["full-power","checkmate","mazin-power","machu-kira-kira","nyaan-focus"\]/);
+  assert.match(game,/function attackPrepCommandExpired\(unit,ability\)/);
+  assert.match(game,/NO ATTACK LEFT/);
+  assert.match(game,/if\(typeof attackPrepCommandExpired==="function"&&attackPrepCommandExpired\(unit,ability\)\)/);
+  assert.match(game,/!canUseCommandAbility\(unit,unit\.command\)\|\|annihilateUnavailable/);
+});
+test("Beta14.11 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.8<\/span>/);
+  assert.match(html,/>Beta14.11<\/span>/);
   for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
 });
 

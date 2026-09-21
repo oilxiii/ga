@@ -148,7 +148,7 @@
         { id: "positron-rifle", name: "Positron Rifle", timeline: 4, range: 5, strength: 8, critical: "slow" }
       ],
       command: { id: "at-field", name: "AT Field", energy: 1, text: "หากไม่มี Shield Upgrade ได้รับ Shield Upgrade 1" },
-      ongoing: { name: "Don’t Run Away", text: "ยูนิตนี้ไม่ติด Encounter" }
+      ongoing: { name: "Don’t Run Away", text: "ยูนิตนี้จะไม่ถูก Engaged" }
     },
     {
       id: "mazinger-z", team: "secret", name: "Mazinger Z", model: "MAZINGER Z", role: "Invincible Super Robot",

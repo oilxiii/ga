@@ -99,3 +99,30 @@ found('Rex Claws Garrison attack permits a legal Annihilate follow-up with its E
 found('Shared Disarm calculation preserves ordinary bonuses and suppresses only weapon Criticals',()=>{
  const c=harness({fed:'secret',zeon:'fed'});const a=c.unit('mazinger-z',0,0),d=c.unit('gundam',0,1);const w={...a.weapons[1],critical:'damage2',criticalOverdrivePerCrit:1};const r=E.attackResultFromDice(c.state,a,d,w,[10,10,1],{criticalEffectsDisabled:true});assert.equal(r.damage,6);assert.equal(r.criticals,2);const enabled=E.attackResultFromDice(c.state,a,d,w,[10,10,1]);assert.equal(enabled.damage,8);
 });
+
+
+found('Attack-prep Commands do not spend Energy after no attack remains',()=>{
+ const c=harness();
+ c.load('commandUsageMap','commandAbilityUsed','hasPendingAttackOpportunity','attackPrepCommandExpired','canUseCommandAbility','useUnitAbility');
+ c.state.activation.actionUsed=true;
+ const prep=[
+  {id:'wing-zero-ew',team:'fed',energy:1,command:{id:'full-power',energy:1,name:'Full Power'}},
+  {id:'red-comet-zaku',team:'fed',energy:1,command:{id:'checkmate',energy:1,name:'Checkmate'}},
+  {id:'mazinger-z',team:'fed',energy:1,command:{id:'mazin-power',energy:1,name:'Mazin Power'}},
+  {id:'gquuuuuux',team:'fed',energy:1,command:{id:'machu-kira-kira',energy:1,name:'Machu Kira Kira'}},
+  {id:'gfred',team:'fed',energy:1,command:{id:'nyaan-focus',energy:1,name:'Nyaan Focus'}}
+ ];
+ for(const unit of prep)assert.equal(c.canUseCommandAbility(unit,unit.command),false,unit.command.id);
+ const wing=c.unit('wing-zero-ew',0,0);wing.energy=1;c.state.activeUnitId=wing.id;
+ const before=wing.energy;c.useUnitAbility(wing);assert.equal(wing.energy,before);assert.equal(c.state.activation.commandUsed['full-power'],undefined);
+ c.state.activation.actionUsed=false;assert.equal(c.canUseCommandAbility(wing,wing.command),true);
+});
+
+found('Checkmate stays available when Crimson Execution still provides a free attack',()=>{
+ const c=harness({fed:'rival',zeon:'zeon'});
+ c.load('commandUsageMap','commandAbilityUsed','hasPendingAttackOpportunity','attackPrepCommandExpired','canUseCommandAbility');
+ const red=c.unit('red-comet-zaku',0,0);red.energy=1;c.state.activeUnitId=red.id;c.state.activation.actionUsed=true;
+ c.state.hands.fed=['crimson-execution'];c.state.activation.tacticUsed.fed=false;c.state.usedTactics.delete('fed:crimson-execution');
+ assert.equal(c.canUseCommandAbility(red,red.command),true);
+ c.state.activation.tacticUsed.fed=true;assert.equal(c.canUseCommandAbility(red,red.command),false);
+});
