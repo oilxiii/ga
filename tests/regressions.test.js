@@ -9,8 +9,8 @@ function harness(factions={fed:'white-devil',zeon:'zeon'}){
  const state=E.setupGame(()=>.5,factions);state.board.forEach?.(()=>{});
  for(const h of Object.values(state.board))if(h&&typeof h==='object')h.elevation=0;
  state.garrisons=[];state.energy=[];state.upgrades=[];
- const c={D,E,state,mode:null,movementDraft:null,pendingAttack:null,lastDice:null,menuOpen:false,menuView:'main',
-  Math:Object.create(Math),console,renderAll(){},addLog(){},playDamageFeedback(){},playPickupFeedback(){},playResolvedAttackFeedback(){},
+ const c={D,E,state,mode:null,movementDraft:null,advanceUndo:null,pendingAttack:null,lastDice:null,menuOpen:false,menuView:'main',
+  Math:Object.create(Math),console,renderAll(){},addLog(){},focusCameraOnUnit(){},attackResolutionBusy:()=>false,clearAdvanceUndo(){return false;},captureAdvanceUndo(){return null;},playDamageFeedback(){},playPickupFeedback(){},playResolvedAttackFeedback(){},
   playCombatFeedback(){},closeModal(){},scheduleAiResolveMode(){},SFX:{dash(){}},isAiTeam:()=>false,
   teamMeta:()=>({short:'TEST'}),teamName:()=>'',queueHackingSystem(){},offerHackingSystem:(u,cb)=>cb?.(),
   openPostCombatResponses:(a,b,d,i,cb)=>cb?.(),offerOmegaPsycommuMove:(u,r,cb)=>cb?.(),
@@ -130,4 +130,71 @@ found('Checkmate stays available when Crimson Execution still provides a free at
  c.state.hands.fed=['crimson-execution'];c.state.activation.tacticUsed.fed=false;c.state.usedTactics.delete('fed:crimson-execution');
  assert.equal(c.canUseCommandAbility(red,red.command),true);
  c.state.activation.tacticUsed.fed=true;assert.equal(c.canUseCommandAbility(red,red.command),false);
+});
+
+found('Advance preview onto Energy enables an Energy Command before Attack',()=>{
+ const c=harness();
+ c.load('commandUsageMap','commandAbilityUsed','hasPendingAttackOpportunity','attackPrepCommandExpired','canUseCommandAbility','pendingMovementEnergyGain','canUseCommandAbilityFromMenu','markCommandAbilityUsed','commitMovementDraft','resolveMovementResponses','afterUnitMove','useUnitAbility');
+ const a=c.unit('wing-zero-ew',0,1);c.state.activeUnitId=a.id;a.energy=0;a.tempStrength=0;
+ c.state.energy=[{q:0,r:1}];
+ c.movementDraft={unitId:a.id,origin:{q:0,r:0,zone:'board'},placed:true,cost:0,label:'Advance',movementType:'advance',primaryAction:false};
+ assert.equal(c.canUseCommandAbility(a,a.command),false,'uncommitted Energy must not count as already owned');
+ assert.equal(c.pendingMovementEnergyGain(a),1);
+ assert.equal(c.canUseCommandAbilityFromMenu(a,a.command),true,'menu should allow a Command that becomes payable when the previewed Move commits');
+ c.commitMovementDraft(()=>{});
+ assert.equal(a.energy,1,'Energy is collected when the movement commits');
+ assert.equal(c.state.energy.length,0);
+ c.useUnitAbility(a);
+ assert.equal(a.energy,0,'the newly collected Energy can be spent in the same Activation');
+ assert.equal(a.tempStrength,3);
+});
+
+
+found('Undo Move restores a committed Advance and a known Energy pickup',()=>{
+ const c=harness();
+ c.load('clearAdvanceUndo','captureAdvanceUndo','canUndoAdvance','undoAdvanceMove','commitMovementDraft');
+ c.afterUnitMove=(u,t,cb)=>cb?.();
+ const a=c.unit('wing-zero-ew',0,1);c.state.activeUnitId=a.id;a.energy=0;
+ c.state.energy=[{q:0,r:1}];
+ c.state.activation.advanced=true;
+ c.movementDraft={unitId:a.id,origin:{q:0,r:0,zone:'board'},placed:true,cost:0,label:'Advance',movementType:'advance',primaryAction:false,activationBefore:{advanced:false,actionUsed:false,timelineSpent:0}};
+ c.commitMovementDraft(()=>{});
+ assert.equal(a.energy,1);assert.equal(c.state.energy.length,0);assert.equal(c.state.activation.advanced,true);
+ assert(c.canUndoAdvance(a));
+ c.undoAdvanceMove();
+ assert.equal(a.q,0);assert.equal(a.r,0);assert.equal(a.energy,0);assert.equal(c.state.energy.length,1);assert.equal(c.state.activation.advanced,false);assert.equal(c.advanceUndo,null);
+});
+
+found('Undo Move is not offered after Advance reveals a Mystery Upgrade',()=>{
+ const c=harness();
+ c.load('clearAdvanceUndo','captureAdvanceUndo','canUndoAdvance','commitMovementDraft');
+ c.afterUnitMove=(u,t,cb)=>cb?.();
+ const a=c.unit('wing-zero-ew',0,1);c.state.activeUnitId=a.id;
+ c.state.upgrades=[{q:0,r:1,type:'strength'}];
+ c.state.activation.advanced=true;
+ c.movementDraft={unitId:a.id,origin:{q:0,r:0,zone:'board'},placed:true,cost:0,label:'Advance',movementType:'advance',primaryAction:false,activationBefore:{advanced:false,actionUsed:false,timelineSpent:0}};
+ c.commitMovementDraft(()=>{});
+ assert.equal(a.upgrades.strength,1);assert.equal(c.state.upgrades.length,0);assert.equal(c.canUndoAdvance(a),false,'revealing a hidden Mystery Upgrade must lock the move');
+});
+
+found('Confirming a Dash clears any earlier Advance Undo window',()=>{
+ const c=harness();
+ c.load('clearAdvanceUndo','captureAdvanceUndo','commitMovementDraft');
+ c.afterUnitMove=(u,t,cb)=>cb?.();
+ const a=c.unit('wing-zero-ew',0,1);c.state.activeUnitId=a.id;
+ c.advanceUndo={unitId:a.id,origin:{q:0,r:0,zone:'board'}};
+ c.movementDraft={unitId:a.id,origin:{q:0,r:0,zone:'board'},placed:true,cost:2,label:'Dash',movementType:'dash',primaryAction:true,activationBefore:{advanced:true,actionUsed:false,timelineSpent:0}};
+ c.commitMovementDraft(()=>{});
+ assert.equal(c.advanceUndo,null);assert.equal(c.state.activation.actionUsed,true);
+});
+
+found('Iron Grip response window closes Advance Undo before revealing the Response',()=>{
+ const c=harness({fed:'white-devil',zeon:'zeon'});
+ c.load('clearAdvanceUndo','resolveMovementResponses');
+ const a=c.unit('wing-zero-ew',0,1),enforcer=c.unit('zaku-enforcer',0,2);c.state.activeUnitId=a.id;
+ c.advanceUndo={unitId:a.id,origin:{q:0,r:0,zone:'board'}};
+ c.inHand=(team,id)=>team===enforcer.team&&id==='iron-grip';c.isUsed=()=>false;c.state.activation.tacticUsed[enforcer.team]=false;
+ let opened=0;c.openResponse=(cards,onUse,onSkip)=>{opened++;assert.equal(c.advanceUndo,null);onSkip();};
+ c.resolveMovementResponses(a,'advance',()=>{},true);
+ assert.equal(opened,1);assert.equal(c.advanceUndo,null);
 });

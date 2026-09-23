@@ -35,6 +35,7 @@
   let targetingFxGroup = null;
   let targetingFxCompletion = null;
   let movementDraft = null;
+  let advanceUndo = null;
   let responseModalRestoreFocus = null;
   let soundMuted = false;
   let losInspection = { enabled:false };
@@ -64,6 +65,70 @@
     return ["full-power","checkmate","mazin-power","machu-kira-kira","nyaan-focus"].includes(ability?.id)&&!hasPendingAttackOpportunity(unit);
   }
   function canUseCommandAbility(unit,ability) { return !!ability&&!commandAbilityUsed(ability)&&unit.energy>=Math.max(0,ability.energy||0)&&!attackPrepCommandExpired(unit,ability); }
+  function pendingMovementEnergyGain(unit) {
+    const draft=movementDraft;
+    if(!unit||!draft?.placed||draft.unitId!==unit.id)return 0;
+    return state?.energy?.some(item=>item.q===unit.q&&item.r===unit.r)?1:0;
+  }
+  function canUseCommandAbilityFromMenu(unit,ability) {
+    if(!ability||commandAbilityUsed(ability)||attackPrepCommandExpired(unit,ability))return false;
+    return unit.energy+pendingMovementEnergyGain(unit)>=Math.max(0,ability.energy||0);
+  }
+  function commandEnergyLabel(unit,ability) {
+    const cost=Math.max(0,ability?.energy||0);
+    if(!cost)return "COMMAND";
+    const pending=pendingMovementEnergyGain(unit);
+    return pending&&unit.energy<cost&&unit.energy+pending>=cost?`⚡${cost} · AFTER MOVE`:`⚡${cost}`;
+  }
+  function clearAdvanceUndo(unit=null) {
+    if(!advanceUndo)return false;
+    if(unit&&advanceUndo.unitId!==unit.id)return false;
+    advanceUndo=null;
+    return true;
+  }
+  function captureAdvanceUndo(unit,draft) {
+    if(!unit||!draft||draft.movementType!=="advance"||draft.origin?.zone!=="board"||isAiTeam(unit.team))return null;
+    return {
+      unitId:unit.id,
+      origin:{q:draft.origin.q,r:draft.origin.r,zone:draft.origin.zone},
+      energy:unit.energy,
+      upgrades:{...unit.upgrades},
+      inactiveShields:unit.inactiveShields||0,
+      nextAt:unit.nextAt,
+      activation:{
+        advanced:!!(draft.activationBefore?.advanced),
+        actionUsed:!!(draft.activationBefore?.actionUsed),
+        timelineSpent:Number(draft.activationBefore?.timelineSpent)||0
+      },
+      energyTokens:(state.energy||[]).map(item=>({...item})),
+      upgradeTokens:(state.upgrades||[]).map(item=>({...item})),
+      log:[...(state.log||[])],
+      justDeployedUnitId:state.justDeployedUnitId
+    };
+  }
+  function canUndoAdvance(unit) {
+    return !!(advanceUndo&&unit&&advanceUndo.unitId===unit.id&&state?.activeUnitId===unit.id&&unit.zone==="board"&&!movementDraft&&!mode&&!attackResolutionBusy());
+  }
+  function undoAdvanceMove() {
+    const unit=activeUnit();
+    if(!canUndoAdvance(unit))return false;
+    const snapshot=advanceUndo;
+    advanceUndo=null;
+    unit.q=snapshot.origin.q;unit.r=snapshot.origin.r;unit.zone=snapshot.origin.zone;
+    unit.energy=snapshot.energy;unit.upgrades={...snapshot.upgrades};unit.inactiveShields=snapshot.inactiveShields;unit.nextAt=snapshot.nextAt;
+    state.energy=snapshot.energyTokens.map(item=>({...item}));
+    state.upgrades=snapshot.upgradeTokens.map(item=>({...item}));
+    state.activation.advanced=snapshot.activation.advanced;
+    state.activation.actionUsed=snapshot.activation.actionUsed;
+    state.activation.timelineSpent=snapshot.activation.timelineSpent;
+    state.justDeployedUnitId=snapshot.justDeployedUnitId;
+    state.log=[...snapshot.log];
+    mode=null;menuOpen=true;menuView="main";
+    addLog(`${unit.name} ใช้ UNDO MOVE — ย้อน Advance กลับตำแหน่งเดิม`);
+    renderAll();
+    focusCameraOnUnit(unit);
+    return true;
+  }
   function markCommandAbilityUsed(ability) { if(ability?.id)commandUsageMap()[ability.id]=true; }
   function factionForSide(team) { return state?.factions?.[team] || matchFactions[team] || team; }
   function teamMeta(team) { return D.teams[factionForSide(team)] || D.teams[team]; }
@@ -212,8 +277,8 @@
     const sources = {
       song1: "assets/audio/battle-bgm.mp3",
       song2: "assets/audio/title-bgm.mp3",
-      getter: "assets/audio/getter-robo-bgm.mp3?v=beta14-14-en",
-      beyond: "assets/audio/beyond-the-time-bgm.mp3?v=beta14-14-en",
+      getter: "assets/audio/getter-robo-bgm.mp3?v=beta14-16-en",
+      beyond: "assets/audio/beyond-the-time-bgm.mp3?v=beta14-16-en",
       secret: "assets/audio/secret-mazinger-z-bgm.mp3"
     };
     const tracks = new Map();
@@ -931,6 +996,7 @@
     mode = null;
     pendingAttack = null;
     movementDraft = null;
+    advanceUndo = null;
     losInspection = { enabled:false };
     menuOpen = false;
     menuView = "main";
@@ -967,6 +1033,7 @@
     unit.handgunRepeatUsed = false;
     mode = null;
     movementDraft = null;
+    advanceUndo = null;
     menuOpen = false;
     menuView = "main";
     state.justDeployedUnitId = deployed ? unit.id : null;
@@ -1034,6 +1101,7 @@
     const unit = activeUnit();
     if (unit.zone === "deploying") { addLog("ต้อง Advance ออกจาก Base ก่อนจบ Activation"); renderAll(); return; }
     if (!state.activation.actionUsed) { addLog("ต้องเลือก Primary Action ก่อนจบ Activation"); renderAll(); return; }
+    clearAdvanceUndo(unit);
     const objectiveResults=E.contestObjectives(state,unit);
     const capturedObjectives=[];
     objectiveResults.forEach(result=>{
@@ -1529,12 +1597,13 @@
       item("Wait","LEAVE BASE FIRST","end",true,"danger")
     ]:[
       item(adjustingMove?"ปรับตำแหน่ง Move":"Move",adjustingMove?"เลือกใหม่ในพื้นที่เดิม":unit.statuses.slow?"CLEAR SLOW":`${moveDistance} HEX`,"advance",a.advanced&&!adjustingMove),
+      canUndoAdvance(unit)?item("↶ Undo Move","ADVANCE ONLY · RETURN TO START","undo-move",false,"undo-move"):"",
       item("Attack","WEAPON","attack-menu",a.actionUsed),
       item(adjustingDash?"ปรับตำแหน่ง Dash":"Dash",adjustingDash?"เลือกใหม่ในพื้นที่เดิม":`${dashDistance} HEX · TL${D.rules.dash.timeline}`,"dash",a.actionUsed&&!adjustingDash),
       item("Energize","+1 ENERGY · TL2","energize",a.actionUsed),
       item("Rescue","GARRISON · TL2","rescue",a.actionUsed||!hasOwnGarrisonInRange(unit)),
-      unit.command?item(unit.command.name,attackPrepCommandExpired(unit,unit.command)?"NO ATTACK LEFT":unit.command.energy?`⚡${unit.command.energy}`:"COMMAND","ability",!canUseCommandAbility(unit,unit.command)||annihilateUnavailable):"",
-      unit.command2?item(unit.command2.name,attackPrepCommandExpired(unit,unit.command2)?"NO ATTACK LEFT":unit.command2.energy?`⚡${unit.command2.energy}`:"COMMAND","ability2",!canUseCommandAbility(unit,unit.command2)):"",
+      unit.command?item(unit.command.name,attackPrepCommandExpired(unit,unit.command)?"NO ATTACK LEFT":commandEnergyLabel(unit,unit.command),"ability",!canUseCommandAbilityFromMenu(unit,unit.command)||annihilateUnavailable):"",
+      unit.command2?item(unit.command2.name,attackPrepCommandExpired(unit,unit.command2)?"NO ATTACK LEFT":commandEnergyLabel(unit,unit.command2),"ability2",!canUseCommandAbilityFromMenu(unit,unit.command2)):"",
       item("Tactic",`${state.hands[unit.team].filter(id=>!isUsed(id,unit.team)).length} CARDS`,"tactics"),
       item("Unit Card","INFO","info"),
       item("Wait",a.actionUsed?"END":"PRIMARY ACTION REQUIRED","end",!a.actionUsed,"danger")
@@ -1547,6 +1616,7 @@
     menu.querySelectorAll("[data-menu-action]").forEach(btn=>btn.addEventListener("click",()=>{
       if(isAiTeam(unit.team))return;
       const action=btn.dataset.menuAction;
+      if(action==="undo-move"){undoAdvanceMove();return;}
       if(action==="attack-menu"){menuView="weapons";renderActions();return;}
       if(action==="energize"){menuView="energize";renderActions();return;}
       if(action==="confirm-energize"){menuOpen=false;menuView="main";handleAction("energize");return;}
@@ -1881,6 +1951,7 @@
       }
       startMove(D.rules.dash.distance+dashBonus(unit)+(unit.movementBonus||0),D.rules.dash.timeline,"Dash",moved=>afterUnitMove(unit,"dash",null,moved),{primaryAction:true});
     } else if (action==="energize") {
+      clearAdvanceUndo(unit);
       state.activation.actionUsed=true; payTimeline(unit,2); unit.energy+=1;
       addLog(`${unit.name} Energize: Energy +1`); renderAll();
     } else if (action==="rescue") rescueGarrison(unit,1,true);
@@ -1949,6 +2020,7 @@
       effectiveAllowance:Math.max(0,allowance-(engaged.length?1:0)-waterPenalty),
       engaged:engaged.length>0, waterPenalty:waterPenalty>0,
       placed:false,
+      activationBefore:{advanced:!!state.activation.advanced,actionUsed:!!state.activation.actionUsed,timelineSpent:state.activation.timelineSpent||0},
       cost,label,movementType,primaryAction
     };
     return openMovementDraft(unit);
@@ -2003,15 +2075,22 @@
     movementDraft=null;
     if(!unit){onComplete();return;}
     const moved=unit.q!==draft.origin.q||unit.r!==draft.origin.r||draft.origin.zone==="deploying";
+    const undoCandidate=moved?captureAdvanceUndo(unit,draft):null;
     if(!moved&&draft.origin.zone!=="deploying"){
       unit.q=draft.origin.q;unit.r=draft.origin.r;unit.zone=draft.origin.zone;
       if(draft.primaryAction)state.activation.actionUsed=false;
       if(draft.movementType==="advance")state.activation.advanced=false;
       addLog(`${unit.name}: ${draft.label} ต้องจบต่างจากช่องเริ่มต้น`);renderAll();onComplete();return;
     }
+    if(draft.movementType!=="advance")clearAdvanceUndo(unit);
     payTimeline(unit,draft.cost);
     const pickups=E.pickupAt(state,unit);
     playPickupFeedback(unit,pickups);
+    // Standard Advance may be undone until the player commits another effect.
+    // A Mystery Upgrade reveals hidden information, so that pickup intentionally
+    // closes the undo window; known Energy pickups are safely rolled back.
+    if(undoCandidate&&!pickups.some(event=>event.type==="upgrade"))advanceUndo=undoCandidate;
+    else if(undoCandidate)clearAdvanceUndo(unit);
     if(draft.movementType==="dash")SFX.dash();
     if(draft.primaryAction)state.activation.actionUsed=true;
     if(draft.movementType==="advance")state.activation.advanced=true;
@@ -2178,6 +2257,7 @@
       if(movementDraft?.charDash&&offerCharKickDraft(unit)){renderAll();return;}
       renderAll();return;
     }
+    if(label!=="Advance")clearAdvanceUndo(unit);
     payTimeline(unit,cost);unit.q=q;unit.r=r;unit.zone="board";const pickups=E.pickupAt(state,unit);playPickupFeedback(unit,pickups);
     if(/dash/i.test(label)) SFX.dash();
     if(primaryAction)state.activation.actionUsed=true;
@@ -2283,6 +2363,9 @@
     if(!unit||!movementOccurred){continueMovement();return;}
     const enforcer=state.units.find(x=>x.id==="zaku-enforcer"&&x.zone==="board");
     if (enforcer&&unit.team!==enforcer.team&&E.distance(unit,enforcer)===1&&inHand(enforcer.team,"iron-grip")&&!isUsed("iron-grip",enforcer.team)&&!state.activation.tacticUsed[enforcer.team]) {
+      // A Response window reveals new tactical information; do not allow rewinding
+      // the triggering Advance after that information has been exposed.
+      clearAdvanceUndo(unit);
       openResponse([getTactic("iron-grip",enforcer.team)], card=>{
         useResponse(card);
         const {defeated}=damageUnit(enforcer,unit,3,"Iron Grip");
@@ -2434,6 +2517,7 @@
     weapon=consumeCriticalOverdrive(attacker,weapon);
     const targets=twinBusterTargets(attacker,rotation,weapon);
     if(!targets.length){addLog(`${weapon.name}: ทิศทางนี้ไม่มีเป้าหมายที่โจมตีได้`);beginTwinBusterAttack(attacker,weapon,options);return;}
+    clearAdvanceUndo(attacker);
     if(options.onDeclare)options.onDeclare();
     if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
     attacker.nextAttackDiscount=0;
@@ -2505,6 +2589,7 @@
     if(!options.attackCommitted)weapon=consumeCriticalOverdrive(attacker,weapon);
     const committedOptions=options.attackCommitted?options:{...options,attackCommitted:true};
     if(!options.attackCommitted){
+      clearAdvanceUndo(attacker);
       if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
       attacker.nextAttackDiscount=0;attacker.lastShotBonus=false;
       if(weapon.id==="tail-blade")attacker.attackedWithTailBlade=true;
@@ -2702,6 +2787,7 @@
     if(!options.attackCommitted)weapon=consumeCriticalOverdrive(attacker,weapon);
     const committedOptions=options.attackCommitted?options:{...options,attackCommitted:true};
     if(!options.attackCommitted){
+      clearAdvanceUndo(attacker);
       if(!options.free){
         state.activation.actionUsed=true;
         payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));
@@ -3155,7 +3241,7 @@
       if(typeof attackPrepCommandExpired==="function"&&attackPrepCommandExpired(unit,ability)){addLog(`${ability.name}: ไม่มีการโจมตีเหลือใน Activation นี้ — ไม่เสีย Energy`);menuOpen=true;renderAll();}
       return;
     }
-    const spend=()=>{unit.energy-=energyCost;markCommandAbilityUsed(ability);};
+    const spend=()=>{clearAdvanceUndo(unit);unit.energy-=energyCost;markCommandAbilityUsed(ability);};
     if (unit.id==="gundam") {
       const allies=state.units.filter(x=>x.team===unit.team&&x.zone==="board"&&E.distance(unit,x)<=3&&E.hasLineOfSight(state,unit,x)&&totalUpgrades(x)<=1);
       if (!allies.length) { addLog("White Base Unity: ไม่มีพันธมิตรใน Range 3 และ Line of Sight");menuOpen=true;renderAll();return; }
@@ -3356,6 +3442,7 @@
     const targets=state.garrisons.filter(g=>g.team===unit.team&&E.distance(unit,g)<=range&&(!options.requireLos||E.hasLineOfSight(state,unit,g))).sort((a,b)=>E.distance(unit,a)-E.distance(unit,b));
     if (!targets.length) { addLog("ไม่มีกองรักษาการณ์ฝ่ายเดียวกันในระยะ Rescue");renderAll();return false; }
     const commit=target=>{
+      clearAdvanceUndo(unit);
       if(useAction){state.activation.actionUsed=true;payTimeline(unit,D.rules.rescue.timeline);}
       state.garrisons=state.garrisons.filter(g=>g.id!==target.id);state.vp[unit.team]+=D.rules.rescue.vp;E.recordGarrisonRescue(state,unit);
       if(unit.id==="mechazawa")queueHackingSystem(unit.team);
@@ -3406,7 +3493,7 @@
     return "";
   }
 
-  function markCommand(card) { const team=tacticOwner(card);E.retireTacticCard(state,team,card.id);state.activation.tacticUsed[team]=true;addLog(`ใช้ Tactic: ${card.name}`); }
+  function markCommand(card) { const team=tacticOwner(card);const unit=activeUnit();if(unit?.team===team)clearAdvanceUndo(unit);E.retireTacticCard(state,team,card.id);state.activation.tacticUsed[team]=true;addLog(`ใช้ Tactic: ${card.name}`); }
   function useResponse(card) { const team=tacticOwner(card);E.retireTacticCard(state,team,card.id);state.activation.tacticUsed[team]=true;addLog(`Response: ${card.name}`); }
 
   function continueCrimsonExecution(card,unit) {

@@ -1,3 +1,22 @@
+Beta14.16 UNDO MOVE QoL
+========================
+- เพิ่มปุ่ม ↶ Undo Move สำหรับ Advance ปกติที่ commit แล้วเท่านั้น เพื่อให้ลองตำแหน่งยิง/LOS แล้วกลับจุดเดิมได้ถ้ายังไม่ได้ทำ Action อื่นต่อ.
+- Undo คืนตำแหน่ง, สิทธิ์ Advance, Energy และ Energy Token ที่เก็บระหว่าง Advance รวมถึง state ที่เกี่ยวข้อง.
+- Dash, Command Move, Forced Movement ไม่มี Undo หลัง Confirm ตามที่กำหนด.
+- ถ้า Advance เปิด Mystery Upgrade หรือเปิด movement Response เช่น Iron Grip จะปิด Undo ทันที เพราะมีการเปิดเผยข้อมูลใหม่.
+- Attack declaration / Command / Tactic / Rescue / Energize / การ commit movement อื่น / End Activation จะปิด Undo.
+- Validation: Core 246 + AI 31 + Regression 26 = 303 checks.
+- Cache/build tag: beta14-16-en
+
+Beta14.15 ENERGY PICKUP / COMMAND TIMING FIX
+===========================================
+- แก้กรณี Unit เริ่ม Activation ด้วย Energy ไม่พอ แล้ว Advance/Deploy Move ไปจบที่ Energy Token: หลังเลือกปลายทาง ปุ่ม Command ที่จะจ่ายได้จาก Energy Token นั้นจะเปิดให้กด.
+- เมื่อกด Command ระบบจะ commit Movement ก่อน -> เก็บ Energy -> จากนั้นจึงตรวจและ Resolve Command ใน Activation เดียวกัน.
+- Energy ที่เห็นเป็น projected availability เท่านั้น; ถ้ายกเลิก Movement จะไม่ได้ Energy และไม่เสีย Command.
+- Regression เพิ่ม: Advance preview onto Energy -> Command before Attack.
+- Validation: Core 245 + AI 31 + Regression 22 = 298 checks.
+- Cache/build tag: beta14-15-en
+
 Beta14.14 ANNIHILATE RULE FIX
 
 - แก้ Annihilate ของ Gundam Barbatos Lupus Rex ตามการ์ด Official: ต้องโจมตีด้วย Tail Blade ใน Activation นี้ก่อน แล้วจึงใช้ Energy 1 เพื่อโจมตี Rex Claws เพิ่มที่ Timeline 0.

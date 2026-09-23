@@ -1,3 +1,14 @@
+Beta14.16
+- Added ↶ Undo Move for a committed standard Advance only. The move can be rewound until the player commits another gameplay effect.
+- Undo restores the original Hex, Advance availability, Energy, known Energy Token pickup, Upgrade counts/tokens snapshot, and relevant activation bookkeeping.
+- Dash, Command Move, Forced Movement and other movement effects are intentionally not undoable after confirmation.
+- Mystery Upgrade pickup locks Undo because it reveals hidden information. A movement Response window such as Iron Grip also locks Undo before the Response is revealed.
+- Attack declaration, Command spending, Tactic use, Rescue, Energize, later movement commitment, or ending the Activation closes the Undo window.
+
+Beta14.15
+- Fixed Energy Token -> Command timing after an adjustable Advance/Deploy Move preview. If the selected destination contains an Energy Token, Energy-cost Command buttons can be selected immediately; choosing the Command first commits the movement, collects the Energy, then resolves the Command in the same Activation.
+- The projected pickup is UI eligibility only: Energy is not granted until movement is actually committed, and cancelling the movement grants nothing.
+
 Beta14.14
 - Fixed Barbatos Lupus Rex Annihilate requirement to match the official card: Tail Blade attack this activation -> additional Rex Claws attack at Timeline 0. A normal Rex Claws attack no longer enables Annihilate.
 

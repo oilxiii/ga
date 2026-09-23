@@ -694,7 +694,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta14.14<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.16<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1520,7 +1520,7 @@ test("the sound button opens Song 1 / Song 2 / Getter Robo / Secret / Off audio 
   assert.match(source,/data-sound-choice="off"/);
   assert.match(source,/song1: "assets\/audio\/battle-bgm\.mp3"/);
   assert.match(source,/song2: "assets\/audio\/title-bgm\.mp3"/);
-  assert.match(source,/getter: "assets\/audio\/getter-robo-bgm\.mp3\?v=beta14-14-en"/);
+  assert.match(source,/getter: "assets\/audio\/getter-robo-bgm\.mp3\?v=beta14-16-en"/);
   const getterTrack=path.join(__dirname,"..","assets","audio","getter-robo-bgm.mp3");
   assert.ok(fs.existsSync(getterTrack));
   assert.match(source,/SFX\.setMuted\(true\)/);
@@ -2415,7 +2415,7 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.14<\/span>/);
+  assert.match(html,/>Beta14.16<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2469,8 +2469,8 @@ test("v91 Command usage is tracked per ability id rather than once per unit acti
   assert.match(source,/commandUsageMap\(\)\[ability\.id\]/);
   assert.match(source,/function markCommandAbilityUsed\(ability\)/);
   assert.match(source,/commandUsageMap\(\)\[ability\.id\]=true/);
-  assert.match(source,/!canUseCommandAbility\(unit,unit\.command\)\|\|annihilateUnavailable/);
-  assert.match(source,/!canUseCommandAbility\(unit,unit\.command2\)/);
+  assert.match(source,/!canUseCommandAbilityFromMenu\(unit,unit\.command\)\|\|annihilateUnavailable/);
+  assert.match(source,/!canUseCommandAbilityFromMenu\(unit,unit\.command2\)/);
   assert.doesNotMatch(source,/state\.activation\.commandUsed\s*===?\s*true/);
   assert.doesNotMatch(source,/state\.activation\.commandUsed\s*=\s*true/);
 });
@@ -2490,7 +2490,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.14<\/span>/);
+  assert.match(html,/>Beta14.16<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -3051,11 +3051,11 @@ test("Beta14.11 attack-prep Commands lock after the last attack opportunity",()=
   assert.match(game,/function attackPrepCommandExpired\(unit,ability\)/);
   assert.match(game,/NO ATTACK LEFT/);
   assert.match(game,/if\(typeof attackPrepCommandExpired==="function"&&attackPrepCommandExpired\(unit,ability\)\)/);
-  assert.match(game,/!canUseCommandAbility\(unit,unit\.command\)\|\|annihilateUnavailable/);
+  assert.match(game,/!canUseCommandAbilityFromMenu\(unit,unit\.command\)\|\|annihilateUnavailable/);
 });
-test("Beta14.14 build and cache tags are synchronized",()=>{
+test("Beta14.16 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.14<\/span>/);
+  assert.match(html,/>Beta14.16<\/span>/);
   for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
 });
 
@@ -3063,7 +3063,7 @@ test("Beta14.14 build and cache tags are synchronized",()=>{
 test("BEYOND THE TIME BGM is selectable and present",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const audioPath=path.join(__dirname,"..","assets","audio","beyond-the-time-bgm.mp3");
-  assert.match(game,/beyond: "assets\/audio\/beyond-the-time-bgm\.mp3\?v=beta14-14-en"/);
+  assert.match(game,/beyond: "assets\/audio\/beyond-the-time-bgm\.mp3\?v=beta14-16-en"/);
   assert.match(game,/data-sound-choice="beyond"/);
   assert.match(game,/<strong>BEYOND THE TIME<\/strong>/);
   assert.equal(fs.existsSync(audioPath),true);
@@ -3112,4 +3112,13 @@ test("Beta14.12 mobile card reveals stay inside the usable viewport",()=>{
   assert.match(css,/#game-modal \.tactic-confirm-layout \{[\s\S]*?overflow-y:auto/);
   assert.match(css,/#game-modal \.tactic-confirm-layout \.modal-card-image \{[\s\S]*?max-height:38dvh;[\s\S]*?object-fit:contain/);
   assert.match(css,/#game-modal \.unit-card-modal \.modal-card-image\.unit-sheet \{[\s\S]*?max-height: 60dvh;[\s\S]*?object-fit: contain/);
+});
+
+test("Beta14.16 Undo Move is wired for committed Advance only",()=>{
+  const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  assert.match(game,/canUndoAdvance\(unit\)\?item\("↶ Undo Move","ADVANCE ONLY · RETURN TO START","undo-move"/);
+  assert.match(game,/if\(action==="undo-move"\)\{undoAdvanceMove\(\);return;\}/);
+  assert.match(game,/draft\.movementType!=="advance"\)clearAdvanceUndo\(unit\)/);
+  assert.match(game,/pickups\.some\(event=>event\.type==="upgrade"\)/);
+  assert.match(game,/clearAdvanceUndo\(unit\);\n      openResponse\(\[getTactic\("iron-grip",enforcer\.team\)\]/);
 });
