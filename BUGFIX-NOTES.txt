@@ -1,3 +1,11 @@
+Beta14.14
+- Fixed Barbatos Lupus Rex Annihilate requirement to match the official card: Tail Blade attack this activation -> additional Rex Claws attack at Timeline 0. A normal Rex Claws attack no longer enables Annihilate.
+
+Beta14.13
+- Replaced Getter Robo! and BEYOND THE TIME with the user-provided higher-quality MP3 files (44.1 kHz stereo).
+- Added beta14-13-en cache-busting to both replaced audio URLs so deployed browsers fetch the new files.
+- No gameplay/rules changes from Beta14.12.
+
 Beta14.12
 - Added MODE selector for 1 Player opponent selection. NORMAL is default and preserves the Beta14.11 AI policy.
 - HARD mode adds Objective-aware primary-action decisions and avoids wasting high-TL/ATTACK Tactics on 1 HP Garrisons when an economical normal attack is reliable.
@@ -59,8 +67,8 @@ Fixed all eight confirmed findings from the review:
 4. Disarmed AoE attacks retain normal bonuses, including Breast Fire's adjacent
    Damage +2. Printed Critical effects remain disabled; rolled Critical results
    and independent Critical-counting bonuses remain intact.
-5. Declaring Rex Claws against a Garrison enables Annihilate, just as a Unit attack
-   does. Annihilate still needs Energy and a legal follow-up target.
+5. Declaring Tail Blade against a Garrison enables Annihilate, just as a Unit attack
+   does. Annihilate still needs Energy and a legal Rex Claws follow-up target.
 6. Drive Them Back's follow-up Damage 1 only affects a target still on the board.
    A target defeated by Collision returns to Reserve at full HP as normal.
 7. A Unit finishing Push or Pull picks up Energy/Upgrades on the final hex, before

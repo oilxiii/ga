@@ -212,8 +212,8 @@
     const sources = {
       song1: "assets/audio/battle-bgm.mp3",
       song2: "assets/audio/title-bgm.mp3",
-      getter: "assets/audio/getter-robo-bgm.mp3",
-      beyond: "assets/audio/beyond-the-time-bgm.mp3",
+      getter: "assets/audio/getter-robo-bgm.mp3?v=beta14-14-en",
+      beyond: "assets/audio/beyond-the-time-bgm.mp3?v=beta14-14-en",
       secret: "assets/audio/secret-mazinger-z-bgm.mp3"
     };
     const tracks = new Map();
@@ -963,7 +963,7 @@
     if (reactivatedShields > 0) addLog(`${unit.name}: Shield Upgrade ${reactivatedShields} ชิ้นกลับมา Active`);
     clearActivationTemporaryEffects(unit);
     unit.progressiveRepeatUsed = false;
-    unit.attackedWithRexClaws = false;
+    unit.attackedWithTailBlade = false;
     unit.handgunRepeatUsed = false;
     mode = null;
     movementDraft = null;
@@ -1501,7 +1501,7 @@
     }
     const a=state.activation;
     const deploying=unit.zone==="deploying";
-    const annihilateUnavailable=unit.id==="barbatos-lupus-rex"&&unit.command?.id==="annihilate"&&(!unit.attackedWithRexClaws||!unit.weapons?.some(weapon=>weapon.id==="rex-claws"&&E.legalWeaponTargets(state,unit,weapon).length));
+    const annihilateUnavailable=unit.id==="barbatos-lupus-rex"&&unit.command?.id==="annihilate"&&(!unit.attackedWithTailBlade||!unit.weapons?.some(weapon=>weapon.id==="rex-claws"&&E.legalWeaponTargets(state,unit,weapon).length));
     const moveDistance=D.rules.advance.distance+unit.upgrades.speed+(unit.movementBonus||0);
     const dashDistance=D.rules.dash.distance+dashBonus(unit)+(unit.movementBonus||0);
     const item=(label,sub,action,disabled=false,cls="")=>`<button class="command-item ${cls}" data-menu-action="${action}" ${disabled?"disabled":""}><span>${label}</span><small>${sub}</small></button>`;
@@ -2507,7 +2507,7 @@
     if(!options.attackCommitted){
       if(!options.free){state.activation.actionUsed=true;payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));}
       attacker.nextAttackDiscount=0;attacker.lastShotBonus=false;
-      if(weapon.id==="rex-claws")attacker.attackedWithRexClaws=true;
+      if(weapon.id==="tail-blade")attacker.attackedWithTailBlade=true;
     }
     const garrisonPresent=()=>state.garrisons.some(item=>item.id===garrison.id);
     if(weapon.preAttack==="pull1"&&!committedOptions.pullResolved){
@@ -2707,7 +2707,7 @@
         payTimeline(attacker,Math.max(0,weapon.timeline-attacker.nextAttackDiscount));
       }
       attacker.nextAttackDiscount=0;
-      if(weapon.id==="rex-claws")attacker.attackedWithRexClaws=true;
+      if(weapon.id==="tail-blade")attacker.attackedWithTailBlade=true;
     }
     if(weapon.preAttack==="pull1"&&!committedOptions.pullResolved){
       return beginPullToward(attacker,defender,()=>resolveAttack(attacker,defender,weapon,{...committedOptions,pullResolved:true}),weapon.name);
@@ -3254,7 +3254,7 @@
       if(!started)rollback();
     }
     else if(unit.id==="barbatos-lupus-rex"){
-      if(!unit.attackedWithRexClaws){addLog("Annihilate: ต้องโจมตีด้วย Rex Claws ใน Activation นี้ก่อน");menuOpen=true;renderAll();return;}
+      if(!unit.attackedWithTailBlade){addLog("Annihilate: ต้องโจมตีด้วย Tail Blade ใน Activation นี้ก่อน");menuOpen=true;renderAll();return;}
       const rex=unit.weapons.find(weapon=>weapon.id==="rex-claws");
       const legalTargets=rex?E.legalWeaponTargets(state,unit,rex):[];
       if(!rex||!legalTargets.length){addLog("Annihilate: ไม่มีเป้าหมาย Rex Claws ที่โจมตีได้ — ไม่เสีย Energy หรือ Command");menuOpen=true;renderAll();return;}
@@ -3877,7 +3877,7 @@
   }
 
   function aiUseAnnihilateFollowUp(unit) {
-    if(unit?.id!=="barbatos-lupus-rex"||!unit.attackedWithRexClaws||!canUseCommandAbility(unit,unit.command)){aiFinishTurn(unit);return;}
+    if(unit?.id!=="barbatos-lupus-rex"||!unit.attackedWithTailBlade||!canUseCommandAbility(unit,unit.command)){aiFinishTurn(unit);return;}
     const rex=unit.weapons.find(weapon=>weapon.id==="rex-claws");
     if(!rex||!E.legalWeaponTargets(state,unit,rex).length){aiFinishTurn(unit);return;}
     addLog(`AI · ใช้ Command ${unit.command.name} โจมตี Rex Claws เพิ่มที่ Timeline 0`);renderAll();

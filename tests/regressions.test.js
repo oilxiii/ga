@@ -34,8 +34,13 @@ function found(name,run){try{run();console.log('✓ '+name);}catch(e){console.er
 found('Disarmed Hero Vulcan grants no bonus dice and does not keep the dice overlay open',()=>{
  const c=harness();c.load('criticalEffectsActive','offerWeaponAfterRollEffect','keepVulcanDiceOpen');const a=c.unit('hero-gundam',0,0),d=c.unit('zaku-enforcer',0,1);a.statuses.disarm=true;const w=a.weapons[0];c.lastDice=E.rollAttack(c.state,a,d,w,()=>.9);const before=c.lastDice.dice.length;assert(!c.keepVulcanDiceOpen(w,c.lastDice));c.offerWeaponAfterRollEffect(a,d,w,()=>{});E.resolveDisarmAttack(c.state,a,d,w,c.lastDice,()=>.9);assert.equal(c.lastDice.dice.length,before);assert(c.lastDice.criticalEffectsDisabled);
 });
-found('Rex Claws vs Garrison enables Annihilate',()=>{
- const c=harness();c.load('resolveGarrisonAttack','consumeCriticalOverdrive');const a=c.unit('barbatos-lupus-rex',0,0);c.state.activeUnitId=a.id;const g={id:'g',team:'zeon',q:0,r:1,hp:1};c.state.garrisons=[g];c.playAttackTargetingFx=()=>{};c.resolveGarrisonAttack(a,g,a.weapons[0]);assert(c.state.activation.actionUsed);assert(a.attackedWithRexClaws);
+found('Tail Blade vs Garrison enables Annihilate; Rex Claws alone does not',()=>{
+ const c=harness();c.load('resolveGarrisonAttack','consumeCriticalOverdrive');const a=c.unit('barbatos-lupus-rex',0,0);c.state.activeUnitId=a.id;const g1={id:'g1',team:'zeon',q:0,r:1,hp:1};c.state.garrisons=[g1];c.playAttackTargetingFx=()=>{};c.resolveGarrisonAttack(a,g1,a.weapons[0]);assert(c.state.activation.actionUsed);assert.equal(!!a.attackedWithTailBlade,false);
+ c.state.activation.actionUsed=false;const g2={id:'g2',team:'zeon',q:1,r:0,hp:1};c.state.garrisons=[g2];c.beginPullToward=(attacker,defender,cb)=>cb();c.resolveGarrisonAttack(a,g2,a.weapons[1]);assert.equal(a.attackedWithTailBlade,true);
+});
+
+found('Tail Blade vs Unit enables Annihilate as soon as the attack is committed',()=>{
+ const c=harness();c.load('resolveAttack','consumeCriticalOverdrive');const a=c.unit('barbatos-lupus-rex',0,0),d=c.unit('zaku-enforcer',0,2);c.state.activeUnitId=a.id;c.beginPullToward=()=>true;c.resolveAttack(a,d,a.weapons[1]);assert.equal(a.attackedWithTailBlade,true);assert.equal(c.state.activation.actionUsed,true);
 });
 found('Push collects Energy at its destination',()=>{
  const c=harness();c.load('beginPushDirection','afterUnitMove','resolveMovementResponses');const a=c.unit('hero-gundam',0,0),d=c.unit('zaku-line',0,1);const option=E.pushDirectionOptions(c.state,a,d).find(o=>E.forcedPushStep(c.state,d,o.direction).type==='move');assert(option);c.state.energy=[{q:option.q,r:option.r}];c.beginPushDirection(a,d,1);c.mode.callback(option);assert.equal(d.energy,1);assert.equal(c.state.energy.length,0);assert.equal(d.q,option.q);assert.equal(d.r,option.r);
@@ -92,8 +97,8 @@ found('Drive Them Back still deals its extra damage if Collision is survived',()
  const c=harness({fed:'zeon',zeon:'fed'});c.load('useCommandTactic','beginPushDirection','damageUnit');const a=c.unit('zaku-enforcer',0,0),d=c.unit('gundam',0,1,4);c.state.activeUnitId=a.id;const option=E.pushDirectionOptions(c.state,a,d)[0];c.unit('guncannon',option.q,option.r);c.startMove=(n,t,l,cb)=>cb(true);c.afterUnitMove=(u,t,cb)=>cb?.();c.selectEnemy=(u,r,l,cb)=>{cb(d);return true;};c.useCommandTactic({id:'drive-them-back'});c.mode.callback(option);assert.equal(d.zone,'board');assert.equal(d.hp,1);
 });
 
-found('Rex Claws Garrison attack permits a legal Annihilate follow-up with its Energy cost',()=>{
- const c=harness();c.load('resolveGarrisonAttack','consumeCriticalOverdrive','useUnitAbility');const a=c.unit('barbatos-lupus-rex',0,0);c.unit('zaku-enforcer',0,1);c.state.activeUnitId=a.id;a.energy=1;const g={id:'g',team:'zeon',q:1,r:0,hp:1};c.state.garrisons=[g];c.playAttackTargetingFx=()=>{};c.resolveGarrisonAttack(a,g,a.weapons[0]);let followups=0;c.beginAttack=(w,o)=>{assert.equal(w.id,'rex-claws');assert(o.free);assert(o.required);followups++;};c.useUnitAbility(a);assert.equal(a.energy,0);assert.equal(followups,1);
+found('Tail Blade Garrison attack permits a legal Annihilate follow-up with its Energy cost',()=>{
+ const c=harness();c.load('resolveGarrisonAttack','consumeCriticalOverdrive','useUnitAbility');const a=c.unit('barbatos-lupus-rex',0,0);c.unit('zaku-enforcer',0,1);c.state.activeUnitId=a.id;a.energy=1;const g={id:'g',team:'zeon',q:1,r:0,hp:1};c.state.garrisons=[g];c.playAttackTargetingFx=()=>{};c.beginPullToward=(attacker,defender,cb)=>cb();c.resolveGarrisonAttack(a,g,a.weapons[1]);let followups=0;c.beginAttack=(w,o)=>{assert.equal(w.id,'rex-claws');assert(o.free);assert(o.required);followups++;};c.useUnitAbility(a);assert.equal(a.energy,0);assert.equal(followups,1);
 });
 
 found('Shared Disarm calculation preserves ordinary bonuses and suppresses only weapon Criticals',()=>{

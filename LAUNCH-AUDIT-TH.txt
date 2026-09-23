@@ -1,3 +1,17 @@
+Beta14.14 ANNIHILATE RULE FIX
+
+- แก้ Annihilate ของ Gundam Barbatos Lupus Rex ตามการ์ด Official: ต้องโจมตีด้วย Tail Blade ใน Activation นี้ก่อน แล้วจึงใช้ Energy 1 เพื่อโจมตี Rex Claws เพิ่มที่ Timeline 0.
+- Rex Claws ปกติไม่ทำให้ Annihilate พร้อมใช้อีกต่อไป.
+- ตรวจทั้งการโจมตีใส่ Unit/Garrison และ AI follow-up ให้ใช้เงื่อนไข Tail Blade เดียวกัน.
+
+Beta14.13 HQ AUDIO UPDATE
+==========================
+- เปลี่ยน Getter Robo! และ BEYOND THE TIME เป็นไฟล์ MP3 คุณภาพสูงจากผู้ใช้ (44.1 kHz stereo).
+- getter-robo-bgm.mp3: 3,393,395 bytes, ~204.85 s.
+- beyond-the-time-bgm.mp3: 4,075,347 bytes, ~246.67 s.
+- เพิ่ม cache-busting ?v=beta14-13-en ให้ทั้งสองเพลง.
+- Gameplay / Rules / AI ไม่เปลี่ยนจาก Beta14.12.
+
 Beta14.12 AI MODE / MOBILE CARD UX
 =================================
 - 1 Player opponent select now shows MODE with NORMAL selected by default and HARD as an opt-in.

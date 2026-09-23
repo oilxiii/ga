@@ -100,7 +100,7 @@
         { id: "rex-claws", name: "Rex Claws", timeline: 2, range: 1, strength: 3, critical: "slow" },
         { id: "tail-blade", name: "Tail Blade", timeline: 4, range: 2, strength: 7, preAttack: "pull1", critical: "damage1" }
       ],
-      command: { id: "annihilate", name: "Annihilate", energy: 1, text: "หากโจมตีด้วย Rex Claws ใน Activation นี้ โจมตีด้วย Rex Claws เพิ่มอีก 1 ครั้งที่ Timeline 0" },
+      command: { id: "annihilate", name: "Annihilate", energy: 1, text: "หากยูนิตนี้โจมตีด้วย Tail Blade ใน Activation นี้ ให้โจมตีด้วย Rex Claws เพิ่มอีก 1 ครั้งที่ Timeline 0" },
       command2: { id: "alaya-exertion", name: "Alaya-Vijnana Exertion", energy: 0, text: "สร้าง Damage 3 ให้ยูนิตนี้เพื่อเคลื่อนที่ 2 ช่อง" },
       ongoing: { name: "Fight to the End", text: "เมื่อมี Damage 6 ขึ้นไป ได้ Strength +1 และเมื่อมี Damage 12 ขึ้นไป ได้ Strength เพิ่มอีก +1" }
     },
@@ -252,7 +252,7 @@
     "zaku-enforcer": ["Immediately capture an Objective on or adjacent to this unit's hex.", "Gain Strength +1 when attacking a damaged enemy unit."],
     "wing-zero-ew": ["Gain Strength +3 until the end of this activation.", "Rolls of 7 and 8 also count as Critical Hits.", "Ignore terrain and elevation penalties while moving."],
     "gundam-vidar": ["Push an adjacent enemy unit up to 2 hexes, then deal 1 damage to that unit.", "If you control at least 2 Objectives, gain Move +2 and Strength +1 for this activation."],
-    "barbatos-lupus-rex": ["If this unit has attacked with Rex Claws during this activation, make 1 additional Rex Claws attack at TL 0.", "Deal 3 damage to this unit to move 2 hexes.", "While this unit has taken at least 6 damage, gain Strength +1. At 12 or more damage, gain another Strength +1."],
+    "barbatos-lupus-rex": ["If this unit made a Tail Blade attack this activation, it makes an additional Rex Claws attack at Timeline 0.", "Deal 3 damage to this unit to move 2 hexes.", "While this unit has taken at least 6 damage, gain Strength +1. At 12 or more damage, gain another Strength +1."],
     "hero-gundam": ["Move 2 hexes. For this activation, Beam Saber gains Strength +1 for each Garrison your side has Rescued.", "After this unit Rescues a Garrison, gain 1 Energy."],
     "red-comet-zaku": ["Gain Accuracy +2 for this activation. After attacking, destroy 1 Upgrade on the target.", "When Dashing, you may move 1 additional hex.", "After Dashing, deal 1 damage to an adjacent enemy unit or enemy Garrison."],
     "gundam-epyon": ["Apply Slow to an enemy unit within Range 2.", "Gain Strength +2 when attacking an enemy unit with a status effect.", "Ignore terrain and elevation penalties while moving."],
