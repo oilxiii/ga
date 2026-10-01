@@ -1,3 +1,25 @@
+BUILD AUDIT Beta14.20 — STARTER 01 TACTIC CARD RULE AUDIT
+- ตรวจแก้ Epic Shot: นับ allied unit ทุกตัวใน Range 3 โดยไม่ต้องมี LOS
+- Claiming Vengeance ใช้ได้เฉพาะ Gundam Vidar
+- AI ตรวจ Response ทุกใบใน timing window ก่อนตัดสินใจ Skip
+- Validation: Core 248 + AI 31 + Regression 33 = 312 checks.
+
+BUILD AUDIT Beta14.20 — THAI CARD ART + OFFICIAL ENGLISH READOUT
+- แก้การแสดงผลการ์ด White Devil / The Rival ให้ใช้ภาพการ์ดภาษาไทยทั้งหมด
+- ข้อความอังกฤษใต้การ์ดอ้างอิง wording จากการ์ดอังกฤษ official ใน eng.zip
+- Logic หลักคงเดิมจาก Beta14.18 ยกเว้น 3 จุดที่แก้จาก card audit ใน Beta14.20
+- Cache/build tag: beta14-20-en
+
+BUILD AUDIT Beta14.18 — STARTER 01 TACTIC DECK UPDATE
+- Neutralize: แก้เป็น Defender Damage -2 สำหรับการโจมตีครั้งนี้ + ทำลาย Upgrade 1 ใบบน Attacker และเปลี่ยนภาพการ์ดตามไฟล์ที่ผู้ใช้ยืนยัน
+=======================================================
+- White Devil / The Rival ใช้ Deck 9 ใบ จั่ว 3 ใบต่อ Phase แบบ Classic.
+- ใช้ภาพการ์ดอังกฤษ official ST01-T01 ถึง ST01-T18 จาก eng.zip สำหรับการ์ดใหม่ทั้ง 18 ใบ.
+- เพิ่ม timing hooks Before Attack Roll / After Attack Roll / After Combat Damage / When Defeated และ AI evaluation สำหรับการ์ดใหม่.
+- Crimson Execution และ War Edge ใช้ flow/geometry เดิมที่ผ่าน regression อยู่แล้ว.
+- Validation (historical Beta14.18): Core 248 + AI 31 + Regression 30 = 309 checks.
+- Cache/build tag: beta14-18-en
+
 Beta14.16 UNDO MOVE QoL
 ========================
 - เพิ่มปุ่ม ↶ Undo Move สำหรับ Advance ปกติที่ commit แล้วเท่านั้น เพื่อให้ลองตำแหน่งยิง/LOS แล้วกลับจุดเดิมได้ถ้ายังไม่ได้ทำ Action อื่นต่อ.

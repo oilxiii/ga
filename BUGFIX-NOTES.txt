@@ -1,3 +1,25 @@
+Beta14.20
+- Epic Shot: allied Strength bonus uses Range 3 only, matching the printed card; LOS is not required.
+- Claiming Vengeance: restricted to Gundam Vidar (Cold Justice).
+- AI Response windows: if the first legal Response is declined, AI now evaluates the remaining cards in the same timing window (e.g. Breaking Blow -> Limiter Release).
+- Full Starter 01 card audit retained Thai card artwork + official English readout and Beta14.18 Neutralize logic.
+- Validation: Core 248 + AI 31 + Regression 33 = 312 checks.
+
+Beta14.20
+- Corrected Starter 01 card presentation: visible card art is Thai, while the English reading text uses official English card wording from eng.zip.
+- No gameplay-rule changes from Beta14.18.
+- Build/cache tag: beta14-20-en.
+
+Beta14.18
+- Neutralize corrected to match the card: Before Attack Roll, the chosen defending Unit gets Damage -2 for that attack and the defender side destroys 1 Upgrade on the attacker. Neutralize no longer deals 2 direct damage to the attacker.
+- Replaced Neutralize card art with the corrected user-supplied image.
+- Replaced White Devil and The Rival fixed Tactic sets with 9-card randomized decks that use the Classic draw flow (3 cards per Phase).
+- Added full timing/effect integration for the new Starter 01 Tactics, including Before/After Attack Roll Responses, direct Objective capture, Upgrade choice/destruction, extra movement/attacks, and Iron-Blooded Tenacity defeat replacement.
+- Updated AI Command/Attack/Response evaluation for the new cards.
+- Replaced all 18 Starter 01 Tactic card runtime images with the supplied official English ST01-T01..T18 WebP files.
+- Build/cache tag: beta14-18-en.
+- Validation: Core 248 + AI 31 + Regression 30 = 309 checks.
+
 Beta14.16
 - Added ↶ Undo Move for a committed standard Advance only. The move can be rewound until the player commits another gameplay effect.
 - Undo restores the original Hex, Advance availability, Energy, known Energy Token pickup, Upgrade counts/tokens snapshot, and relevant activation bookkeeping.

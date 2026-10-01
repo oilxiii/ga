@@ -23,7 +23,12 @@ function harness(factions={fed:'white-devil',zeon:'zeon'}){
   showCard(){},offerNewtypeReroll:(a,b,w,r,cb)=>cb(),offerAnotherTimeline:(a,b,w,r,cb)=>cb(),
   resolveDisarmReroll:(a,b,w,r,cb)=>{E.resolveDisarmAttack(state,a,b,w,r,()=>.9);cb();},
   showAttackDiceRoll:(r,w,l,cb)=>cb(),offerFederationShield:(a,b,w,r,d,cb)=>cb(),
-  resolveSplashDamage:()=>({units:[],garrisons:[]}),availablePostCombat:()=>[],
+  resolveSplashDamage:(a,t,w,r,d,cb)=>{cb?.({units:[],garrisons:[]});return {units:[],garrisons:[]};},availablePostCombat:()=>[],
+  offerBeforeAttackRollTactics:(a,t,w,cb)=>cb?.(true),offerAfterAttackRollTactics:(a,t,w,r,d,cb)=>cb?.(),offerStrikethrough:(a,t,w,r,cb)=>cb?.(),offerQuickBlock:(a,e,d,cb)=>cb?.(),
+  resolveUnitDefeatWithTactics:(u,team,cb)=>{const defeated=E.defeatUnit(state,u,team);cb?.(defeated);return defeated;},
+  applyUnitDamagePending:(source,target,amount,label,sourceType='direct')=>{const to={q:target.q,r:target.r};const applied=E.applyDamage(target,amount,{sourceType});const scoringTeam=source?.team&&source.team!==target.team?source.team:(target.team==='fed'?'zeon':'fed');return {source,target,label,sourceType,to,scoringTeam,...applied};},
+  resolvePendingUnitDamage:(pending,cb)=>{const defeated=E.defeatUnit(state,pending.target,pending.scoringTeam);cb?.({...pending,defeated});},
+  damageUnitResolved:(source,target,amount,label,sourceType='direct',cb)=>{const to={q:target.q,r:target.r};const applied=E.applyDamage(target,amount,{sourceType});const scoringTeam=source?.team&&source.team!==target.team?source.team:(target.team==='fed'?'zeon':'fed');const defeated=E.defeatUnit(state,target,scoringTeam);cb?.({...applied,defeated,to});return {...applied,defeated,to};},
   applyDebuff:(u,k)=>{if(u.weapons)u.statuses[k]=true;},
  };
  vm.createContext(c);
@@ -51,8 +56,19 @@ found('Drive Them Back stops damage after Collision defeats the target',()=>{
 found('Human Char Kick defeats Enforcer before Iron Grip while paying Dash TL',()=>{
  const c=harness({fed:'rival',zeon:'zeon'});c.load('commitMovementDraft','resolveCharKickTarget','afterUnitMove','resolveMovementResponses','damageUnit');const a=c.unit('red-comet-zaku',0,1,3),d=c.unit('zaku-enforcer',0,2,1);const before=a.nextAt;c.state.activeUnitId=a.id;c.movementDraft={unitId:a.id,origin:{q:0,r:0,zone:'board'},cost:2,label:'Dash',movementType:'dash',primaryAction:true,charDash:true};c.inHand=()=>true;c.openResponse=(cards,cb)=>cb(cards[0]);c.finishDefeatedActiveActivation=u=>u.zone==='reserve';c.resolveCharKickTarget(a,d);assert.equal(a.zone,'board');assert.equal(a.hp,3);assert.equal(d.zone,'reserve');assert.equal(a.nextAt,before+2);
 });
-found('Epic Shot excludes blocked allies and includes visible allies in engine and AI',()=>{
- const c=harness();const a=c.unit('hero-gundam',0,0),ally=c.unit('wing-zero-ew',0,2),d=c.unit('zaku-enforcer',1,0);c.state.board[E.key(0,1)].elevation=2;assert(!E.hasLineOfSight(c.state,a,ally));const w=D.tactics.find(x=>x.id==='epic-shot').weapon;assert.equal(E.rollAttack(c.state,a,d,w,()=>.5).dice.length,7);assert.equal(AI.attackOutcomeStats(c.state,a,d,w,E).dice,7);c.state.board[E.key(0,1)].elevation=0;assert.equal(E.rollAttack(c.state,a,d,w,()=>.5).dice.length,9);assert.equal(AI.attackOutcomeStats(c.state,a,d,w,E).dice,9);
+found('Epic Shot counts every other allied unit within Range 3 even when LOS is blocked',()=>{
+ const c=harness();const a=c.unit('hero-gundam',0,0),ally=c.unit('wing-zero-ew',0,2),d=c.unit('zaku-enforcer',1,0);c.state.board[E.key(0,1)].elevation=2;assert(!E.hasLineOfSight(c.state,a,ally));const w=D.tactics.find(x=>x.id==='epic-shot').weapon;assert.equal(E.rollAttack(c.state,a,d,w,()=>.5).dice.length,9);assert.equal(AI.attackOutcomeStats(c.state,a,d,w,E).dice,9);c.state.board[E.key(0,1)].elevation=0;assert.equal(E.rollAttack(c.state,a,d,w,()=>.5).dice.length,9);assert.equal(AI.attackOutcomeStats(c.state,a,d,w,E).dice,9);
+});
+found('Claiming Vengeance is a Gundam Vidar attack and is unavailable to the other Rival units',()=>{
+ const card=D.tactics.find(x=>x.id==='claiming-vengeance');assert.equal(card.unitOnly,'gundam-vidar');
+ const c=harness({fed:'rival',zeon:'white-devil'});const vidar=c.unit('gundam-vidar',0,0),char=c.unit('red-comet-zaku',1,0),epyon=c.unit('gundam-epyon',2,0);c.state.hands.fed=['claiming-vengeance'];
+ assert(AI.tacticAttacksFrom(c.state,vidar,D,E).every(choice=>choice.tactic?.id==='claiming-vengeance'));
+ assert.equal(AI.tacticAttacksFrom(c.state,char,D,E).length,0);assert.equal(AI.tacticAttacksFrom(c.state,epyon,D,E).length,0);
+});
+found('AI checks the next legal Response when the first card in a shared timing window is declined',()=>{
+ const c=harness();c.A={shouldUseResponse:card=>card.id==='limiter-release'};c.isAiTeam=()=>true;c.showAiTacticCard=(card,cb)=>{c.chosenResponse=card.id;cb();};c.tacticOwner=card=>card.ownerTeam||'fed';c.load('openResponse');
+ let played=null;c.openResponse([{id:'breaking-blow',ownerTeam:'fed'},{id:'limiter-release',ownerTeam:'fed'}],card=>{played=card.id;},()=>{played='skip';},{targets:1,targetUpgrades:0});
+ assert.equal(c.chosenResponse,'limiter-release');assert.equal(played,'limiter-release');
 });
 found('Disarmed Breast Fire retains adjacent Damage +2 but cannot inflict Fracture',()=>{
  const c=harness({fed:'secret',zeon:'fed'});c.load('sharedAoeDiceDisplay','resolveTwinBusterAttack','consumeCriticalOverdrive','criticalEffectsActive','reducedAttackDamage');const a=c.unit('mazinger-z',0,0),d=c.unit('gundam',0,1);c.state.activeUnitId=a.id;a.statuses.disarm=true;c.twinBusterTargets=()=>[d];c.E={...E,rollAttack:(s,a,d,w)=>E.rollAttack(s,a,d,w,()=>.9)};c.resolveTwinBusterAttack(a,a.weapons[1],0);assert.equal(d.hp,d.maxHp-8);assert.equal(d.statuses.fracture,false);
@@ -197,4 +213,61 @@ found('Iron Grip response window closes Advance Undo before revealing the Respon
  let opened=0;c.openResponse=(cards,onUse,onSkip)=>{opened++;assert.equal(c.advanceUndo,null);onSkip();};
  c.resolveMovementResponses(a,'advance',()=>{},true);
  assert.equal(opened,1);assert.equal(c.advanceUndo,null);
+});
+
+found('Beta14.20 Starter 01 Command tactics resolve their confirmed effects',()=>{
+ const c=harness({fed:'white-devil',zeon:'rival'});c.load('useCommandTactic');
+ const hero=c.unit('hero-gundam',0,0,5);c.state.activeUnitId=hero.id;c.state.rescuedGarrisons.fed=3;hero.energy=0;
+ c.useCommandTactic({id:'heros-might'});assert.equal(hero.energy,2);
+ const beforeShield=hero.upgrades.shield,beforeStrength=hero.upgrades.strength,beforeSpeed=hero.upgrades.speed;
+ c.useCommandTactic({id:'armor-upgrade'});assert.equal(hero.upgrades.shield,beforeShield+1);
+ c.useCommandTactic({id:'renewed-power'});assert.equal(hero.upgrades.strength,beforeStrength+1);
+ c.useCommandTactic({id:'thrust-boosters'});assert.equal(hero.upgrades.speed,beforeSpeed+1);
+ hero.hp=2;hero.maxHp=8;c.useCommandTactic({id:'field-engineers'});assert.equal(hero.hp,6);
+ let ghostMoved=false;c.startMove=(n,t,label,cb)=>{assert.equal(n,2);assert.equal(t,0);assert.equal(label,'Ghost Step');ghostMoved=true;cb(true);return true;};c.afterUnitMove=(u,t,cb)=>cb?.();
+ c.useCommandTactic({id:'ghost-step'});assert.equal(ghostMoved,true);
+ let armorOpts=null,fractured=false;c.selectEnemy=(u,r,label,cb,filter,opts)=>{armorOpts=opts;const target=c.unit('gundam-epyon',0,1);cb(target);fractured=target.statuses.fracture;return true;};
+ c.useCommandTactic({id:'armor-shatter'});assert.equal(armorOpts.ignoreLos,true);assert.equal(fractured,true);
+});
+
+found('Beta14.20 After Attack Roll tactics apply Strikethrough, Quick Block, and Claiming Vengeance',()=>{
+ const c=harness({fed:'white-devil',zeon:'rival'});c.A={};
+ c.responseCardReady=()=>true;c.getTactic=(id,team)=>({id,ownerTeam:team});c.openResponse=(cards,onPlay)=>onPlay(cards[0]);c.useResponse=()=>{};c.closeModal=()=>{};c.renderAll=()=>{};
+ c.load('offerStrikethrough','offerQuickBlock','offerClaimingVengeanceObjective');
+ const a=c.unit('hero-gundam',2,2),d=c.unit('gundam-epyon',2,3);const w={effect:null};const result={damage:0};
+ c.offerStrikethrough(a,[d],w,result,()=>{});assert.equal(result.damage,1);assert.equal(w.flatDamageBonus,1);
+ c.isAiTeam=()=>true;const reductions={};c.offerQuickBlock(a,[{target:d,result:{damage:4}}],reductions,()=>{});assert.equal(reductions[d.id],3);
+ const obj=c.state.objectives[0];Object.assign(obj,{q:d.q,r:d.r,owner:'zeon'});c.offerClaimingVengeanceObjective(a,d,{effect:'claimObjectiveAfterRoll'},()=>{});assert.equal(obj.owner,'fed');
+});
+
+found('Beta14.20 Neutralize reduces the chosen defender by 2 and destroys an attacker Upgrade before the roll',()=>{
+ const c=harness({fed:'white-devil',zeon:'rival'});c.A={chooseUpgrade:()=> 'strength'};c.isAiTeam=team=>team==='zeon';c.renderAll=()=>{};c.closeModal=()=>{};c.totalUpgrades=u=>Object.values(u.upgrades||{}).reduce((a,b)=>a+b,0);
+ c.responseCardReady=(team,id)=>team==='zeon'&&id==='neutralize';c.getTactic=(id,team)=>({id,ownerTeam:team});c.openResponse=(cards,onPlay)=>onPlay(cards[0]);c.useResponse=()=>{};
+ c.load('destroyUpgradeToken','chooseUpgradeForTactic','offerBeforeAttackRollTactics');
+ const a=c.unit('hero-gundam',0,0),d=c.unit('gundam-epyon',0,1);a.upgrades.strength=1;const beforeHp=a.hp,w={};let continued=false;
+ c.offerBeforeAttackRollTactics(a,[d],w,ok=>{continued=ok;});
+ assert.equal(a.hp,beforeHp,'Neutralize must not deal direct damage to the attacker');
+ assert.equal(a.upgrades.strength,0,'the defender side destroys one attacker Upgrade before the roll');
+ assert.equal(w.neutralizeReductionByTarget[d.id],2,'the chosen defender gets Damage -2 for this attack');
+ assert.equal(continued,true);
+});
+
+found('Beta14.20 Breaking Blow and Iron-Blooded Tenacity use the confirmed owner-choice and defeat-replacement flows',()=>{
+ const c=harness({fed:'white-devil',zeon:'rival'});c.A={chooseUpgrade:()=> 'strength'};c.isAiTeam=()=>true;c.renderAll=()=>{};c.closeModal=()=>{};c.totalUpgrades=u=>Object.values(u.upgrades||{}).reduce((a,b)=>a+b,0);
+ c.responseCardReady=(team,id)=>id==='breaking-blow';c.getTactic=(id,team)=>({id,ownerTeam:team});c.openResponse=(cards,onPlay,onSkip)=>onPlay(cards[0]);c.useResponse=()=>{};
+ c.load('destroyUpgradeToken','chooseUpgradeForTactic','destroyBreakingBlowUpgrades','offerBeforeAttackRollTactics');
+ const a=c.unit('hero-gundam',0,0),d=c.unit('gundam-epyon',0,1);d.upgrades.strength=1;const w={};let continued=false;
+ c.offerBeforeAttackRollTactics(a,[d],w,ok=>{continued=ok;});assert.equal(w.tacticStrengthBonus,2);assert.equal(d.upgrades.strength,0);assert.equal(continued,true);
+ const cLimit=harness({fed:'white-devil',zeon:'rival'});cLimit.responseCardReady=(team,id)=>id==='limiter-release';cLimit.getTactic=(id,team)=>({id,ownerTeam:team});cLimit.openResponse=(cards,onPlay,onSkip)=>onPlay(cards[0]);cLimit.useResponse=()=>{};cLimit.closeModal=()=>{};cLimit.renderAll=()=>{};cLimit.totalUpgrades=u=>Object.values(u.upgrades||{}).reduce((x,y)=>x+y,0);cLimit.load('offerBeforeAttackRollTactics');const la=cLimit.unit('hero-gundam',0,0),ld=cLimit.unit('gundam-epyon',0,1),lw={};cLimit.offerBeforeAttackRollTactics(la,[ld],lw,()=>{});assert.equal(lw.tacticStrengthBonus,3);
+ const c2=harness({fed:'white-devil',zeon:'rival'});c2.responseCardReady=(team,id)=>id==='iron-blooded-tenacity';c2.getTactic=(id,team)=>({id,ownerTeam:team});c2.openResponse=(cards,onPlay)=>onPlay(cards[0]);c2.useResponse=()=>{};c2.closeModal=()=>{};c2.renderAll=()=>{};c2.afterUnitMove=(u,t,cb)=>cb?.();let attacked=false;
+ c2.startMoveFor=(u,n,cost,label,cb)=>{assert.equal(n,2);cb(true);return true;};c2.beginAttackFor=(u,w,opt)=>{assert.equal(w.id,'rex-claws');assert.equal(opt.free,true);attacked=true;opt.onComplete?.();return true;};
+ c2.load('resolveUnitDefeatWithTactics');const barb=c2.unit('barbatos-lupus-rex',1,1);barb.hp=0;let defeated=true;c2.resolveUnitDefeatWithTactics(barb,'zeon',value=>{defeated=value;});assert.equal(barb.hp,1);assert.equal(defeated,false);assert.equal(attacked,true);
+});
+
+found('Beta14.20 Sacrificial Overload damages Wing and each current attack target by 2',()=>{
+ const c=harness({fed:'white-devil',zeon:'rival'});c.load('resolvePostCombat');c.useResponse=()=>{};c.closeModal=()=>{};c.renderAll=()=>{};
+ const wing=c.unit('wing-zero-ew',0,0),d1=c.unit('gundam-epyon',0,1),d2=c.unit('gundam-vidar',1,0);wing.lastAoeTargets=[d1,d2];const hp=[wing.hp,d1.hp,d2.hp];
+ c.damageUnitsResolved=(entries,cb)=>{for(const e of entries)E.applyDamage(e.target,e.amount,{sourceType:e.sourceType});cb?.();};let done=false;
+ c.resolvePostCombat({id:'sacrificial-overload'},wing,d1,'attacker',()=>{done=true;},[wing]);
+ assert.deepEqual([wing.hp,d1.hp,d2.hp],[hp[0]-2,hp[1]-2,hp[2]-2]);assert.equal(done,true);
 });

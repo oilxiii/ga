@@ -483,6 +483,7 @@
     // Critical Hit Effect. Disarm suppresses weapon.critical effects, but it does not
     // erase Critical results or bonuses such as GQX KIRA KIRA!.
     if (weapon.criticalOverdrivePerCrit && result.criticals>0) result.damage += result.criticals * weapon.criticalOverdrivePerCrit;
+    if (weapon.flatDamageBonus) result.damage += Math.max(0, Number(weapon.flatDamageBonus)||0);
     result.criticalBonusDamage = 0;
     if (weapon.critical === "rescuedGarrisonDamage" && criticalEffectsActive) {
       result.criticalBonusDamage = Math.max(0, Number(state?.rescuedGarrisons?.[attacker?.team]) || 0);
@@ -499,8 +500,9 @@
     const fightToEnd=attacker.id==="barbatos-lupus-rex"?(damageTaken>=12?2:damageTaken>=6?1:0):0;
     const exploitWeakness=attacker.id==="gundam-epyon"&&(attacker.aoeExploitWeakness||(defender?.statuses&&Object.values(defender.statuses).some(Boolean)))?2:0;
     const heroSaber=weapon.id==="hero-beam-saber"?(attacker.heroBeamSaberBonus||0):0;
-    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(unit=>unit.id!==attacker.id&&unit.team===attacker.team&&unit.zone==="board"&&distance(attacker,unit)<=3&&hasLineOfSight(state,attacker,unit)).length*2:0;
+    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(unit=>unit.id!==attacker.id&&unit.team===attacker.team&&unit.zone==="board"&&distance(attacker,unit)<=3).length*2:0;
     return attacker.upgrades.strength+attacker.tempStrength+fightToEnd+exploitWeakness+heroSaber+heroAllies+
+      Math.max(0,Number(weapon?.tacticStrengthBonus)||0)+
       (attacker.id==="zaku-enforcer"&&defenderIsDamaged?1:0);
   }
 

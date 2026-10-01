@@ -78,7 +78,7 @@
       hit: hitFaces / 10,
       critical: criticalFaces / 10
     };
-    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(ally=>ally.id!==unit.id&&ally.team===unit.team&&ally.zone==="board"&&engine.distance(unit,ally)<=3&&engine.hasLineOfSight(state,unit,ally)).length*2:0;
+    const heroAllies=weapon.effect==="heroAlliesStrength"?state.units.filter(ally=>ally.id!==unit.id&&ally.team===unit.team&&ally.zone==="board"&&engine.distance(unit,ally)<=3).length*2:0;
     const dice = attackDice(unit, target, weapon)+heroAllies;
     const rollDistribution = count => {
       let dist = new Map([["0,0", 1]]);
@@ -350,6 +350,11 @@
       unit.weapons=[card.weapon];
       attacksFrom(state,unit,data,engine).forEach(choice=>{
         let score=choice.score+6;
+        if(card.id==="claiming-vengeance"){
+          const objectives=(state.objectives||[]).filter(objective=>engine.distance(choice.target,objective)<=1);
+          if(objectives.some(objective=>objective.owner&&objective.owner!==unit.team))score+=92;
+          else if(objectives.some(objective=>!objective.owner))score+=70;
+        }
         if(hardMode(state)&&choice.isGarrison){
           const aoeTargetCount=(choice.aoeTargets||[]).length;
           const hitsEnemyUnit=(choice.aoeTargets||[]).some(id=>state.units.some(target=>target.id===id&&target.team!==unit.team));
@@ -507,7 +512,13 @@
         return allies.length>=2&&gain>4?52+Math.min(28,gain):-Infinity;
       })(),
       "kira-kira": attacks.length ? 64 : -Infinity,
-      "renewed-power": attacks.length ? 54 : 20
+      "renewed-power": attacks.length ? 54 : 20,
+      "armor-upgrade": unit.hp<=unit.maxHp*0.55 ? 58 : 34,
+      "heros-might": (state.rescuedGarrisons?.[unit.team]||0)>=3 ? (unit.energy===0?72:unit.energy===1?62:44) : -Infinity,
+      "field-engineers": damaged>0 ? Math.min(4,damaged)*18 : -Infinity,
+      "thrust-boosters": (unit.upgrades?.speed||0)===0 ? 44 : 28,
+      "armor-shatter": state.units.some(enemy=>enemy.team!==unit.team&&enemy.zone==="board"&&engine.distance(unit,enemy)===1&&!enemy.statuses?.fracture) ? 60 : -Infinity,
+      "ghost-step": (()=>{const reachable=engine.reachable(state,unit,2);const current=positionScore(state,unit,unit.q,unit.r,data,engine);const best=chooseMove(state,unit,reachable.keys(),data,engine,false);return best&&best.score>=current+8?46+Math.min(24,best.score-current):-Infinity;})()
     };
     return scores[card.id] ?? -Infinity;
   }
@@ -608,6 +619,15 @@
       const damage=Math.max(0,context.attackRollDamage??context.damage??0);
       return damage<Math.max(2,dice*0.55);
     }
+    if(card.id==="breaking-blow")return (context.targets||1)>1||(context.targetUpgrades||0)>0;
+    if(card.id==="limiter-release")return true;
+    if(card.id==="strikethrough")return (context.damage||0)>0;
+    if(card.id==="quick-block"){
+      const damage=Math.max(0,context.damage||0), hp=Number.isFinite(context.hp)?context.hp:Infinity;
+      return damage>=2||damage>=hp;
+    }
+    if(card.id==="neutralize")return context.attackerAlive!==false;
+    if(card.id==="iron-blooded-tenacity")return true;
     if (["iron-grip", "shield-recovery", "logistics-relay", "exploited-chaos"].includes(card.id)) return true;
     return false;
   }

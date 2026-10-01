@@ -1,3 +1,13 @@
+Beta14.20 Starter 01 bilingual presentation correction
+- In-game card images: Thai artwork supplied by the user.
+- English translation/readout below the card: exact wording transcribed from the official English card images in eng.zip.
+- English images are reference sources only and are not used as the visible card art.
+
+Beta14.18 Starter 01 English card update
+- Runtime card art for all 18 White Devil / The Rival Starter 01 Tactics now uses the supplied official English ST01-T01..T18 WebP files.
+- White Devil and The Rival now use 9-card randomized decks (draw 3 each Phase) rather than fixed 3-card hands.
+- English UI summaries were expanded for the new Tactics while preserving the Thai in-game explanatory text.
+
 Beta11 English dice readability update (cache build beta11-en)
 - Dice result overlay stays open for human-controlled rolls until closed with ×.
 - Adds per-die result labels and target-number labels for shared AoE attacks.
@@ -26,3 +36,4 @@ summary HTML outputs checked. Gameplay data compared with the original archive
 after excluding translation fields: identical.
 Visual desktop/mobile browser verification could not be completed because the
 browser download timed out. Existing scrollable modal layouts are retained.
+- Neutralize corrected: defender gets Damage -2 for this attack and destroys 1 Upgrade on the attacker. Card art replaced with the corrected supplied image.

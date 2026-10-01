@@ -1,3 +1,7 @@
+- Beta14.20 pre-launch card audit: Epic Shot now counts all other allied units within Range 3 without a LOS requirement; Claiming Vengeance is restricted to Gundam Vidar; AI Before Attack Roll Response selection now checks every legal Response in the window instead of stopping after a declined first card.
+- Beta14.20 card presentation correction: White Devil and The Rival now display the supplied THAI card artwork in-game. English reading text beneath the card uses the wording from the official English Starter 01 cards supplied in eng.zip. Neutralize keeps the corrected Thai artwork and Beta14.18 logic.
+- Beta14.18 Neutralize correction: Neutralize now gives the chosen defending Unit Damage -2 for that attack before the Attack Roll, then destroys 1 Upgrade on the attacker; it no longer deals 2 direct damage to the attacker. The corrected Neutralize card image is bundled.
+- Beta14.18 Starter 01 Tactic Deck Update: White Devil และ The Rival เปลี่ยนเป็น Deck 9 ใบและสุ่มจั่ว 3 ใบต่อ Phase แบบเดียวกับทีม Classic; ถอดชุด fixed 3 ใบเดิมของสองทีมออกจาก flow และเพิ่ม Tactic ใหม่ครบทีมละ 9 ใบ พร้อม Response/Command/Attack timing และ AI integration; ใช้ภาพการ์ดจากชุด ST01-T01 ถึง ST01-T18 โดย Neutralize ใช้ภาพแก้คำแปลที่ผู้ใช้ยืนยันล่าสุด.
 - Beta14.16 Undo Move QoL: หลังยืนยัน Advance ปกติ ผู้เล่นสามารถกด ↶ Undo Move เพื่อกลับตำแหน่งก่อนเดินได้ ตราบใดที่ยังไม่ commit Attack/Command/Tactic/Primary Action อื่น. Energy Token ที่เก็บระหว่าง Advance จะถูกคืนเมื่อ Undo; แต่ Dash/Command Move/Forced Movement ไม่มี Undo และ Mystery Upgrade หรือ movement Response ที่เปิดเผยข้อมูลใหม่จะปิดสิทธิ์ Undo ทันที.
 - Beta14.15 Energy Pickup / Command Timing Fix: หลังเลือกปลายทาง Advance/Deploy Move ที่มี Energy Token ระบบจะถือ Energy ที่กำลังจะเก็บเป็นทรัพยากรที่ใช้ได้สำหรับการเปิดปุ่ม Command ในเมนู; เมื่อกด Command ระบบยืนยัน Movement, เก็บ Energy ก่อน แล้วจึงใช้ Command ใน Activation เดียวกันได้ตามกติกา. Energy ยังไม่ถูกเพิ่มจริงจน Movement commit และถ้ายกเลิก Move จะไม่ได้ Energy.
 - Beta14.14 Annihilate Rule Fix: แก้ Gundam Barbatos Lupus Rex ให้ Annihilate ตรงการ์ด Official — ต้องทำ Tail Blade attack ใน Activation นี้ก่อน แล้วจึงจ่าย Energy 1 เพื่อทำ additional Rex Claws attack ที่ Timeline 0. Rex Claws ปกติไม่เปิด Annihilate อีกต่อไป.
@@ -19,13 +23,13 @@
 - Beta13 Scenario Select: หลังเลือกทีมครบแล้ว เกมเปิด SELECT MAP พร้อมภาพ Preview ของ Sleeping Leviathan และ Azure Fang ก่อนเริ่ม Match.
 - Beta13 Azure Fang: เพิ่ม Corner Bases, setup Token แยกตาม Scenario, Water terrain และ Level 1 hill theme; Restart คงแผนที่ที่เลือกไว้.
 - Water: เริ่มการเคลื่อนที่ใน Water ลดระยะ 1 Hex; Attack ที่เกี่ยวข้องกับ Unit ใน Water Accuracy -1.
-GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.16
+GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.20
 - Beta12 Pre-Launch UX: Line of Sight inspection now honors Engagement. A target with clear geometry that cannot legally be selected because the attacker is Engaged is shown as an orange ENGAGED result instead of green. Special AoE inspection also checks a legal firing direction rather than only raw line geometry.
 - Beta12 Dice Modal: dice results now scroll safely on short/landscape screens, use a compact short-height layout, and share the game modal focus lock so keyboard focus cannot move to controls behind the result dialog.
 - Beta11 Dice Readability / AoE UX: Attack dice results for human-controlled attacks now stay open until the × button is pressed. Each die has a small HIT / MISS / CRIT label. Shared AoE rolls label per target number (for example HIT 1 · MISS 2), safely restore green when a die Hits every AoE target, keep mixed-threshold dice neutral, and keep Critical dice gold. AoE target numbers are listed under the roll. Critical dice also receive a small sparkle/glint treatment.
 - Beta11 AoE Disarm: shared AoE Disarm no longer depends on whichever target happens to be first. A non-Critical shared die is rerolled if it counts as a Hit against at least one affected target; Critical results are preserved and printed Critical Hit Effects remain disabled as normal.
 - English + Bugfix build beta10-en2: แก้ 8 บั๊กที่ยืนยันแล้ว: Dash cancel/Timeline, Char Kick ก่อน Iron Grip, Vulcan/Disarm, Breast Fire/Disarm, Tail Blade ใส่ Garrison เปิด Annihilate, Drive Them Back ไม่ทำดาเมจซ้ำใน Reserve, Push/Pull เก็บของเมื่อจบการเคลื่อนที่ และ Epic Shot ตรวจ LOS ของพันธมิตร; AI ใช้การประเมินที่ตรงกัน คงคำแปลอังกฤษครบเดิม ดู BUGFIX-NOTES.txt
-- Current validation: Core 246 + AI 31 + regression cases 26 = 303 checks.
+- Current validation: Core 248 + AI 31 + Regression 33 = 312 checks passed for Beta14.20.
 - Beta10 Bonus Attack UX: เมื่อผู้เล่นต้องเลือกเป้าหมายสำหรับการโจมตีซ้ำแบบบังคับ เกมจะแสดง bubble เล็กเหนือ Unit ว่า “Attack again / Select a target” สำหรับ Vidar Handgun, EVA-01 Progressive Knife, Barbatos Annihilate และ Crimson Execution; bubble หายทันทีเมื่อออกจาก target-selection flow และไม่แสดงในเทิร์น AI.
 - Beta09 GQX Rules/Disarm Fix: Disarm ยังคง reroll Hit และปิดเฉพาะ Critical Hit Effect ของอาวุธ แต่ไม่ลบผล Critical; Omega Psycommu Active ยัง Trigger จาก Critical และ KIRA KIRA! ยังเพิ่ม Damage ต่อ Critical ได้ตามปกติ.
 - Beta09 GQX UI/Docs Fix: HUD ของ GFreD แสดง Nyaan Focus แทน Mazin Power, Dash preview แสดง follow-up ที่ถูกต้องสำหรับ Shuji Kick/Char Kick, และกติกาย่อ/README ระบุ Three Times Faster ของ Red Gundam กับ fixed Tactic ของ GQX.
@@ -135,7 +139,7 @@ GUNDAM ASSEMBLE // ONLINE — Six Teams Beta14.16
 - Objective ที่ครอบครองอยู่ให้ 5 VP ต่อจุดเมื่อจบแต่ละ Phase ตามอัปเดต Scenario ล่าสุด
 - ทีมพิเศษปัจจุบันคือ White Devil, The Rival, Secret และ GQX; ทุกทีมใช้สีแดงหรือน้ำเงินตามฝั่งของแมตช์ ไม่มี Token สีเขียว และ Objective กลางเป็นสีเหลือง
 - Twin Buster Rifle, War Edge, God Drill และ Breast Fire ใช้ AoE ตาม pattern ของการ์ด, ทอยเพียงชุดเดียว, ตรวจผลแยกต่อเป้าหมาย, มองทะลุ Unit/Garrison/Base และ Terrain ปกติ; จะถูกบังเฉพาะเป้าหมายที่อยู่หลัง Terrain ซึ่งสูงกว่าระดับผู้ยิง และไม่โจมตี Base หรือพวกเดียวกัน
-- White Devil, The Rival, Secret และ GQX มี Tactic ทีมละ 3 ใบตลอดเกมโดยไม่จั่วเพิ่มหลัง Phase 1
+- E.F.S.F., ZEON, White Devil และ The Rival ใช้ Tactic Deck 9 ใบ สุ่มจั่ว 3 ใบตอนเริ่มเกมและจั่วเพิ่ม 3 ใบใน Phase 2; Secret และ GQX ใช้ชุดคงที่ 3 ใบตลอดเกม
 
 การตรวจสอบสำหรับผู้พัฒนา (ต้องมี Node.js)
   node tests/ai.test.js

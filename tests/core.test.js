@@ -9,21 +9,21 @@ function test(name, fn) {
   catch (error) { console.error(`✗ ${name}\n  ${error.message}`); process.exitCode = 1; }
 }
 
-test("data pack contains 18 units and 28 unique tactics", () => {
+test("data pack contains 18 units and 41 unique tactics", () => {
   assert.equal(D.units.length, 18);
-  assert.equal(D.tactics.length, 28);
-  assert.equal(new Set(D.tactics.map(x => x.id)).size, 28);
+  assert.equal(D.tactics.length, 41);
+  assert.equal(new Set(D.tactics.map(x => x.id)).size, 41);
 });
 
-test("all 29 real card images are present", () => {
+test("all 59 referenced Unit/Tactic card images are present", () => {
   for (const item of [...D.units, ...D.tactics]) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", item.card)), item.card);
   }
 });
 
 test("all tactics use supplied high-resolution card images", () => {
-  assert.ok(D.tactics.every(card=>card.card.startsWith("assets/cards/tactic-")&&/\.(png|jpg)$/i.test(card.card)));
-  assert.ok(D.tactics.every(card=>fs.statSync(path.join(__dirname,"..",card.card)).size>100000));
+  assert.ok(D.tactics.every(card=>card.card.startsWith("assets/cards/tactic-")&&/\.(png|jpg|webp)$/i.test(card.card)));
+  assert.ok(D.tactics.every(card=>fs.statSync(path.join(__dirname,"..",card.card)).size>50000));
 });
 
 test("all eighteen units use separate map icons", () => {
@@ -37,8 +37,8 @@ test("all eighteen units use separate map icons", () => {
 test("v90 production images are right-sized without losing referenced cards", () => {
   const items=[...D.units,...D.tactics];
   const cards=[...new Set(items.map(item=>item.card))];
-  assert.equal(cards.length,46);
-  assert.ok(cards.every(file=>file.endsWith(".jpg")&&fs.existsSync(path.join(__dirname,"..",file))));
+  assert.equal(cards.length,59);
+  assert.ok(cards.every(file=>/\.(jpg|webp)$/i.test(file)&&fs.existsSync(path.join(__dirname,"..",file))));
   const cardBytes=cards.reduce((total,file)=>total+fs.statSync(path.join(__dirname,"..",file)).size,0);
   assert.ok(cardBytes<13*1024*1024,`referenced card payload is ${cardBytes} bytes`);
   assert.equal(fs.readdirSync(path.join(__dirname,"..","assets","cards")).filter(file=>file.endsWith(".png")).length,0);
@@ -51,21 +51,22 @@ test("v90 production images are right-sized without losing referenced cards", ()
   assert.ok(Math.max(title.width,title.height)<=1400);
 });
 
-test("Ultimate Team can occupy either match side and receives exactly three fixed Tactics", () => {
+test("White Devil can occupy either match side and uses a randomized 9-card Tactic deck", () => {
   const state=E.setupGame(()=>0.5,{fed:"white-devil",zeon:"fed"});
   assert.deepEqual(state.units.filter(unit=>unit.team==="fed").map(unit=>unit.id).sort(),["barbatos-lupus-rex","hero-gundam","wing-zero-ew"]);
   assert.deepEqual(state.units.filter(unit=>unit.team==="zeon").map(unit=>unit.id).sort(),["guncannon","gundam","guntank"]);
   assert.ok(state.units.filter(unit=>unit.team==="fed").every(unit=>unit.originalTeam==="white-devil"));
-  assert.deepEqual(D.tacticDecks["white-devil"],["epic-shot","renewed-power","sacrificial-overload"]);
+  assert.deepEqual(D.tacticDecks["white-devil"],["iron-blooded-tenacity","heros-might","breaking-blow","armor-upgrade","renewed-power","limiter-release","strikethrough","epic-shot","sacrificial-overload"]);
   assert.deepEqual(new Set([...state.hands.fed,...state.tacticDecks.fed]),new Set(D.tacticDecks["white-devil"]));
   assert.equal(state.hands.fed.length,3);
+  assert.equal(state.tacticDecks.fed.length,6);
   state.phase=2;
   E.dealTacticHand(state,"fed",()=>0.1);
-  assert.equal(state.hands.fed.length,3,"Ultimate Team never draws additional Phase 2 Tactics");
+  assert.equal(state.hands.fed.length,6,"White Devil draws 3 more unused Tactics in Phase 2");
   state.hands={fed:["renewed-power"],zeon:["renewed-power"]};
   E.retireTacticCard(state,"fed","renewed-power");
   assert.ok(state.usedTactics.has("fed:renewed-power"));
-  assert.ok(!state.usedTactics.has("zeon:renewed-power"),"shared Tactics are consumed only for their owning side");
+  assert.ok(!state.usedTactics.has("zeon:renewed-power"),"Tactics are consumed only for their owning side");
 });
 
 test("Ultimate Team core combat rules match Zero System and Fight to the End", () => {
@@ -694,7 +695,7 @@ test("battlefield UI uses the compact online title, switchable command placement
   assert.match(html,/id="combat-feed" class="combat-feed board-feed"/);
   assert.doesNotMatch(html,/TACTICAL MAP/);
   assert.match(html,/id="sound-btn"[^>]+aria-label="เลือกเพลงและเสียง"[^>]+aria-pressed="false"/);
-  assert.match(html,/<span class="build-version"[^>]*>Beta14.16<\/span>/);
+  assert.match(html,/<span class="build-version"[^>]*>Beta14.20<\/span>/);
   assert.match(css,/\.build-version \{/);
   assert.doesNotMatch(html,/id="rules-btn"/);
   assert.doesNotMatch(html,/class="legend"/);
@@ -1324,8 +1325,8 @@ test("forced Push never invokes pickupAt and collision damage is 2 for both obje
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const body=source.match(/function beginPushDirection[\s\S]*?\n  \}/)?.[0]||"";
   assert.doesNotMatch(body,/pickupAt/);
-  assert.match(body,/E\.applyDamage\(target,2,\{sourceType:"collision"\}\)/);
-  assert.match(body,/E\.applyDamage\(collidedUnit,2,\{sourceType:"collision"\}\)/);
+  assert.match(body,/applyUnitDamagePending\(source,target,2,"Push Collision","collision"\)/);
+  assert.match(body,/applyUnitDamagePending\(source,step\.unit,2,"Push Collision","collision"\)/);
   assert.match(body,/damageGarrison\(source,step\.garrison,2,"Push Collision"\)/);
 });
 
@@ -1400,9 +1401,9 @@ test("an AI Unit destroyed by a Response releases the AI turn lock", () => {
 test("attack Damage opts into Fracture while direct effects remain direct", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.match(source,/E\.applyDamage\(defender,reducedAttackDamage\(attacker,defender,damage\),\{sourceType:"attack"\}\)/);
-  assert.match(source,/E\.applyDamage\(attacker,reducedAttackDamage\(returningUnit,attacker,result\.damage\),\{sourceType:"attack"\}\)/);
+  assert.match(source,/E\.applyDamage\(attacker,reducedAttackDamage\(returningUnit,attacker,damage\),\{sourceType:"attack"\}\)/);
   const movementResponse=source.match(/function resolveMovementResponses\([\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(movementResponse,/damageUnit\(enforcer,unit,3,"Iron Grip"\)/);
+  assert.match(movementResponse,/damageUnitResolved\(enforcer,unit,3,"Iron Grip","direct"/);
   assert.doesNotMatch(movementResponse,/E\.applyDamage\(unit,3,\{sourceType:"attack"\}\)/);
 });
 
@@ -1418,7 +1419,8 @@ test("v88 AI keeps declined Responses private but reveals committed Responses be
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   assert.doesNotMatch(source,/พิจารณา Response: \$\{aiCard\.name\}/);
   assert.doesNotMatch(source,/AI · กำลังพิจารณา Response/);
-  assert.match(source,/if\(A\.shouldUseResponse\(aiCard,context\)\)showAiTacticCard\(aiCard,\(\)=>onPlay\(aiCard\)\);[\s\S]{0,40}else onSkip\(\)/);
+  assert.match(source,/const aiCard=aiCards\.find\(card=>A\.shouldUseResponse\(card,context\)\)/);
+  assert.match(source,/if\(aiCard\)showAiTacticCard\(aiCard,\(\)=>onPlay\(aiCard\)\);[\s\S]{0,40}else onSkip\(\)/);
   assert.match(source,/attempt\+\(aiOwned\?1:0\)/);
   assert.match(source,/modal\?\.classList\.contains\("show"\)[\s\S]{0,160}AI_PACE\.poll/);
 });
@@ -1520,7 +1522,7 @@ test("the sound button opens Song 1 / Song 2 / Getter Robo / Secret / Off audio 
   assert.match(source,/data-sound-choice="off"/);
   assert.match(source,/song1: "assets\/audio\/battle-bgm\.mp3"/);
   assert.match(source,/song2: "assets\/audio\/title-bgm\.mp3"/);
-  assert.match(source,/getter: "assets\/audio\/getter-robo-bgm\.mp3\?v=beta14-16-en"/);
+  assert.match(source,/getter: "assets\/audio\/getter-robo-bgm\.mp3\?v=beta14-20-en"/);
   const getterTrack=path.join(__dirname,"..","assets","audio","getter-robo-bgm.mp3");
   assert.ok(fs.existsSync(getterTrack));
   assert.match(source,/SFX\.setMuted\(true\)/);
@@ -1620,7 +1622,8 @@ test("finishAttack separates pre-damage and After Combat Damage Critical effects
   assert.match(finish,/weapon\.criticalTiming!=="afterCombatDamage"\) applyCritical/);
   assert.match(finish,/E\.applyDamage\(defender,reducedAttackDamage\(attacker,defender,damage\),\{sourceType:"attack"\}\)/);
   assert.match(finish,/resolveAfterCombatCritical\(attacker,defender,weapon,result/);
-  assert.ok(finish.indexOf('E.applyDamage(defender,reducedAttackDamage(attacker,defender,damage),{sourceType:"attack"})')<finish.indexOf('resolveAfterCombatCritical(attacker,defender,weapon,result'));
+  assert.match(finish,/const afterSplash=\(\)=>\{[\s\S]*resolveAfterCombatCritical\(attacker,defender,weapon,result/);
+  assert.match(finish,/resolveSplashDamage\(attacker,defender,weapon,result,reductions,afterSplash\)/);
 });
 
 test("Return Fire separates pre-damage and After Combat Damage Critical effects", () => {
@@ -1704,7 +1707,7 @@ test("White Base Unity requires Range 3 and Line of Sight", () => {
 test("Push collision defeats the pushed Unit immediately when Damage 2 is lethal", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const choose=source.match(/function beginPushDirection[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(choose,/const pushedDefeated=E\.defeatUnit\(state,target,source\.team\)/);
+  assert.match(choose,/resolvePendingUnitDamage\(pushedPending,resolveCollided\)/);
 });
 
 test("all attack paths pay Timeline before rolling and keep card-specific after-damage Critical timing", () => {
@@ -1743,8 +1746,8 @@ test("Ultimate Team commands and follow-up attacks preserve their printed condit
   assert.match(source,/controlled<2[\s\S]{0,180}Alaya-Vijnana Type E System/);
   assert.match(source,/Hunter’s Edge: ไม่มี Unit ศัตรูที่อยู่ติดกัน/);
   assert.match(source,/beginPushDirection\(unit,target,2/);
-  assert.match(source,/damageUnit\(unit,target,1,"Hunter’s Edge"\)/);
-  assert.match(source,/damageUnit\(unit,unit,3,"Alaya-Vijnana Exertion"/);
+  assert.match(source,/damageUnitResolved\(unit,target,1,"Hunter’s Edge","direct"/);
+  assert.match(source,/damageUnitResolved\(unit,unit,3,"Alaya-Vijnana Exertion","ability"/);
   assert.match(source,/!unit\.attackedWithTailBlade/);
   assert.match(source,/beginAttack\(rex,\{free:true,required:true,attackAgainPrompt:true\}\)/);
   assert.match(source,/weapon\.critical==="repeatAtTimeline0"&&!attacker\.handgunRepeatUsed/);
@@ -1754,20 +1757,21 @@ test("Ultimate Team commands and follow-up attacks preserve their printed condit
 test("Sacrificial Overload damages Wing and every surviving Unit or Garrison target", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const response=source.match(/else if\(card\.id==="sacrificial-overload"\)[\s\S]*?\n    \}/)?.[0]||"";
-  assert.match(response,/damageUnit\(attacker,attacker,2/);
-  assert.match(response,/if\(target\.weapons&&target\.zone==="board"\)damageUnit/);
+  assert.match(response,/unitEntries\.push\(\{source:attacker,target:attacker,amount:2,label:"Sacrificial Overload",sourceType:"tactic"\}\)/);
+  assert.match(response,/unitEntries\.push\(\{source:attacker,target,amount:2,label:"Sacrificial Overload",sourceType:"tactic"\}\)/);
   assert.match(response,/state\.garrisons\.find/);
   assert.match(response,/damageGarrison\(attacker,garrison,2/);
 });
 
-test("direct-damage abilities use the shared Shield-aware defeat path", () => {
+test("direct-damage abilities use the shared Shield-aware defeat/response path", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(source,/damageUnit\(unit,target,1,"Char Kick"\)/);
-  assert.match(source,/damageUnit\(enforcer,unit,3,"Iron Grip"\)/);
-  assert.match(source,/damageUnit\(responseUnit,attacker,2,"Shattered Formation"\)/);
-  assert.match(source,/damageUnit\(unit,enemy,1,"Drive Them Back","tactic"\)/);
-  assert.match(source,/enemyUnits\.forEach\(target=>damageUnit\(unit,target,2,"Sudden Pressure"\)\)/);
-  assert.match(source,/damageUnit\(attacker,unit,reducedAmount,"Cracker Grenade AOE"\)/);
+  assert.match(source,/damageUnitResolved\(unit,target,1,"Char Kick","direct"/);
+  assert.match(source,/damageUnitResolved\(enforcer,unit,3,"Iron Grip","direct"/);
+  assert.match(source,/damageUnitResolved\(responseUnit,attacker,2,"Shattered Formation","tactic"/);
+  assert.match(source,/damageUnitResolved\(unit,enemy,1,"Drive Them Back","tactic"/);
+  assert.match(source,/damageUnitsResolved\(enemyUnits\.map\(target=>\(\{source:unit,target,amount:2,label:"Sudden Pressure",sourceType:"tactic"\}\)\)/);
+  assert.match(source,/damageUnitResolved\(attacker,unit,reducedAmount,"Cracker Grenade AOE","attack"/);
+  assert.match(source,/function resolveUnitDefeatWithTactics/);
 });
 
 test("capture effects offer every adjacent Objective and AI prefers one it does not own", () => {
@@ -1780,11 +1784,13 @@ test("capture effects offer every adjacent Objective and AI prefers one it does 
   assert.match(ai,/objective\.owner === unit\.team \? 12 : objective\.owner \? 125 : 105/);
 });
 
-test("rules copy describes the normal Phase 2 draw and all special-team exceptions", () => {
+test("rules copy describes 9-card randomized decks for Classic/Starter teams and fixed Secret/GQX sets", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
-  assert.match(html,/ทีมพิเศษมี 3 ใบตลอดเกม/);
-  assert.match(source,/White Devil, The Rival, Secret และ GQX มี 3 ใบตลอดเกม/);
+  assert.match(html,/E\.F\.S\.F\., ZEON, White Devil และ The Rival ใช้ Deck 9 ใบและจั่ว 3 ใบต่อ Phase/);
+  assert.match(html,/Secret และ GQX มี 3 ใบตลอดเกม/);
+  assert.match(source,/E\.F\.S\.F\., ZEON, White Devil และ The Rival ใช้ Deck 9 ใบและจั่วเพิ่ม 3 ใบในแต่ละ Phase/);
+  assert.match(source,/Secret และ GQX ใช้ชุดคงที่ 3 ใบตลอดเกม/);
   assert.doesNotMatch(html,/ทันทีเมื่อ Unit ทั้ง 3 ของฝ่ายผ่าน TL10/);
   assert.match(source,/ผู้เล่นแต่ละฝ่ายใช้ Tactic ได้สูงสุด 1 ใบต่อ Activation/);
 });
@@ -1877,7 +1883,7 @@ test("Hover ignores elevation cost in the engine for both human and AI movement"
 test("Alaya-Vijnana Exertion commits its own Command usage before self-damage", () => {
   const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const block=source.match(/else if\(unit\.id==="barbatos-lupus-rex"&&slot===2\)[\s\S]*?\n    \}/)?.[0]||"";
-  assert.ok(block.indexOf("spend();")>=0 && block.indexOf("spend();") < block.indexOf('damageUnit(unit,unit,3,"Alaya-Vijnana Exertion"'));
+  assert.ok(block.indexOf("spend();")>=0 && block.indexOf("spend();") < block.indexOf('damageUnitResolved(unit,unit,3,"Alaya-Vijnana Exertion","ability"'));
   assert.match(block,/const legalMove=E\.reachable\(state,unit,2\)/);
 });
 
@@ -2053,7 +2059,7 @@ test("Vidar Handgun repeat preserves the first attack continuation", () => {
   const critical=source.match(/function resolveAfterCombatCritical[\s\S]*?function applyCritical/)?.[0]||"";
   const finish=source.match(/function finishAttack[\s\S]*?function criticalEffectsActive/)?.[0]||"";
   assert.match(critical,/beginAttack\(weapon,\{free:true,required:true,attackAgainPrompt:true,onComplete\}\)/);
-  assert.match(source,/pendingAttack=\{attacker,defender,weapon,result,reductions:\{\},continuation:options\.onComplete\|\|null\}/);
+  assert.match(source,/pendingAttack=\{attacker,defender,weapon,result,reductions:\{\.\.\.\(weapon\.neutralizeReductionByTarget\|\|\{\}\)\},continuation:options\.onComplete\|\|null\}/);
   assert.match(finish,/if\(continuation\)continuation\(\)/);
 });
 
@@ -2068,7 +2074,7 @@ test("Shattered Formation cannot damage an attacker that already returned to Res
   const post=source.match(/function openPostCombatResponses[\s\S]*?function useUnitAbility/)?.[0]||"";
   assert.match(post,/card\.id!=="shattered-formation"\|\|opposingUnit\?\.zone==="board"/);
   assert.match(post,/attackerAlive:attacker\.zone==="board"/);
-  assert.match(post,/if\(attacker\.zone==="board"\)damageUnit\(responseUnit,attacker,2,"Shattered Formation"\)/);
+  assert.match(post,/if\(attacker\.zone!=="board"\).*Shattered Formation[\s\S]*damageUnitResolved\(responseUnit,attacker,2,"Shattered Formation","tactic"/);
 });
 
 test("Twin Buster edge aiming exposes six explicit direction controls instead of ambiguous shared Hexes", () => {
@@ -2131,8 +2137,16 @@ test("Beta10 registers six complete factions with three distinct units each",()=
   assert.deepEqual(D.units.filter(unit=>unit.team==="gqx").map(unit=>unit.id).sort(),["gfred","gquuuuuux","red-gundam"]);
 });
 
-test("the four special factions start with exactly three fixed Tactics and never draw again",()=>{
-  for(const faction of ["white-devil","rival","secret","gqx"]){
+test("White Devil and The Rival draw from 9 cards while Secret and GQX keep fixed 3-card sets",()=>{
+  for(const faction of ["white-devil","rival"]){
+    assert.equal(D.tacticDecks[faction].length,9);
+    const state=E.setupGame(()=>.5,{fed:faction,zeon:"fed"});
+    assert.equal(state.hands.fed.length,3);
+    assert.equal(state.tacticDecks.fed.length,6);
+    state.phase=2;E.dealTacticHand(state,"fed",()=>.5);
+    assert.equal(state.hands.fed.length,6,faction);
+  }
+  for(const faction of ["secret","gqx"]){
     assert.equal(D.tacticDecks[faction].length,3);
     const state=E.setupGame(()=>.5,{fed:faction,zeon:"fed"});
     assert.equal(state.hands.fed.length,3);
@@ -2141,8 +2155,45 @@ test("the four special factions start with exactly three fixed Tactics and never
   }
 });
 
+test("Beta14.20 Starter 01 decks use the supplied card art",()=>{
+  const expected={
+    "white-devil":["iron-blooded-tenacity","heros-might","breaking-blow","armor-upgrade","renewed-power","limiter-release","strikethrough","epic-shot","sacrificial-overload"],
+    rival:["armor-shatter","field-engineers","thrust-boosters","quick-block","crimson-execution","claiming-vengeance","ghost-step","neutralize","war-edge"]
+  };
+  for(const [faction,ids] of Object.entries(expected)){
+    assert.deepEqual(D.tacticDecks[faction],ids);
+    for(const id of ids){
+      const card=D.tactics.find(item=>item.id===id);assert.ok(card,id);
+      assert.match(card.card,/-th\.webp$/);
+      assert.equal(fs.existsSync(path.join(__dirname,"..",card.card)),true,card.card);
+    }
+  }
+});
+
+test("Beta14.20 Starter 01 timing hooks preserve the confirmed card decisions",()=>{
+  const source=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
+  const engine=fs.readFileSync(path.join(__dirname,"..","engine.js"),"utf8");
+  assert.match(source,/function chooseUpgradeForTactic\(ownerTeam,target,label/);
+  assert.match(source,/destroyBreakingBlowUpgrades\(attacker\.team,targets,afterAttacker\)/);
+  assert.match(source,/weapon\.tacticStrengthBonus=\(weapon\.tacticStrengthBonus\|\|0\)\+2/);
+  assert.match(source,/weapon\.flatDamageBonus=\(weapon\.flatDamageBonus\|\|0\)\+1/);
+  assert.match(engine,/if \(weapon\.flatDamageBonus\) result\.damage \+=/);
+  assert.match(source,/reductions\[entry\.target\.id\]=\(reductions\[entry\.target\.id\]\|\|0\)\+3/);
+  assert.match(source,/weapon\.neutralizeReductionByTarget\[defender\.id\]=\(weapon\.neutralizeReductionByTarget\[defender\.id\]\|\|0\)\+2/);
+  assert.doesNotMatch(source,/damageUnitResolved\(defender,attacker,2,"Neutralize"/);
+  assert.match(source,/pendingAttack=\{attacker,defender,weapon,result,reductions:\{\.\.\.\(weapon\.neutralizeReductionByTarget\|\|\{\}\)\}/);
+  assert.match(source,/const tacticReductions=\{\.\.\.\(weapon\.neutralizeReductionByTarget\|\|\{\}\)\}/);
+  assert.match(source,/objective\.owner=attacker\.team/);
+  assert.match(source,/data-claim-objective/);
+  assert.match(source,/resolveUnitDefeatWithTactics/);
+  assert.match(source,/unit\.id==="barbatos-lupus-rex"[\s\S]{0,220}iron-blooded-tenacity/);
+  assert.match(source,/Armor Shatter:[^\n]+\{ignoreLos:true\}/);
+  assert.match(source,/card\.id==="ghost-step"[\s\S]{0,180}startMove\(2,0,"Ghost Step"/);
+});
+
 test("unit-locked Attack Tactics belong to their printed pilots",()=>{
   assert.equal(D.tactics.find(card=>card.id==="epic-shot").unitOnly,"hero-gundam");
+  assert.equal(D.tactics.find(card=>card.id==="claiming-vengeance").unitOnly,"gundam-vidar");
   assert.equal(D.tactics.find(card=>card.id==="war-edge").unitOnly,"gundam-epyon");
   assert.equal(D.tactics.find(card=>card.id==="god-drill").unitOnly,"mechazawa");
 });
@@ -2384,9 +2435,9 @@ test("v90 Pull moves only closer, collides with higher terrain or occupied hexes
   assert.equal(collision.unit?.id,blocker.id);
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const pull=game.match(/function beginPullToward[\s\S]*?\n  \}/)?.[0]||"";
-  assert.match(pull,/E\.applyDamage\(defender,2,\{sourceType:"collision"\}\)/);
+  assert.match(pull,/applyUnitDamagePending\(attacker,defender,2,"Pull Collision","collision"\)/);
   assert.match(pull,/damageGarrison\(attacker,step\.garrison,2,"Pull Collision"\)/);
-  assert.match(pull,/E\.defeatUnit\(state,defender,attacker\.team\)/);
+  assert.match(pull,/resolvePendingUnitDamage\(pulledPending,resolveCollided\)/);
 });
 
 test("v90 LOS Inspector uses Attack Tactics for both range and blocked-target styling", () => {
@@ -2415,7 +2466,7 @@ test("v90 release removes unused legacy card/reference assets while keeping runt
 
 test("Beta04 build sync expectations follow the current build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.16<\/span>/);
+  assert.match(html,/>Beta14.20<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2490,7 +2541,7 @@ test("v91 Vidar and Barbatos may use both distinct Commands in one activation bu
 
 test("Beta04 browser cache tags and docs are synchronized to the build", () => {
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.16<\/span>/);
+  assert.match(html,/>Beta14.20<\/span>/);
   for(const asset of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${asset.replace(".","\\.")}\\?v=beta14`));
   assert.match(fs.readFileSync(path.join(__dirname,"..","README.txt"),"utf8"),/Six Teams Beta14/);
   assert.match(fs.readFileSync(path.join(__dirname,"..","LAUNCH-AUDIT-TH.txt"),"utf8"),/BUILD AUDIT Beta14/);
@@ -2784,7 +2835,7 @@ test("Beta07 Jump can bypass lower enemies but never an enemy Base",()=>{
 test("Beta07 AoE damage FX preserves the victim hex before defeat clears coordinates",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const aoe=game.match(/function resolveTwinBusterAttack[\s\S]*?function resolveGarrisonAttack/)?.[0]||"";
-  assert.match(aoe,/const impact=\{q:target\.q,r:target\.r\};[\s\S]*E\.defeatUnit\(state,target,attacker\.team\)[\s\S]*playDamageFeedback\(\{to:impact/);
+  assert.match(aoe,/const impact=\{q:target\.q,r:target\.r\};[\s\S]*resolveUnitDefeatWithTactics\(target,attacker\.team[\s\S]*playDamageFeedback\(\{to:impact/);
 });
 
 test("Beta07 hot-seat PASS CONTROL makes the game shell inert and traps keyboard focus",()=>{
@@ -3053,9 +3104,9 @@ test("Beta14.11 attack-prep Commands lock after the last attack opportunity",()=
   assert.match(game,/if\(typeof attackPrepCommandExpired==="function"&&attackPrepCommandExpired\(unit,ability\)\)/);
   assert.match(game,/!canUseCommandAbilityFromMenu\(unit,unit\.command\)\|\|annihilateUnavailable/);
 });
-test("Beta14.16 build and cache tags are synchronized",()=>{
+test("Beta14.20 build and cache tags are synchronized",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/>Beta14.16<\/span>/);
+  assert.match(html,/>Beta14.20<\/span>/);
   for(const file of ["styles.css","data.js","engine.js","ai.js","game.js"])assert.match(html,new RegExp(`${file.replace('.','\\.')}\\?v=beta14`));
 });
 
@@ -3063,7 +3114,7 @@ test("Beta14.16 build and cache tags are synchronized",()=>{
 test("BEYOND THE TIME BGM is selectable and present",()=>{
   const game=fs.readFileSync(path.join(__dirname,"..","game.js"),"utf8");
   const audioPath=path.join(__dirname,"..","assets","audio","beyond-the-time-bgm.mp3");
-  assert.match(game,/beyond: "assets\/audio\/beyond-the-time-bgm\.mp3\?v=beta14-16-en"/);
+  assert.match(game,/beyond: "assets\/audio\/beyond-the-time-bgm\.mp3\?v=beta14-20-en"/);
   assert.match(game,/data-sound-choice="beyond"/);
   assert.match(game,/<strong>BEYOND THE TIME<\/strong>/);
   assert.equal(fs.existsSync(audioPath),true);
